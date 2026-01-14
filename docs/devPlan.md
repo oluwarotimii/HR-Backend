@@ -1,0 +1,686 @@
+# HR Backend - Development Plan (Start to Finish)
+
+**Project:** Fully Dynamic HR Management System
+**Deployment Target:** cPanel (Node.js + MySQL)
+**Timeline:** ~16 weeks (~4 months)
+**Date:** January 14, 2026
+
+---
+
+## PHASE 0: ENVIRONMENT & SETUP (Week 1)
+
+### 0.1 Repository & Tooling
+- [ ] Initialize Node.js project (`npm init -y` or use Yarn/pnpm)
+- [ ] Set up Git repository and GitHub/GitLab
+- [ ] Create `.gitignore` for Node.js (`node_modules/`, `.env`, logs, build artifacts)
+- [ ] Configure `tsconfig.json` for TypeScript support
+- [ ] Set up ESLint + Prettier for code quality
+- [ ] Create `.env.example` with required variables
+
+### 0.2 Database Setup
+- [ ] Provision cPanel MySQL database
+- [ ] Create MySQL user with appropriate permissions
+- [ ] Document database connection string
+- [ ] Set up MySQL client (mysql2/promise for Node.js)
+- [ ] Create database backup strategy
+
+### 0.3 Third-Party Service Integration
+- [ ] Register Resend account and obtain API key
+- [ ] Test Resend email sending (simple test email)
+- [ ] Set up domain verification for Resend (SPF, DKIM, DMARC in cPanel DNS)
+- [ ] Document Resend email template structure
+- [ ] Set up Firebase Cloud Messaging (FCM) for push notifications (optional/research)
+
+### 0.4 Project Structure
+- [ ] Create folder structure:
+  ```
+  src/
+    api/
+    workers/
+    services/
+    models/
+    middleware/
+    utils/
+  config/
+  migrations/
+  tests/
+  docs/
+  ```
+- [ ] Create `src/index.js` entry point
+- [ ] Set up basic Express/Next.js server
+- [ ] Document development workflow (starting/stopping server, running migrations)
+
+---
+
+## PHASE 1: CORE AUTHENTICATION & AUTHORIZATION (Weeks 2-3)
+
+### 1.1 User & Authentication Tables
+- [ ] Create `users` table (id, email, password_hash, full_name, phone, role_id, branch_id, status, created_at)
+- [ ] Create `roles` table (id, name, description, permissions JSON, created_at)
+- [ ] Create `user_permissions` table (id, user_id, permission, allow/deny, created_at)
+- [ ] Create `roles_permissions` junction table
+
+### 1.2 JWT Authentication
+- [ ] Implement JWT token generation (sign, verify, decode)
+- [ ] Create login endpoint: **POST `/api/auth/login`** (email, password)
+- [ ] Create logout endpoint: **POST `/api/auth/logout`** (invalidate token)
+- [ ] Create refresh token endpoint: **POST `/api/auth/refresh`**
+- [ ] Implement middleware: `authenticateJWT` (verify token, attach user to request)
+- [ ] Test JWT flow end-to-end
+
+### 1.3 Role & Permission Management
+- [ ] Create permission manifest generation function
+- [ ] Endpoint: **GET `/api/auth/permissions`** (returns user permissions + features + UI elements)
+- [ ] Implement permission check middleware: `checkPermission(permission)`
+- [ ] Create seeded roles (e.g., "Admin", "HR Manager", "Staff", "Branch Manager")
+- [ ] Document permission atoms (e.g., `staff:create`, `leave:approve`, `payroll:view`)
+
+### 1.4 Testing
+- [ ] Write unit tests for JWT encode/decode
+- [ ] Write integration tests for login/logout flow
+- [ ] Write tests for permission resolution (role + user overrides)
+
+---
+
+## PHASE 2: STAFF MANAGEMENT (Weeks 4-5)
+
+### 2.1 Staff Tables & Models
+- [ ] Create `staff` table (id, user_id, designation, department, branch_id, joining_date, status, created_at)
+- [ ] Create `staff_documents` table (id, staff_id, document_type, file_path, uploaded_at)
+- [ ] Create `staff_addresses` table (id, staff_id, address_type, city, state, zip, country)
+
+### 2.2 Staff CRUD APIs
+- [ ] **POST `/api/staff`** — Create new staff (admin only)
+- [ ] **GET `/api/staff`** — List all staff (with pagination, filtering by branch/department)
+- [ ] **GET `/api/staff/:id`** — Get staff details
+- [ ] **PATCH `/api/staff/:id`** — Update staff info
+- [ ] **DELETE `/api/staff/:id`** — Mark staff as inactive
+- [ ] Document staff creation workflow (user account + staff record)
+
+### 2.3 Audit Logging
+- [ ] Implement audit log capture for all staff operations
+- [ ] Log: who changed what, when, old value → new value
+- [ ] Create **GET `/api/audit`** endpoint (filter by entity type, user, date range)
+
+### 2.4 Testing
+- [ ] Write tests for staff CRUD operations
+- [ ] Test audit log creation and retrieval
+- [ ] Test permission checks on staff endpoints
+
+---
+
+## PHASE 3: DYNAMIC FORMS FRAMEWORK (Weeks 6-7)
+
+### 3.1 Form Tables
+- [ ] Create `forms` table (id, name, form_type, description, branch_id, created_by, is_active, created_at)
+- [ ] Create `form_fields` table (id, form_id, field_name, field_label, field_type, is_required, validation_rule, options JSON, field_order)
+- [ ] Create `form_submissions` table (id, form_id, user_id, submission_data JSON, status, reviewed_by, reviewed_at, notes, submitted_at)
+- [ ] Create `form_attachments` table (id, form_submission_id, field_id, file_name, file_path, mime_type, uploaded_at)
+
+### 3.2 Form Builder APIs
+- [ ] **POST `/api/forms`** — Create form with fields
+- [ ] **GET `/api/forms`** — List all forms
+- [ ] **GET `/api/forms/:id`** — Get form template
+- [ ] **PUT `/api/forms/:id`** — Update form definition
+- [ ] **DELETE `/api/forms/:id`** — Deactivate form
+
+### 3.3 Form Submission APIs
+- [ ] **POST `/api/forms/:id/submit`** — Submit form with data + file attachments
+  - Validate fields against `form_fields` rules (required, type, regex)
+  - Handle file uploads (store in cPanel storage or S3)
+  - Create `form_submissions` record
+  - Send notification to reviewer
+- [ ] **GET `/api/forms/:id/submissions`** — List submissions (paginated, filterable by status)
+- [ ] **GET `/api/forms/submissions/:id`** — Get single submission with attachments
+- [ ] **PATCH `/api/forms/submissions/:id`** — Admin approves/rejects submission
+
+### 3.4 File Upload Handling
+- [ ] Implement file upload endpoint: **POST `/api/upload`** (multipart/form-data)
+- [ ] Validate file type and size
+- [ ] Store files on cPanel (or S3 for scale)
+- [ ] Generate signed URLs for secure downloads
+- [ ] Test file upload/download cycle
+
+### 3.5 Testing
+- [ ] Test form creation with various field types
+- [ ] Test form submission with validation
+- [ ] Test file upload and retrieval
+- [ ] Test submission approval workflow
+
+---
+
+## PHASE 4: LEAVE MANAGEMENT (Weeks 8-9)
+
+### 4.1 Leave Tables
+- [ ] Create `leave_types` table (id, name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, created_by, is_active)
+- [ ] Create `leave_expiry_rules` table (id, name, expire_after_days, trigger_notification_days, auto_expire_action)
+- [ ] Create `leave_allocations` table (id, user_id, leave_type_id, cycle_start_date, cycle_end_date, allocated_days, used_days, carried_over_days)
+- [ ] Create `leave_requests` (or use form_submissions for leave_request form type)
+- [ ] Create `leave_history` table (id, user_id, leave_type_id, start_date, end_date, days_taken, reason, approved_at)
+
+### 4.2 Leave Type Management APIs
+- [ ] **POST `/api/leave-types`** — Create leave type (admin)
+- [ ] **GET `/api/leave-types`** — List leave types
+- [ ] **PUT `/api/leave-types/:id`** — Update leave type
+- [ ] Admin can configure expiry rules per leave type (no code changes)
+
+### 4.3 Leave Allocation APIs
+- [ ] **POST `/api/leave-allocations`** — Admin allocates leave to staff (annual or custom)
+- [ ] **GET `/api/leave-allocations`** — List allocations
+- [ ] **GET `/api/leave-allocations/balance`** — Staff views their leave balance
+- [ ] Calculate available days (allocated + carried_over - used)
+
+### 4.4 Leave Request Workflow
+- [ ] Create "Leave Request" form via form-builder (dropdown for type, date fields, reason, attachments)
+- [ ] **POST `/api/forms/:id/submit`** — Staff submits leave request (auto-routed to manager)
+- [ ] **PATCH `/api/forms/submissions/:id`** — Manager approves/rejects
+- [ ] On approval: deduct from `leave_allocations.used_days`, create `leave_history` record
+- [ ] Send notifications: staff + manager + HR
+
+### 4.5 Testing
+- [ ] Test leave allocation and balance calculation
+- [ ] Test leave request submission and approval flow
+- [ ] Test remaining balance after approval
+- [ ] Test notification sending
+
+---
+
+## PHASE 5: ATTENDANCE TRACKING (Weeks 10)
+
+### 5.1 Attendance Tables
+- [ ] Create `attendance` table (id, user_id, date, status ENUM(present/absent/late/half_day), check_in_time, check_out_time, location, notes)
+- [ ] Create `shift_timings` table (id, user_id, shift_name, start_time, end_time, effective_from, override_branch_id)
+- [ ] Create `holidays` table (id, holiday_name, date, branch_id, is_mandatory, description)
+
+### 5.2 Attendance APIs
+- [ ] **POST `/api/attendance`** — Mark attendance (manual or auto from system)
+- [ ] **GET `/api/attendance`** — View attendance records (staff view own, admin view all)
+- [ ] **PATCH `/api/attendance/:id`** — Admin adjusts attendance (creates audit log)
+- [ ] **GET `/api/attendance/summary`** — Monthly attendance report (present days, absent days, attendance %)
+
+### 5.3 Late/Early Detection Logic
+- [ ] Compare check-in time vs. scheduled start time → mark as late
+- [ ] Compare check-out time vs. scheduled end time → mark as early
+- [ ] Respect staff-specific shift overrides and branch-level holidays
+
+### 5.4 Testing
+- [ ] Test attendance marking and retrieval
+- [ ] Test late/early detection logic
+- [ ] Test shift override logic
+- [ ] Test attendance adjustment audit trail
+
+---
+
+## PHASE 6: PAYROLL & PAYMENT TYPES (Weeks 11)
+
+### 6.1 Payment Tables
+- [ ] Create `payment_types` table (id, name, payment_category ENUM(earning/deduction/tax/benefit), calculation_type ENUM(fixed/percentage/formula), formula, applies_to_all, created_by, is_active)
+- [ ] Create `staff_payment_structure` table (id, staff_id, payment_type_id, value, effective_from, override_branch_id)
+- [ ] Create `payroll_runs` table (id, month, year, branch_id, status, run_date, total_amount, created_at)
+- [ ] Create `payroll_records` table (id, payroll_run_id, staff_id, earnings JSON, deductions JSON, net_pay, created_at)
+
+### 6.2 Payment Type Management APIs
+- [ ] **POST `/api/payment-types`** — Create payment component (admin, no code needed)
+- [ ] **GET `/api/payment-types`** — List all payment types
+- [ ] **PUT `/api/payment-types/:id`** — Update formula or category
+- [ ] Admin can add: Basic Salary, HRA, Medical Allowance, Performance Bonus, PF Deduction, Income Tax, etc.
+
+### 6.3 Staff Payment Structure APIs
+- [ ] **POST `/api/staff/:id/payment-structure`** — Assign payment types to staff
+- [ ] **GET `/api/staff/:id/payment-structure`** — View staff payment components
+- [ ] **PUT `/api/staff/:id/payment-structure/:ptId`** — Update value (e.g., adjust bonus for individual)
+
+### 6.4 Payroll Calculation
+- [ ] Implement payroll engine: iterates over all staff, calculates each payment_type formula
+- [ ] **POST `/api/payroll/run`** — Execute payroll for a month (admin)
+  - Calculate all payment components for each staff
+  - Generate payroll records with earnings, deductions, net pay
+  - Create audit log with calculation details
+  - Send notification to finance
+- [ ] **GET `/api/payroll/records`** — View payroll records (finance/admin only)
+- [ ] **GET `/api/staff/:id/payroll-history`** — Staff views own payroll history
+
+### 6.5 Payslip Generation
+- [ ] Generate payslip document (HTML/PDF) from payroll record
+- [ ] **GET `/api/payslips/:id`** — Download payslip
+- [ ] Send payslip via email on payroll completion
+
+### 6.6 Testing
+- [ ] Test payment type creation and formula evaluation
+- [ ] Test payroll calculation with various component combinations
+- [ ] Test payroll run and record creation
+- [ ] Test payslip generation and email delivery
+
+---
+
+## PHASE 7: KPI & APPRAISAL ENGINE (Weeks 12)
+
+### 7.1 KPI Tables
+- [ ] Create `kpi_definitions` table (id, name, metric_type ENUM(numeric/boolean/rating/text), target_value, unit, calculation_formula, weight, data_source ENUM(formula/manual_entry/system_metric), created_by, is_active)
+- [ ] Create `kpi_assignments` table (id, user_id, kpi_definition_id, cycle_start_date, cycle_end_date, assigned_by, custom_target_value, notes)
+- [ ] Create `kpi_scores` table (id, kpi_assignment_id, calculated_value, achievement_percentage, weighted_score, calculated_at, manually_overridden, override_value, override_reason, override_by)
+
+### 7.2 KPI Management APIs
+- [ ] **POST `/api/kpis`** — Create KPI definition (admin)
+- [ ] **GET `/api/kpis`** — List KPI definitions
+- [ ] **PUT `/api/kpis/:id`** — Update KPI
+- [ ] Admin can define: Attendance Rate, Sales Value, Customer Satisfaction Score, Tasks Completed, etc.
+
+### 7.3 KPI Assignment & Scoring APIs
+- [ ] **POST `/api/kpi-assignments`** — Assign KPIs to staff for cycle (manager/admin)
+- [ ] **GET `/api/kpi-assignments`** — View assigned KPIs
+- [ ] **GET `/api/kpi-scores`** — View calculated scores
+- [ ] **PATCH `/api/kpi-scores/:id`** — Manager manually overrides score (captures override reason)
+
+### 7.4 KPI Calculation Worker
+- [ ] Implement scheduled job (daily 3 AM): `src/workers/kpi-recalc-worker.js`
+- [ ] Fetch active KPI assignments in current cycle
+- [ ] For each KPI:
+  - If formula = 'attendance_rate': calculate from attendance table
+  - If formula = 'sales_value': sum from sales/transactions table
+  - If formula = custom: evaluate expression in sandbox
+- [ ] Compute achievement % and weighted score
+- [ ] Upsert into `kpi_scores`
+- [ ] Create audit log if score changed significantly
+
+### 7.5 Appraisal Form & Workflow
+- [ ] Create "Appraisal Form" via form-builder (fields: performance rating dropdown, comments textarea, score number, attachments)
+- [ ] **POST `/api/forms/:id/submit`** — Manager submits appraisal form
+- [ ] On submission: auto-populate staff's KPI scores for reference
+- [ ] **PATCH `/api/forms/submissions/:id`** — HR finalizes appraisal
+- [ ] Send notifications: staff + manager + HR
+
+### 7.6 Appraisal Dashboard/Reports
+- [ ] **GET `/api/appraisals`** — List appraisals (filter by cycle, staff, department)
+- [ ] **GET `/api/appraisals/:id`** — View full appraisal with KPI scores
+- [ ] **GET `/api/appraisals/summary`** — Department-level summary (avg scores, ratings distribution)
+
+### 7.7 Testing
+- [ ] Test KPI creation and formula evaluation
+- [ ] Test KPI recalculation worker (run manually, verify scores)
+- [ ] Test appraisal form submission and finalization
+- [ ] Test performance reports
+
+---
+
+## PHASE 8: NOTIFICATIONS & LEAVE EXPIRY AUTOMATION (Weeks 13)
+
+### 8.1 Notification Tables
+- [ ] Create `notification_logs` table (id, recipient_user_id, notification_type, title, message, channel ENUM(email/push/in_app/sms), related_entity_type, related_entity_id, sent_at, delivery_status ENUM(pending/sent/failed/bounced), retry_count, error_message, external_id, opened_at)
+
+### 8.2 Notification Service
+- [ ] Create `services/notification.js` with methods:
+  - `sendEmail(to, subject, htmlBody)` — via Resend
+  - `sendPush(userId, title, message)` — via FCM (optional)
+  - `sendInApp(userId, message)` — store in DB, retrieve on frontend
+  - `sendSMS(phone, message)` — optional Twilio integration
+- [ ] Implement retry logic: exponential backoff (2s, 4s, 8s, max 3 retries)
+- [ ] Log all notifications in `notification_logs` table
+
+### 8.3 Email Templates (Resend)
+- [ ] Create email template files:
+  - `leave-expiry-warning.html` — Notify staff X days before leave expires
+  - `leave-approved.html` — Notify staff leave approved
+  - `leave-rejected.html` — Notify staff leave rejected
+  - `payroll-ready.html` — Notify staff payslip is ready
+  - `kpi-due-reminder.html` — Remind manager KPI assessment is due
+  - `appraisal-reminder.html` — Remind manager appraisal deadline
+
+### 8.4 Leave Expiry Worker
+- [ ] Create scheduled job (daily 2 AM): `src/workers/leave-expiry-worker.js`
+- [ ] Query `leave_allocations` where `cycle_end_date - NOW() <= trigger_notification_days`
+- [ ] For each allocation:
+  - If trigger date reached: send leave-expiry-warning email + push notification
+  - Log notification in `notification_logs` (status = 'sent')
+  - Mark as notified (store in DB to avoid duplicate notifications)
+- [ ] If expiry date passed:
+  - Query `leave_expiry_rules` for configured action
+  - If 'delete': set `used_days = allocated_days + carried_over_days` (balance expires)
+  - If 'convert_to_cash': create payroll_adjustment (leave encashment payout)
+  - If 'transfer_to_next_cycle': create next year allocation with carryover
+  - Log action in audit_logs
+
+### 8.5 Notification Dispatch Worker (Optional)
+- [ ] Create scheduled job: `src/workers/notification-dispatch-worker.js`
+- [ ] Query `notification_logs` with status = 'pending'
+- [ ] For each pending notification:
+  - Dispatch via appropriate channel (email, push, SMS)
+  - Update status to 'sent' or 'failed'
+  - Increment retry_count if failed
+  - Re-queue with exponential backoff if retries < 3
+- [ ] Run every 5-10 minutes
+
+### 8.6 Testing
+- [ ] Test leave expiry worker (mock dates, verify notifications sent)
+- [ ] Test notification retry logic
+- [ ] Test email delivery via Resend
+- [ ] Test notification logging
+
+---
+
+## PHASE 9: JOB APPLICATIONS & RECRUITMENT MODULE (Weeks 13-14)
+
+### 9.1 Recruitment Tables
+- [ ] Create `job_postings` table (id, title, description, department, location, salary_range, posted_by, posted_at, closed_at, is_active)
+- [ ] Create `job_applications` table (id, job_posting_id, applicant_name, applicant_email, applicant_phone, resume_file_path, cover_letter, applied_at, status ENUM(applied/shortlisted/interviewed/offer/rejected))
+- [ ] Create `application_comments` table (id, job_application_id, commented_by, comment, created_at)
+
+### 9.2 Job Posting APIs
+- [ ] **POST `/api/jobs`** — Create job posting (HR/admin)
+- [ ] **GET `/api/jobs`** — List active job postings (public-facing)
+- [ ] **PUT `/api/jobs/:id`** — Update posting
+- [ ] **DELETE `/api/jobs/:id`** — Close posting
+
+### 9.3 Application APIs
+- [ ] **POST `/api/jobs/:id/apply`** — External applicant applies (name, email, resume, cover letter)
+- [ ] **GET `/api/applications`** — List all applications (HR/admin filtered by job)
+- [ ] **PATCH `/api/applications/:id`** — Update application status (HR moves applicant through pipeline)
+- [ ] **POST `/api/applications/:id/comments`** — HR/manager adds interview notes
+- [ ] **GET `/api/applications/:id`** — View application with comments and resume
+
+### 9.4 Application Form
+- [ ] Create "Job Application" form via form-builder (name, email, phone, resume file, cover letter, custom questions)
+- [ ] Form submissions stored as job applications
+
+### 9.5 Notifications
+- [ ] Send confirmation email when applicant applies
+- [ ] Send email when application status changes (shortlisted, rejected, offered, etc.)
+- [ ] Notify HR when new application received
+
+### 9.6 Testing
+- [ ] Test job posting CRUD
+- [ ] Test application submission and status tracking
+- [ ] Test notification emails
+
+---
+
+## PHASE 10: WORK HOURS & HOLIDAYS CONFIGURATION (Weeks 14)
+
+### 10.1 Work Hours & Holiday Tables
+- [ ] Create `shift_timings` table (id, staff_id, shift_name, start_time, end_time, effective_from, override_branch_id)
+- [ ] Create `global_shift_timings` table (id, shift_name, start_time, end_time, for_all_staff, created_by)
+- [ ] Create `branch_shift_timings` table (id, branch_id, shift_name, start_time, end_time, created_by)
+- [ ] Create `holidays` table (id, holiday_name, date, holiday_type ENUM(mandatory/optional), branch_id, is_global, description, created_by)
+
+### 10.2 Configuration APIs
+- [ ] **POST `/api/work-hours`** — Set global work hours (admin)
+- [ ] **POST `/api/work-hours/branch/:id`** — Set branch-level work hours (admin)
+- [ ] **POST `/api/work-hours/staff/:id`** — Set individual staff work hours (admin)
+- [ ] **GET `/api/work-hours/effective`** — Get effective work hours (resolves hierarchy: staff > branch > global)
+- [ ] **POST `/api/holidays`** — Create holiday (admin)
+- [ ] **GET `/api/holidays`** — List holidays (filter by branch/global)
+
+### 10.3 Attendance Logic Integration
+- [ ] Update attendance check-in/out logic to use effective work hours
+- [ ] Respect staff-specific overrides, branch overrides, and global defaults
+- [ ] Calculate late/early based on effective start time
+
+### 10.4 Testing
+- [ ] Test work hours hierarchy resolution
+- [ ] Test holiday creation and retrieval
+- [ ] Test attendance logic with various overrides
+
+---
+
+## PHASE 11: ADVANCED FEATURES & POLISH (Week 15)
+
+### 11.1 Dashboard & Analytics
+- [ ] Create admin dashboard endpoints:
+  - **GET `/api/dashboard/summary`** — Total staff, active jobs, pending approvals, payroll status
+  - **GET `/api/dashboard/attendance-chart`** — Monthly attendance trends
+  - **GET `/api/dashboard/leave-utilization`** — Leave type usage breakdown
+  - **GET `/api/dashboard/turnover`** — New hires, resignations, retention rate
+
+### 11.2 Reports & Exports
+- [ ] **GET `/api/reports/staff`** — Export staff directory (CSV/Excel)
+- [ ] **GET `/api/reports/attendance`** — Export attendance report (date range, CSV)
+- [ ] **GET `/api/reports/payroll`** — Export payroll records (CSV)
+- [ ] **GET `/api/reports/appraisals`** — Export appraisal summary (PDF/Excel)
+
+### 11.3 Bulk Operations
+- [ ] **POST `/api/bulk/upload-attendance`** — Upload attendance file (CSV), bulk insert
+- [ ] **POST `/api/bulk/allocate-leave`** — Bulk allocate leave to staff (CSV)
+- [ ] **POST `/api/bulk/import-staff`** — Import staff directory (CSV)
+
+### 11.4 Search & Filtering
+- [ ] Add full-text search for staff names, email, designation
+- [ ] Advanced filtering on all list endpoints (date ranges, statuses, departments)
+
+### 11.5 Data Validation & Error Handling
+- [ ] Comprehensive input validation on all endpoints
+- [ ] Consistent error response format (status code, error message, details)
+- [ ] Rate limiting on API endpoints (prevent abuse)
+
+### 11.6 Security Hardening
+- [ ] Enable CORS (if frontend on different origin)
+- [ ] Add CSRF protection
+- [ ] Sanitize user inputs (prevent SQL injection, XSS)
+- [ ] Encrypt sensitive data in transit (HTTPS/TLS on cPanel)
+- [ ] Password hashing (bcrypt, salt rounds = 10+)
+
+### 11.7 Performance Optimization
+- [ ] Add database indexes on frequently queried columns
+- [ ] Implement Redis caching for permission manifests, leave balances
+- [ ] Add query pagination (default limit 20, max 100)
+- [ ] Optimize database queries (avoid N+1 queries)
+- [ ] Compress API responses (gzip)
+
+### 11.8 Testing Comprehensive Coverage
+- [ ] Write unit tests for all services
+- [ ] Write integration tests for all API endpoints
+- [ ] Write tests for worker jobs (leave expiry, KPI recalc, notification dispatch)
+- [ ] Aim for >80% code coverage
+
+---
+
+## PHASE 12: DEPLOYMENT & DOCUMENTATION (Week 16)
+
+### 12.1 Environment Configuration
+- [ ] Create `.env.production` with production credentials
+- [ ] Set up environment variables for cPanel:
+  - Database connection string
+  - JWT secret
+  - Resend API key
+  - FCM service account (if using push notifications)
+  - App URL/domain
+  - Email from address
+
+### 12.2 Database Migrations
+- [ ] Create migration scripts for all schema tables (Phase 1-11)
+- [ ] Create seed scripts for default roles, permissions, payment types, leave types
+- [ ] Document migration process (how to run on cPanel)
+
+### 12.3 Node.js & PM2 Setup on cPanel
+- [ ] Install Node.js runtime on cPanel (if not pre-installed)
+- [ ] Deploy application files to cPanel (via SSH or Git)
+- [ ] Install dependencies (`npm install`)
+- [ ] Create PM2 ecosystem file (`ecosystem.config.js`)
+- [ ] Start application with PM2 (`pm2 start ecosystem.config.js`)
+- [ ] Configure PM2 to auto-restart on server reboot
+
+### 12.4 Scheduled Jobs
+- [ ] Configure cron jobs on cPanel for:
+  - Leave expiry worker (daily 2 AM)
+  - KPI recalculation worker (daily 3 AM)
+  - Notification dispatch worker (every 5 mins, optional)
+  - Database backup (daily 3 AM)
+
+### 12.5 SSL & DNS
+- [ ] Enable SSL certificate on cPanel (Let's Encrypt or paid)
+- [ ] Set up domain pointing to cPanel (update DNS records)
+- [ ] Configure SPF, DKIM, DMARC records (for Resend email deliverability)
+
+### 12.6 Monitoring & Logging
+- [ ] Set up application logging (Winston or Pino)
+- [ ] Log all errors, API requests, background job runs
+- [ ] Configure centralized logging (Sentry or file-based)
+- [ ] Set up PM2 monitoring (CPU, memory, uptime)
+- [ ] Create monitoring dashboard (optional: NewRelic, Datadog)
+
+### 12.7 Documentation
+- [ ] Write API documentation (Swagger/OpenAPI)
+- [ ] Write deployment guide (step-by-step for cPanel)
+- [ ] Write user guide (admin, staff, manager workflows)
+- [ ] Write troubleshooting guide (common issues, solutions)
+- [ ] Document all configuration options and environment variables
+
+### 12.8 Testing in Production (Staging)
+- [ ] Create staging environment (clone of production)
+- [ ] Run full test suite on staging
+- [ ] Perform load testing (simulate 50+ concurrent users)
+- [ ] Test backup/restore procedures
+- [ ] Validate all notifications (email, push) in staging
+
+### 12.9 Production Deployment
+- [ ] Perform final code review
+- [ ] Create database backup before deployment
+- [ ] Run database migrations on production
+- [ ] Deploy application code
+- [ ] Verify all services running (PM2, cron jobs, API endpoints)
+- [ ] Monitor error logs for first 24 hours
+- [ ] Communicate deployment to stakeholders
+
+### 12.10 Post-Deployment
+- [ ] Create onboarding documentation for end-users
+- [ ] Conduct training with HR admin and managers
+- [ ] Set up support channel (email, Slack, etc.)
+- [ ] Plan for Phase 2 features (if any)
+
+---
+
+## CROSS-CUTTING CONCERNS (Throughout All Phases)
+
+### C.1 Code Quality
+- [ ] Follow code style guide (ESLint + Prettier)
+- [ ] Write comments for complex logic
+- [ ] Use meaningful variable and function names
+- [ ] Avoid code duplication (DRY principle)
+- [ ] Refactor as needed
+
+### C.2 Git Workflow
+- [ ] Use feature branches for each task
+- [ ] Write descriptive commit messages
+- [ ] Create pull requests with code reviews
+- [ ] Merge to `main` after approval
+- [ ] Tag releases (v0.1.0, v0.2.0, etc.)
+
+### C.3 Documentation
+- [ ] Keep `README.md` updated with setup instructions
+- [ ] Document new APIs in Swagger/OpenAPI
+- [ ] Add inline code comments for non-obvious logic
+- [ ] Maintain CHANGELOG.md with release notes
+
+### C.4 Security
+- [ ] Never hardcode secrets (use .env)
+- [ ] Validate and sanitize all inputs
+- [ ] Use parameterized queries (prevent SQL injection)
+- [ ] Implement proper authentication and authorization
+- [ ] Keep dependencies updated (`npm audit`, `npm update`)
+
+### C.5 Performance
+- [ ] Profile API response times regularly
+- [ ] Monitor database query performance
+- [ ] Cache frequently accessed data (Redis)
+- [ ] Optimize database indexes
+- [ ] Monitor server resource usage (CPU, memory, disk)
+
+---
+
+## TESTING STRATEGY
+
+### Unit Tests
+- [ ] Services (notification, payroll calculation, KPI evaluation)
+- [ ] Utilities (date calculations, formula evaluation)
+- [ ] Middleware (authentication, permission checks)
+
+### Integration Tests
+- [ ] API endpoints (happy path + error cases)
+- [ ] Database operations (create, read, update, delete)
+- [ ] Authentication flow (login, token refresh, logout)
+
+### Worker Tests
+- [ ] Leave expiry worker (mock dates, verify notifications)
+- [ ] KPI recalculation worker (verify score calculations)
+- [ ] Notification dispatch worker (verify retry logic)
+
+### End-to-End Tests
+- [ ] Complete user workflows (staff creates account → submits leave request → manager approves)
+- [ ] Admin workflows (configure leave types → allocate leave → monitor expiry)
+- [ ] Payroll cycle (allocate payment types → run payroll → generate payslips)
+
+### Performance Tests
+- [ ] Load testing (simulate 50+ concurrent users)
+- [ ] Database query performance (query time < 500ms)
+- [ ] API response time (p95 < 500ms)
+
+---
+
+## SUCCESS CRITERIA
+
+✅ **Completion Checklist:**
+
+- [ ] All phases completed on time
+- [ ] API endpoints tested and documented
+- [ ] Scheduled workers running reliably
+- [ ] Forms framework fully dynamic (no hardcoding)
+- [ ] Notifications sending to multiple channels
+- [ ] Leave expiry automation working
+- [ ] KPI calculation engine running daily
+- [ ] Payroll calculation accurate
+- [ ] Audit trail complete for all sensitive operations
+- [ ] Permission system working with RBAC + user overrides
+- [ ] Database backed up and recovery tested
+- [ ] Documentation complete (API, deployment, user guide)
+- [ ] Deployed to cPanel and monitoring
+- [ ] Team trained and ready for Go-Live
+
+---
+
+## RISK MITIGATION
+
+| Risk | Mitigation |
+|------|-----------|
+| Database downtime | Daily backups, tested restore procedures |
+| Email delivery failure | Resend retry logic, fallback to SMS/push |
+| Concurrent requests breaking data integrity | Database transactions, row-level locking |
+| Performance degradation at scale | Caching, query optimization, database indexes |
+| Security vulnerability | Regular security audits, dependency updates, code review |
+| Worker job failing silently | PM2 monitoring, error logging, email alerts |
+| Staff data loss | Immutable audit logs, encrypted backups, 7-year retention |
+
+---
+
+## BUDGET & TIMELINE
+
+**Timeline:** 16 weeks (~4 months from Jan 14, 2026)
+
+**Weekly Breakdown:**
+- Week 1: Environment & Setup
+- Weeks 2-3: Authentication & Authorization
+- Weeks 4-5: Staff Management
+- Weeks 6-7: Dynamic Forms
+- Weeks 8-9: Leave Management
+- Week 10: Attendance
+- Week 11: Payroll
+- Week 12: KPI & Appraisals
+- Weeks 13-14: Notifications, Leaves Expiry, Jobs
+- Week 15: Advanced Features
+- Week 16: Deployment & Documentation
+
+**Go-Live Target:** Late April 2026
+
+---
+
+## NEXT IMMEDIATE ACTIONS
+
+1. **Confirm stack choice:** Express.js or Next.js 14?
+2. **Set up cPanel account:** Database, Node.js runtime, domain
+3. **Register Resend:** Obtain API key, verify domain for email
+4. **Start Phase 0:** Initialize repo, set up tooling, create folder structure
+5. **Begin Phase 1:** Implement authentication and JWT
+
+---
+
+**Last Updated:** January 14, 2026  
+**Version:** 1.0  
+**Status:** Ready for Development

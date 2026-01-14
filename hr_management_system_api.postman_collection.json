@@ -1,0 +1,879 @@
+{
+  "info": {
+    "_postman_id": "hr-management-system-api",
+    "name": "HR Management System API",
+    "description": "API collection for the HR Management System with authentication, user management, role management, staff management, and forms framework features.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "permissions"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HR Manager\",\n  \"description\": \"HR Manager role with specific permissions\",\n  \"permissions\": [\"staff.view\", \"staff.create\", \"staff.update\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated HR Manager\",\n  \"description\": \"Updated HR Manager role\",\n  \"permissions\": [\"staff.view\", \"staff.create\", \"staff.update\", \"payroll.view\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Role Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1", "permissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Role Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"reports.view\",\n  \"allow_deny\": \"allow\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1", "permissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Role Permission",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/roles/1/permissions/reports.view",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "roles", "1", "permissions", "reports.view"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"securePassword123\",\n  \"full_name\": \"New User\",\n  \"phone\": \"+1234567890\",\n  \"role_id\": 1,\n  \"branch_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated User Name\",\n  \"phone\": \"+0987654321\",\n  \"role_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Terminate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1/terminate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1", "terminate"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1", "permissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add User Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"documents.approve\",\n  \"allow_deny\": \"allow\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1", "permissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove User Permission",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1/permissions/documents.approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1", "permissions", "documents.approve"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Staff",
+      "item": [
+        {
+          "name": "Get All Staff",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"employee_id\": \"EMP001\",\n  \"designation\": \"Software Engineer\",\n  \"department\": \"Engineering\",\n  \"branch_id\": 1,\n  \"joining_date\": \"2023-01-15\",\n  \"employment_type\": \"full_time\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"designation\": \"Senior Software Engineer\",\n  \"department\": \"Engineering\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Staff",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Terminate Staff",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/1/terminate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "1", "terminate"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff by Department",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/department/Engineering",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "department", "Engineering"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Forms",
+      "item": [
+        {
+          "name": "Get All Forms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Form by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Leave Request Form\",\n  \"description\": \"Form for requesting leave\",\n  \"form_type\": \"leave_request\",\n  \"branch_id\": 1,\n  \"fields\": [\n    {\n      \"field_name\": \"leave_type\",\n      \"field_label\": \"Leave Type\",\n      \"field_type\": \"dropdown\",\n      \"is_required\": true,\n      \"options\": [\n        { \"label\": \"Annual Leave\", \"value\": \"annual\" },\n        { \"label\": \"Sick Leave\", \"value\": \"sick\" }\n      ],\n      \"field_order\": 1\n    },\n    {\n      \"field_name\": \"start_date\",\n      \"field_label\": \"Start Date\",\n      \"field_type\": \"date\",\n      \"is_required\": true,\n      \"field_order\": 2\n    },\n    {\n      \"field_name\": \"reason\",\n      \"field_label\": \"Reason\",\n      \"field_type\": \"textarea\",\n      \"is_required\": false,\n      \"field_order\": 3\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/forms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Form",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Leave Request Form\",\n  \"description\": \"Updated form for requesting leave\",\n  \"form_type\": \"leave_request\",\n  \"branch_id\": 1,\n  \"is_active\": true,\n  \"fields\": [\n    {\n      \"field_name\": \"leave_type\",\n      \"field_label\": \"Leave Type\",\n      \"field_type\": \"dropdown\",\n      \"is_required\": true,\n      \"options\": [\n        { \"label\": \"Annual Leave\", \"value\": \"annual\" },\n        { \"label\": \"Sick Leave\", \"value\": \"sick\" },\n        { \"label\": \"Maternity Leave\", \"value\": \"maternity\" }\n      ],\n      \"field_order\": 1\n    },\n    {\n      \"field_name\": \"start_date\",\n      \"field_label\": \"Start Date\",\n      \"field_type\": \"date\",\n      \"is_required\": true,\n      \"field_order\": 2\n    },\n    {\n      \"field_name\": \"end_date\",\n      \"field_label\": \"End Date\",\n      \"field_type\": \"date\",\n      \"is_required\": true,\n      \"field_order\": 3\n    },\n    {\n      \"field_name\": \"reason\",\n      \"field_label\": \"Reason\",\n      \"field_type\": \"textarea\",\n      \"is_required\": false,\n      \"field_order\": 4\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Form",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Form Fields",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/forms/1/fields",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "forms", "1", "fields"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Form Submissions",
+      "item": [
+        {
+          "name": "Get All Form Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/form-submissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "form-submissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Form Submission by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/form-submissions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "form-submissions", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"form_id\": 1,\n  \"submission_data\": {\n    \"leave_type\": \"annual\",\n    \"start_date\": \"2026-02-01\",\n    \"end_date\": \"2026-02-05\",\n    \"reason\": \"Vacation trip\"\n  },\n  \"status\": \"submitted\",\n  \"notes\": \"Pending approval\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/form-submissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "form-submissions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Form Submission",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"reviewed_by\": 1,\n  \"reviewed_at\": \"2026-01-14T10:00:00Z\",\n  \"notes\": \"Approved by HR Manager\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/form-submissions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "form-submissions", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Form Submission",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/form-submissions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "form-submissions", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
