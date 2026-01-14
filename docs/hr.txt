@@ -1,0 +1,58 @@
+Based on our discussion, here is the full recap of the HR software backend you are building. This system is designed for a company with **200+ employees**, multiple **branches**, and a need for **high-speed operations** and **dynamic flexibility**.
+
+### 1. The Core Architecture
+
+* **Unified Backend:** A single Node.js API serving two frontends: a **Staff Mobile App** (for self-service) and an **HR Admin Dashboard** (for management).
+* **Multi-Branch Awareness:** Everything (Staff, Attendance, Payroll) is scoped by `branch_id` to allow data isolation and branch-specific rules.
+* **Atomic RBAC (The "Soft" Design):** A highly dynamic permission system where features and buttons are invisible unless a user has the specific permission (e.g., `attendance:assign`).
+
+---
+
+### 2. Detailed Feature & Module List
+
+#### **A. Workforce & Branch Management**
+
+* **Multi-Branch Setup:** Define unique work hours, GPS geofencing coordinates, and public holidays for each branch.
+* **Staff List & Lifecycle:** Full management of the employee journey from **Onboarding** (checklists) to **Termination**.
+* **Departmentalization:** Organize staff into nested departments with assigned heads for approval flows.
+* **Document Vault:** Secure uploading and management of IDs, contracts, and certifications with automated expiry alerts.
+
+#### **B. Dynamic Attendance & Time Tracking**
+
+* **Mobile Clock-in:** GPS-verified resumption via the mobile app.
+* **Dynamic Late/Early Logic:** Flexible policies where "Late Resumption" and "Early Closing" thresholds can be set and changed at will per branch or group.
+* **Off-Day & Shift Management:** Ability to assign fixed or rotational off-days and manage complex shift rosters.
+* **Attendance History:** A complete ledger of clock-ins, lates, and absences for every staff member.
+
+#### **C. Performance & Appraisal (The KPI Engine)**
+
+* **KPI Creation:** A library of measurable metrics that can be created dynamically.
+* **KPI Assignment:** Assign specific sets of KPIs to individual staff members or whole departments.
+* **Appraisal Cycles:** Multi-level review process (Self  Manager  HR) with weighted scoring.
+
+#### **D. Leave & Payroll**
+
+* **Leave Management:** Request/Approval workflows for PTO with history tracking.
+* **Automated Payroll:** One-click payroll generation that automatically pulls data from Attendance (penalties for lateness) and Performance (bonuses).
+
+---
+
+### 3. "Soft" Operational Requirements
+
+* **Invisible UI:** The dashboard and mobile app menus are built dynamically based on a "Permissions Manifest" sent by the backend upon login.
+* **Speed & Scalability:** * **Worker Queues:** Handling heavy tasks (like 200+ payslips) in the background.
+* **Caching:** Using Redis to keep permission checks near-instant.
+* **Pre-calculation:** Running nightly "Cron Jobs" to calculate late/early flags so the HR dashboard loads instantly.
+
+
+* **Auditing:** Every sensitive action (salary changes, permission updates) is logged in an immutable audit trail.
+
+---
+
+### 4. Staff Mobile App vs. HR Dashboard
+
+* **Mobile App (Staff):** Focuses on GPS clock-in, viewing personal attendance history, requesting leave, viewing payslips, and receiving push notifications.
+* **Web Dashboard (HR/Admin):** Focuses on branch configuration, KPI creation, running payroll, approving leaves, and viewing company-wide analytics/reports.
+
+**This summary covers all the "moving parts" we've discussed to ensure the system is perfect, scalable, and operationally fast.**
+notifications system and push and the likes
