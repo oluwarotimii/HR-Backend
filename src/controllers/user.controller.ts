@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { getNumberQueryParam, getStringQueryParam } from '../utils/type-utils';
 import UserModel, { UserInput, UserUpdate } from '../models/user.model';
 import UserPermissionModel from '../models/user-permission.model';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
@@ -6,11 +7,51 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 // Controller for user management
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const users = await UserModel.findAll();
+    // Pagination parameters
+    const page = getNumberQueryParam(req, 'page', 1) || 1;
+    const limit = getNumberQueryParam(req, 'limit', 20) || 20;
+    const offset = (page - 1) * limit;
+
+    // Additional filtering parameters
+    const branchId = req.query.branchId ? getNumberQueryParam(req, 'branchId') : undefined;
+    const status = getStringQueryParam(req, 'status');
+    const roleId = req.query.roleId ? getNumberQueryParam(req, 'roleId') : undefined;
+
+    // Validate pagination parameters
+    if (page < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page number must be greater than 0'
+      });
+    }
+
+    if (limit < 1 || limit > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be between 1 and 100'
+      });
+    }
+
+    const { users, totalCount } = await UserModel.findAllWithFilters(limit, offset, branchId, status, roleId);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
     return res.json({
       success: true,
       message: 'Users retrieved successfully',
-      data: { users }
+      data: {
+        users,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: totalCount,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+          nextPage: page < totalPages ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null
+        }
+      }
     });
   } catch (error) {
     console.error('Get all users error:', error);
@@ -42,14 +83,14 @@ export const getUserById = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'User retrieved successfully',
       data: { user }
     });
   } catch (error) {
     console.error('Get user by ID error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Internal server error'
     });
@@ -92,14 +133,14 @@ export const createUser = async (req: Request, res: Response) => {
     // Don't return the password hash
     const { password_hash, ...userWithoutPassword } = newUser as any;
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'User created successfully',
       data: { user: userWithoutPassword }
     });
   } catch (error) {
     console.error('Create user error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Internal server error'
     });
@@ -108,8 +149,9 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const updateUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const userId = parseInt(id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
     const { email, password, full_name, phone, role_id, branch_id, status }: UserUpdate = req.body;
 
     if (isNaN(userId)) {
@@ -165,9 +207,9 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const idStr = Array.isArray(id) ? id[0] : id;
-    const userId = parseInt(idStr);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(userId)) {
       return res.status(400).json({
@@ -200,9 +242,9 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 export const terminateUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const idStr = Array.isArray(id) ? id[0] : id;
-    const userId = parseInt(idStr);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(userId)) {
       return res.status(400).json({
@@ -236,9 +278,9 @@ export const terminateUser = async (req: Request, res: Response) => {
 // Controller for user permissions management
 export const getUserPermissions = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const idStr = Array.isArray(id) ? id[0] : id;
-    const userId = parseInt(idStr);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(userId)) {
       return res.status(400).json({
@@ -265,8 +307,9 @@ export const getUserPermissions = async (req: Request, res: Response) => {
 
 export const addUserPermission = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const userId = parseInt(id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
     const { permission, allow_deny } = req.body;
 
     if (isNaN(userId)) {
@@ -316,8 +359,11 @@ export const addUserPermission = async (req: Request, res: Response) => {
 
 export const removeUserPermission = async (req: Request, res: Response) => {
   try {
-    const { id, permission } = req.params;
-    const userId = parseInt(id);
+    const idParam = req.params.id;
+    const permissionParam = req.params.permission;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const permissionStr = Array.isArray(permissionParam) ? permissionParam[0] : permissionParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(userId)) {
       return res.status(400).json({
@@ -326,14 +372,14 @@ export const removeUserPermission = async (req: Request, res: Response) => {
       });
     }
 
-    if (!permission) {
+    if (!permissionStr) {
       return res.status(400).json({
         success: false,
         message: 'Permission is required'
       });
     }
 
-    const deleted = await UserPermissionModel.deleteUserPermission(userId, permission);
+    const deleted = await UserPermissionModel.deleteUserPermission(userId, permissionStr as string);
     if (!deleted) {
       return res.status(404).json({
         success: false,

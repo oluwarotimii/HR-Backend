@@ -6,11 +6,49 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 // Controller for role management
 export const getAllRoles = async (req: Request, res: Response) => {
   try {
-    const roles = await RoleModel.findAll();
+    // Pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = (page - 1) * limit;
+
+    // Additional filtering parameters
+    const name = Array.isArray(req.query.name) ? req.query.name[0] : req.query.name;
+
+    // Validate pagination parameters
+    if (page < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Page number must be greater than 0'
+      });
+    }
+
+    if (limit < 1 || limit > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be between 1 and 100'
+      });
+    }
+
+    const { roles, totalCount } = await RoleModel.findAllWithFilters(limit, offset, typeof name === 'string' ? name : undefined);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
     return res.json({
       success: true,
       message: 'Roles retrieved successfully',
-      data: { roles }
+      data: {
+        roles,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: totalCount,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+          nextPage: page < totalPages ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null
+        }
+      }
     });
   } catch (error) {
     console.error('Get all roles error:', error);
@@ -23,9 +61,9 @@ export const getAllRoles = async (req: Request, res: Response) => {
 
 export const getRoleById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const roleIdStr = Array.isArray(id) ? id[0] : id;
-    const roleId = parseInt(roleIdStr);
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
 
     if (isNaN(roleId)) {
       return res.status(400).json({
@@ -102,8 +140,9 @@ export const createRole = async (req: Request, res: Response) => {
 
 export const updateRole = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const roleId = parseInt(id);
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
     const { name, description, permissions } = req.body;
 
     if (isNaN(roleId)) {
@@ -146,8 +185,9 @@ export const updateRole = async (req: Request, res: Response) => {
 
 export const deleteRole = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const roleId = parseInt(id);
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
 
     if (isNaN(roleId)) {
       return res.status(400).json({
@@ -180,8 +220,9 @@ export const deleteRole = async (req: Request, res: Response) => {
 // Controller for role permissions management
 export const getRolePermissions = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const roleId = parseInt(id);
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
 
     if (isNaN(roleId)) {
       return res.status(400).json({
@@ -208,8 +249,9 @@ export const getRolePermissions = async (req: Request, res: Response) => {
 
 export const addRolePermission = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const roleId = parseInt(id);
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
     const { permission, allow_deny } = req.body;
 
     if (isNaN(roleId)) {
@@ -259,8 +301,13 @@ export const addRolePermission = async (req: Request, res: Response) => {
 
 export const removeRolePermission = async (req: Request, res: Response) => {
   try {
-    const { id, permission } = req.params;
-    const roleId = parseInt(id);
+    const { id } = req.params;
+    const permissionParam = req.params.permission;
+    const permissionStr = Array.isArray(permissionParam) ? permissionParam[0] : permissionParam;
+
+    const idParam = req.params.id;
+    const roleIdStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const roleId = parseInt(typeof roleIdStr === 'string' ? roleIdStr : '');
 
     if (isNaN(roleId)) {
       return res.status(400).json({
@@ -269,14 +316,14 @@ export const removeRolePermission = async (req: Request, res: Response) => {
       });
     }
 
-    if (!permission) {
+    if (!permissionStr) {
       return res.status(400).json({
         success: false,
         message: 'Permission is required'
       });
     }
 
-    const deleted = await RolePermissionModel.deleteRolePermission(roleId, permission);
+    const deleted = await RolePermissionModel.deleteRolePermission(roleId, permissionStr as string);
     if (!deleted) {
       return res.status(404).json({
         success: false,

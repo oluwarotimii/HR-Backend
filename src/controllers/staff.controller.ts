@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { getNumberQueryParam } from '../utils/type-utils';
 import StaffModel, { StaffInput, StaffUpdate } from '../models/staff.model';
 import UserModel from '../models/user.model';
 import AuditLogModel from '../models/audit-log.model';
@@ -6,9 +7,9 @@ import AuditLogModel from '../models/audit-log.model';
 // Controller for staff management
 export const getAllStaff = async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : undefined;
+    const page = getNumberQueryParam(req, 'page', 1) || 1;
+    const limit = getNumberQueryParam(req, 'limit', 20) || 20;
+    const branchId = req.query.branchId ? getNumberQueryParam(req, 'branchId') : undefined;
 
     const offset = (page - 1) * limit;
 
@@ -143,8 +144,9 @@ export const createStaff = async (req: Request, res: Response) => {
 
 export const updateStaff = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const staffId = parseInt(id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
     const { employee_id, designation, department, branch_id, joining_date, employment_type, status }: StaffUpdate = req.body;
 
     if (isNaN(staffId)) {
@@ -207,8 +209,9 @@ export const updateStaff = async (req: Request, res: Response) => {
 
 export const deleteStaff = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const staffId = parseInt(id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(staffId)) {
       return res.status(400).json({
@@ -265,8 +268,9 @@ export const deleteStaff = async (req: Request, res: Response) => {
 
 export const terminateStaff = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const staffId = parseInt(id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
     if (isNaN(staffId)) {
       return res.status(400).json({
@@ -320,8 +324,9 @@ export const terminateStaff = async (req: Request, res: Response) => {
 
 export const getStaffByDepartment = async (req: Request, res: Response) => {
   try {
-    const { department } = req.params;
-    const branchId = req.query.branchId ? parseInt(req.query.branchId as string) : undefined;
+    const departmentParam = req.params.department;
+    const department = Array.isArray(departmentParam) ? departmentParam[0] : departmentParam;
+    const branchId = req.query.branchId ? getNumberQueryParam(req, 'branchId') : undefined;
 
     if (!department) {
       return res.status(400).json({
@@ -330,7 +335,7 @@ export const getStaffByDepartment = async (req: Request, res: Response) => {
       });
     }
 
-    const staff = await StaffModel.findByDepartment(department, branchId);
+    const staff = await StaffModel.findByDepartment(department as string, branchId);
 
     return res.json({
       success: true,

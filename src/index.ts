@@ -3,6 +3,7 @@ import cors from 'cors';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import { testConnection } from './config/database';
 import authRoutes from './api/auth.route';
 import roleRoutes from './api/role.route';
@@ -17,6 +18,32 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
+
+// Specific rate limiting for auth endpoints (more restrictive)
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 login attempts per windowMs
+  message: {
+    success: false,
+    message: 'Too many login attempts from this IP, please try again later.'
+  },
+  skipSuccessfulRequests: true, // Don't count successful logins towards limit
+});
+
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors()); // Enable cross-origin requests
@@ -28,7 +55,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 testConnection();
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
 app.use('/api/roles', roleRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/staff', staffRoutes);
@@ -54,7 +81,7 @@ app.get('/health', (req, res) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: 'Route not found',

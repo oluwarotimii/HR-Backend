@@ -272,34 +272,95 @@
 - [ ] **GET `/api/kpi-scores`** — View calculated scores
 - [ ] **PATCH `/api/kpi-scores/:id`** — Manager manually overrides score (captures override reason)
 
-### 7.4 KPI Calculation Worker
-- [ ] Implement scheduled job (daily 3 AM): `src/workers/kpi-recalc-worker.js`
-- [ ] Fetch active KPI assignments in current cycle
-- [ ] For each KPI:
-  - If formula = 'attendance_rate': calculate from attendance table
-  - If formula = 'sales_value': sum from sales/transactions table
-  - If formula = custom: evaluate expression in sandbox
-- [ ] Compute achievement % and weighted score
-- [ ] Upsert into `kpi_scores`
-- [ ] Create audit log if score changed significantly
 
-### 7.5 Appraisal Form & Workflow
-- [ ] Create "Appraisal Form" via form-builder (fields: performance rating dropdown, comments textarea, score number, attachments)
-- [ ] **POST `/api/forms/:id/submit`** — Manager submits appraisal form
-- [ ] On submission: auto-populate staff's KPI scores for reference
-- [ ] **PATCH `/api/forms/submissions/:id`** — HR finalizes appraisal
-- [ ] Send notifications: staff + manager + HR
 
-### 7.6 Appraisal Dashboard/Reports
-- [ ] **GET `/api/appraisals`** — List appraisals (filter by cycle, staff, department)
-- [ ] **GET `/api/appraisals/:id`** — View full appraisal with KPI scores
-- [ ] **GET `/api/appraisals/summary`** — Department-level summary (avg scores, ratings distribution)
 
-### 7.7 Testing
-- [ ] Test KPI creation and formula evaluation
-- [ ] Test KPI recalculation worker (run manually, verify scores)
-- [ ] Test appraisal form submission and finalization
-- [ ] Test performance reports
+
+### 7.4 Multi-Source Performance Intelligence Engine
+
+#### 7.4.1 Enhanced KPI Definition System
+- [ ] Extend `kpi_definitions` table to include metadata:
+  - `data_source_type` (ENUM: system, hr, staff, mixed)
+  - `department_id` and `role_id` associations for role-specific KPIs
+  - `frequency` (daily, weekly, monthly, quarterly, annually)
+  - `target_calculation_method` (static, dynamic, formula-based)
+  - `weighting_logic` for role-specific importance
+- [ ] Create `department_kpi_mappings` table to link KPIs to specific departments/roles
+- [ ] **POST `/api/kpis/advanced`** — Create advanced KPI with department/role associations
+- [ ] **GET `/api/kpis/by-department/:deptId`** — Get KPIs specific to department
+- [ ] **GET `/api/kpis/by-role/:roleId`** — Get KPIs specific to role
+
+#### 7.4.2 Data Intake Layer (Three-Stream Integration)
+- [ ] Create `performance_data_stream` table to handle multi-source data:
+  - `source_type` (system, hr, staff)
+  - `entity_type` (attendance, sales, self_report, etc.)
+  - `entity_id` (reference to original data)
+  - `raw_value`, `processed_value`, `verification_status`
+- [ ] **POST `/api/performance/data-ingest`** — Accept data from any source with source identification
+- [ ] Implement automated data pull from system modules (attendance, sales, etc.)
+- [ ] Implement staff self-reporting endpoints
+- [ ] Implement HR subjective data entry endpoints
+
+#### 7.4.3 Appraisal Template Engine with Formula Builder
+- [ ] Create `appraisal_templates` table:
+  - `name`, `department_id`, `role_id`, `formula_definition` (JSON/string)
+  - `weight_distribution` (JSON mapping of KPI weights)
+  - `calculation_logic` (mathematical formula string)
+- [ ] Create formula builder API endpoints:
+  - **POST `/api/templates`** — Create appraisal template with custom formula
+  - **PUT `/api/templates/:id`** — Update template formula
+  - **GET `/api/templates/formula-builder`** — Get available formula components
+- [ ] Implement formula parser/evaluator for dynamic appraisal calculations
+- [ ] Support complex formulas: `(A * 0.6) + (B * 0.4) + IF(C > threshold, bonus, 0)`
+
+#### 7.4.4 Assignment & Mapping Engine
+- [ ] Create `employee_template_assignments` table:
+  - `employee_id`, `template_id`, `assignment_date`, `cycle_start`, `cycle_end`
+- [ ] **POST `/api/assignments`** — Link employee to appropriate template
+- [ ] **GET `/api/assignments/active`** — Get current assignments for calculation workers
+- [ ] Implement cycle management for performance periods
+
+#### 7.4.5 Calculation Worker (Performance Processor)
+- [ ] Implement enhanced scheduled job: `src/workers/performance-intelligence-worker.js`
+- [ ] Fetch active employee-template assignments in current cycle
+- [ ] For each assignment:
+  - Hunt for required KPI values from three data streams
+  - Apply role/department-specific weighting
+  - Execute dynamic formula calculation
+  - Generate comparative analysis (self vs HR vs system data)
+- [ ] Store results in `performance_calculations` table
+- [ ] Generate insights when discrepancies detected (e.g., high self-report vs low HR rating)
+
+#### 7.4.6 Department-Specific Modules
+-Be able  to tie  KPI to a departmane
+#### 7.4.7 Insight & Analytics Layer
+- [ ] Create comparative analysis engine:
+  - Compare self-reported vs HR-entered vs system data
+  - Flag discrepancies with "Training Needed" or "Verification Required" insights
+- [ ] **GET `/api/analytics/performance-heatmap`** — Cross-department performance visualization
+- [ ] **GET `/api/analytics/discrepancy-report`** — Report on data source conflicts
+- [ ] **GET `/api/analytics/trend-analysis`** — Performance trends over time
+
+#### 7.4.8 Appraisal Form & Workflow (Enhanced)
+- [ ] Create dynamic appraisal forms based on assigned template
+- [ ] **POST `/api/appraisals/generate`** — Auto-generate appraisal based on template and collected data
+- [ ] **GET `/api/appraisals/:id/detailed`** — View appraisal with source data breakdown
+- [ ] Implement multi-source data visualization in appraisal forms
+
+#### 7.4.9 Testing
+- [ ] Test multi-source data ingestion and processing
+- [ ] Test dynamic formula evaluation and calculation accuracy
+- [ ] Test department/role-specific KPI assignments
+- [ ] Test performance calculation worker with complex formulas
+- [ ] Test comparative analysis and insight generation
+- [ ] Test department-specific modules (PC Clinic, Logistics, Sales, Teaching)
+
+### 7.5 Email Notification System Enhancement
+- [ ] Create `notifications` table for automated domain-specific communications
+- [ ] **POST `/api/notifications/configure`** — Set up email templates for different domains
+- [ ] **GET `/api/notifications/templates`** — List available notification templates
+- [ ] Implement automated performance-based email triggers
+- [ ] Test domain-specific email delivery system
 
 ---
 

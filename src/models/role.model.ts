@@ -113,6 +113,36 @@ class RoleModel {
     const role = await this.findById(roleId);
     return role ? role.permissions : [];
   }
+
+  // Method to find all roles with filters and pagination
+  static async findAllWithFilters(limit: number, offset: number, name?: string): Promise<{ roles: Role[], totalCount: number }> {
+    let query = `SELECT * FROM ${this.tableName}`;
+    let countQuery = `SELECT COUNT(*) as count FROM ${this.tableName}`;
+    const params: any[] = [];
+    const countParams: any[] = [];
+
+    // Add name filter if provided
+    if (name) {
+      query += ` WHERE name LIKE ?`;
+      countQuery += ` WHERE name LIKE ?`;
+      params.push(`%${name}%`);
+      countParams.push(`%${name}%`);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    // Execute both queries in parallel
+    const [rows, countResult]: [any, any] = await Promise.all([
+      pool.execute(query, params),
+      pool.execute(countQuery, countParams)
+    ]);
+
+    const roles = rows[0] as Role[];
+    const totalCount = countResult[0][0].count;
+
+    return { roles, totalCount };
+  }
 }
 
 export default RoleModel;

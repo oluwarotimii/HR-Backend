@@ -26,9 +26,9 @@ const testConnection = async (): Promise<void> => {
     const connection = await pool.getConnection();
     console.log('Database connected successfully');
     connection.release();
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    process.exit(1);
+  } catch (error: any) {
+    console.warn('Warning: Database connection failed:', error.message);
+    console.warn('Some features may not be available until the database is connected.');
   }
 };
 
