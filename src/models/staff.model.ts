@@ -40,29 +40,81 @@ class StaffModel {
   static async findAll(limit: number = 20, offset: number = 0, branchId?: number): Promise<{staff: Staff[], totalCount: number}> {
     let query = `SELECT * FROM ${this.tableName}`;
     const params: any[] = [];
-    
+
     if (branchId) {
       query += ' WHERE branch_id = ?';
       params.push(branchId);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
-    
+
     const [rows] = await pool.execute(query, params);
-    
+
     // Get total count
     let countQuery = `SELECT COUNT(*) as count FROM ${this.tableName}`;
     const countParams: any[] = [];
-    
+
     if (branchId) {
       countQuery += ' WHERE branch_id = ?';
       countParams.push(branchId);
     }
-    
+
     const [countResult] = await pool.execute(countQuery, countParams);
     const totalCount = (countResult as any)[0].count;
-    
+
+    return {
+      staff: rows as Staff[],
+      totalCount
+    };
+  }
+
+  // Enhanced method with additional filtering
+  static async findAllWithFilters(
+    limit: number = 20,
+    offset: number = 0,
+    branchId?: number,
+    department?: string,
+    status?: string
+  ): Promise<{staff: Staff[], totalCount: number}> {
+    let query = `SELECT * FROM ${this.tableName}`;
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (branchId) {
+      conditions.push('branch_id = ?');
+      params.push(branchId);
+    }
+
+    if (department) {
+      conditions.push('department = ?');
+      params.push(department);
+    }
+
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const [rows] = await pool.execute(query, params);
+
+    // Get total count with same filters
+    let countQuery = `SELECT COUNT(*) as count FROM ${this.tableName}`;
+
+    if (conditions.length > 0) {
+      countQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const [countResult] = await pool.execute(countQuery, params.slice(0, conditions.length));
+    const totalCount = (countResult as any)[0].count;
+
     return {
       staff: rows as Staff[],
       totalCount

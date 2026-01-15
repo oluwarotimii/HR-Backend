@@ -17,7 +17,7 @@ class PermissionService {
   static async hasPermission(userId: number, permission: string): Promise<PermissionCheckResult> {
     // First, check if the user has an explicit permission
     const userPermission = await UserPermissionModel.findByUserAndPermission(userId, permission);
-    
+
     if (userPermission) {
       // User has an explicit permission, return it
       return {
@@ -26,7 +26,7 @@ class PermissionService {
         allowDeny: userPermission.allow_deny
       };
     }
-    
+
     // If no user-specific permission, check the user's role
     const user = await UserModel.findById(userId);
     if (!user) {
@@ -36,10 +36,20 @@ class PermissionService {
         allowDeny: null
       };
     }
-    
-    // Get the role's permission
+
+    // Check if the user's role has the '*' (all permissions) wildcard
+    const role = await RoleModel.findById(user.role_id);
+    if (role && role.permissions && role.permissions.includes('*')) {
+      return {
+        hasPermission: true,
+        source: 'role',
+        allowDeny: 'allow'
+      };
+    }
+
+    // Get the role's specific permission
     const rolePermission = await RolePermissionModel.findByRoleAndPermission(user.role_id, permission);
-    
+
     if (rolePermission) {
       // Role has the permission
       return {
@@ -48,7 +58,7 @@ class PermissionService {
         allowDeny: rolePermission.allow_deny
       };
     }
-    
+
     // No permission found anywhere
     return {
       hasPermission: false,
@@ -65,7 +75,18 @@ class PermissionService {
     if (!user) {
       return [];
     }
-    
+
+    // Check if the user's role has the '*' (all permissions) wildcard
+    const role = await RoleModel.findById(user.role_id);
+    if (role && role.permissions && role.permissions.includes('*')) {
+      // If role has '*' permission, return a special indicator
+      return [{
+        permission: '*',
+        source: 'role' as const,
+        allowDeny: 'allow' as const
+      }];
+    }
+
     // Get user-specific permissions
     const userPermissions = await UserPermissionModel.getUserPermissions(userId);
     const userPermList = userPermissions.map(perm => ({
@@ -73,7 +94,7 @@ class PermissionService {
       source: 'user' as const,
       allowDeny: perm.allow_deny
     }));
-    
+
     // Get role-based permissions
     const rolePermissions = await RolePermissionModel.getRolePermissions(user.role_id);
     const rolePermList = rolePermissions
@@ -83,7 +104,7 @@ class PermissionService {
         source: 'role' as const,
         allowDeny: perm.allow_deny
       }));
-    
+
     return [...userPermList, ...rolePermList];
   }
 
@@ -92,13 +113,25 @@ class PermissionService {
    * This would be sent to the frontend to determine which UI elements to show
    */
   static async generatePermissionManifest(userId: number): Promise<Record<string, boolean>> {
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return {};
+    }
+
+    // Check if the user's role has the '*' (all permissions) wildcard
+    const role = await RoleModel.findById(user.role_id);
+    if (role && role.permissions && role.permissions.includes('*')) {
+      // If role has '*' permission, return a special manifest indicating all permissions
+      return { '*': true };
+    }
+
     const allPermissions = await this.getAllUserPermissions(userId);
-    
+
     const manifest: Record<string, boolean> = {};
     allPermissions.forEach(perm => {
       manifest[perm.permission] = perm.allowDeny === 'allow';
     });
-    
+
     return manifest;
   }
 }

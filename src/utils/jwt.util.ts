@@ -16,13 +16,13 @@ interface TokenPayload {
 
 class JwtUtil {
   static generateAccessToken(payload: TokenPayload): string {
-    const options: SignOptions = { expiresIn: JWT_EXPIRES_IN };
-    return jwt.sign(payload, JWT_SECRET, options as jwt.SignOptions);
+    const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as any };
+    return jwt.sign(payload, JWT_SECRET, options);
   }
 
   static generateRefreshToken(payload: TokenPayload): string {
-    const options: SignOptions = { expiresIn: JWT_REFRESH_EXPIRES_IN };
-    return jwt.sign(payload, JWT_REFRESH_SECRET, options as jwt.SignOptions);
+    const options: SignOptions = { expiresIn: JWT_REFRESH_EXPIRES_IN as any };
+    return jwt.sign(payload, JWT_REFRESH_SECRET, options);
   }
 
   static verifyAccessToken(token: string): any {

@@ -317,6 +317,111 @@ The HR Management System is built as a **unified, dynamically-configurable backe
 
 ---
 
+### 2.3.5 Multi-Source Performance Intelligence Engine
+
+**Purpose:** Transform the KPI system into a comprehensive Performance Intelligence Engine that integrates data from multiple sources (System, HR, Staff) and processes them through dynamic mathematical formulas to generate calculated performance snapshots.
+
+**Core Architecture:**
+
+#### Data Intake Layer (The Sources)
+The system treats data entry as a stream of events categorized into three streams:
+
+1. **The Automated Stream (System):** Data pulled directly from other modules
+   - Attendance module: days present, punctuality metrics
+   - Sales module: revenue figures, deal closures
+   - PC Clinic module: repair counts, equipment maintenance
+   - Logistics module: trip distances, delivery efficiency
+
+2. **The Subjective Stream (HR/Managers):** Data entered by supervisors
+   - Leadership quality assessments
+   - Compliance ratings
+   - Behavioral evaluations
+
+3. **The Self-Reported Stream (Staff):** Staff-entered data requiring verification
+   - Daily activity reports ("5 repairs completed")
+   - Trip logs ("200km driven")
+   - Project completion claims
+
+#### KPI Definition System (The Metric Metadata)
+Each KPI becomes a data instruction with enhanced metadata:
+- Identity: Name and description
+- Owner: Who provides this data? (Staff, HR, System)
+- Frequency: Daily, weekly, monthly, quarterly
+- Target: Success benchmarks
+- Department/Role Association: KPIs tied to specific roles (Technicians, Sales, Engineers, Teachers, Logistics)
+
+#### Appraisal Template Engine (The Strategic Recipe)
+The template serves as the "brain" of the operation:
+- Ingredients: Specific KPIs for each role
+- Weighting: Role-specific importance (e.g., "Repair Quality" 60% for Technician, "Punctuality" 10%)
+- Logic Formula: Mathematical expressions (e.g., (A * 0.6) + (B * 0.4))
+
+#### Assignment & Mapping Engine
+Links employees to appropriate templates:
+- Maps employees to role-specific appraisal templates
+- Tracks performance cycles (January 1st to March 31st)
+- Supports multi-faceted organization with different mathematical rules per department
+
+#### Calculation Worker (The Processor)
+Background process acting as "Virtual Accountant":
+- Identifies active staff and assigned templates
+- Hunts for required KPI values across all data streams
+- Applies dynamic formulas to generate performance scores
+- Outputs Final Performance Profiles
+
+#### Insight & Analytics Layer
+Generates comprehensive data breakdowns:
+- Compares Self-Reported vs HR-Entered vs System data
+- Flags discrepancies ("High Quantity, Low Quality — Training Needed")
+- Creates Performance Heatmaps across departments
+- Provides comparative analysis and trend identification
+
+**Department-Specific Modules:**
+
+1. **PC Clinic Module:**
+   - Technician KPIs for repair efficiency and quality
+   - Self-reporting forms for daily activities
+   - Performance calculation based on quantity and quality metrics
+
+2. **Logistics Module:**
+   - Trip-based performance tracking
+   - Distance, efficiency, and delivery metrics
+   - Driver performance evaluation
+
+3. **Sales Module:**
+   - Revenue-based performance metrics
+   - Deal closure rates and customer satisfaction
+   - Commission and bonus calculations
+
+4. **Teaching Module:**
+   - Educational performance indicators
+   - Student feedback integration
+   - Curriculum delivery metrics
+
+**Formula Builder Capability:**
+- Admins can create custom appraisal formulas through UI
+- Support for complex mathematical expressions
+- Conditional logic (IF statements, thresholds)
+- Real-time formula testing and validation
+
+**Automatic Email Notifications:**
+- Domain-specific email templates
+- Performance-based notifications
+- Automated alerts for low performance or discrepancies
+- Scheduled performance review reminders
+
+**Implementation Notes (plan-level):**
+- Create `performance_data_stream` table to handle multi-source data ingestion
+- Enhance `kpi_definitions` table with department/role associations and data source types
+- Build `appraisal_templates` table with formula definitions and weight distributions
+- Develop `employee_template_assignments` for linking staff to appropriate templates
+- Create `performance_calculations` table for storing calculated results
+- Implement background worker for performance intelligence processing
+- Build comparative analysis engine for discrepancy detection
+- Develop department-specific KPI modules with role-based access
+
+---
+
 ### 2.4 LEAVE & TIME-OFF MANAGEMENT
 
 #### 2.4.1 Leave Policy Configuration

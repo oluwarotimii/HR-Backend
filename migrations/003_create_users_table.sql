@@ -12,9 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   status ENUM('active', 'inactive', 'terminated') DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  
+
   FOREIGN KEY (role_id) REFERENCES roles(id),
-  FOREIGN KEY (branch_id) REFERENCES branches(id),
   INDEX idx_email (email),
   INDEX idx_role_id (role_id),
   INDEX idx_branch_id (branch_id)

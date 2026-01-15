@@ -41,6 +41,57 @@ class UserModel {
     return rows as User[];
   }
 
+  static async findAllWithFilters(
+    limit: number = 20,
+    offset: number = 0,
+    branchId?: number,
+    status?: string,
+    roleId?: number
+  ): Promise<{users: User[], totalCount: number}> {
+    let query = `SELECT * FROM ${this.tableName}`;
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (branchId) {
+      conditions.push('branch_id = ?');
+      params.push(branchId);
+    }
+
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+
+    if (roleId) {
+      conditions.push('role_id = ?');
+      params.push(roleId);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const [rows] = await pool.execute(query, params);
+
+    // Get total count with same filters
+    let countQuery = `SELECT COUNT(*) as count FROM ${this.tableName}`;
+
+    if (conditions.length > 0) {
+      countQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const [countResult] = await pool.execute(countQuery, params.slice(0, conditions.length));
+    const totalCount = (countResult as any)[0].count;
+
+    return {
+      users: rows as User[],
+      totalCount
+    };
+  }
+
   static async findById(id: number): Promise<User | null> {
     const [rows] = await pool.execute(
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
