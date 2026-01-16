@@ -3229,6 +3229,244 @@
       ]
     },
     {
+      "name": "System Initialization",
+      "item": [
+        {
+          "name": "Check System Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/system-complete/readiness",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "system-complete",
+                "readiness"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Initialize Complete System",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"securePassword123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/system-complete/setup-complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "system-complete",
+                "setup-complete"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Initialization Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/system/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "system",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Initialize System (Without Migrations)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"securePassword123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/system/initialize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "system",
+                "initialize"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Role Management",
+      "item": [
+        {
+          "name": "Get Available Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/role-management/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "role-management",
+                "permissions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/role-management",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "role-management"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HR Manager\",\n  \"description\": \"Human Resources Manager\",\n  \"permissions\": [\"staff:create\", \"staff:read\", \"staff:update\", \"users:create\", \"users:read\", \"users:update\", \"reports:view\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/role-management",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "role-management"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated HR Manager\",\n  \"description\": \"Updated Human Resources Manager\",\n  \"permissions\": [\"staff:create\", \"staff:read\", \"staff:update\", \"users:create\", \"users:read\", \"users:update\", \"reports:view\", \"reports:generate\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/role-management/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "role-management",
+                "2"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/role-management/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "role-management",
+                "2"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Staff Invitation",
       "item": [
         {
@@ -3247,26 +3485,25 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"personalEmail\": \"john.doe@example.com\",\n  \"roleId\": 2,\n  \"branchId\": 1\n}"
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"personalEmail\": \"john.doe@example.com\",\n  \"roleId\": 2,\n  \"branchId\": 1,\n  \"departmentId\": 1\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/staff-invitation/invite",
+              "raw": "{{baseUrl}}/api/staff-invitation",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
-                "staff-invitation",
-                "invite"
+                "staff-invitation"
               ]
             }
           },
           "response": []
         },
         {
-          "name": "Deactivate Staff (with email removal)",
+          "name": "Get Available Roles",
           "request": {
-            "method": "DELETE",
+            "method": "GET",
             "header": [
               {
                 "key": "Authorization",
@@ -3274,14 +3511,62 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/staff-invitation/1",
+              "raw": "{{baseUrl}}/api/staff-invitation/roles",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "staff-invitation",
-                "1"
+                "roles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Available Branches",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff-invitation/branches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "staff-invitation",
+                "branches"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Available Departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff-invitation/departments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "staff-invitation",
+                "departments"
               ]
             }
           },

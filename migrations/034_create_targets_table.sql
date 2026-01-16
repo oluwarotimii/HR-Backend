@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS targets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  kpi_id INT NOT NULL,
+  employee_id INT NOT NULL,
+  department_id INT NULL,
+  template_id INT NULL,
+  target_type ENUM('minimum', 'standard', 'stretch') NOT NULL,
+  target_value DECIMAL(10,2) NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (kpi_id) REFERENCES kpi_definitions(id),
+  FOREIGN KEY (employee_id) REFERENCES staff(id),
+  FOREIGN KEY (department_id) REFERENCES departments(id),
+  FOREIGN KEY (template_id) REFERENCES appraisal_templates(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  INDEX idx_employee_id (employee_id),
+  INDEX idx_kpi_id (kpi_id),
+  INDEX idx_template_id (template_id)
+);
