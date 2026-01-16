@@ -34,6 +34,8 @@ import passwordChangeRoutes from './api/password-change.route';
 import systemInitRoutes from './api/system-init.route';
 import roleManagementRoutes from './api/role-management.route';
 import completeSystemInitRoutes from './api/complete-system-init.route';
+import branchManagementRoutes from './api/branch-management.route';
+import departmentManagementRoutes from './api/department-management.route';
 
 // Load environment variables
 dotenv.config();
@@ -107,6 +109,8 @@ app.use('/api/password-change', passwordChangeRoutes);
 app.use('/api/system', systemInitRoutes);
 app.use('/api/role-management', roleManagementRoutes);
 app.use('/api/system-complete', completeSystemInitRoutes);
+app.use('/api/branches', branchManagementRoutes);
+app.use('/api/departments', departmentManagementRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
