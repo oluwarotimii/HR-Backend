@@ -139,8 +139,19 @@ async function seedAdminUser() {
       'Administrator with full access',
       JSON.stringify(['*']) // '*' means all permissions
     ]);
-    
-    const roleId = roleResult.insertId || 1; // Use existing role ID if it exists
+
+    // Get the actual role ID - if new role was inserted, use insertId; otherwise, get the ID of the existing role
+    let roleId;
+    if (roleResult.insertId) {
+      roleId = roleResult.insertId;
+    } else {
+      // Role already existed, get its ID
+      const [existingRole] = await pool.execute(
+        'SELECT id FROM roles WHERE name = ?',
+        ['Admin']
+      );
+      roleId = existingRole[0]?.id || 4; // Default to 4 which is the actual Admin role ID
+    }
     
     // Also add specific permissions to the roles_permissions table for completeness
     const permissionsToAdd = [

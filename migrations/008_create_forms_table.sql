@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS forms (
   id INT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  form_type ENUM('leave_request', 'appraisal', 'application', 'feedback', 'custom') NOT NULL,
+  form_type ENUM('leave_request', 'appraisal', 'application', 'feedback', 'custom', 'general') NOT NULL,
   branch_id INT,
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

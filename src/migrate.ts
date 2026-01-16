@@ -2,8 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 dotenv.config();
+
+// Get the directory name for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Database configuration without specifying database name initially
 const dbConfig = {
@@ -78,10 +84,15 @@ async function runMigrations(): Promise<void> {
         if (statement.trim()) {
           try {
             await poolWithDb.execute(statement.trim());
-          } catch (stmtError) {
-            console.error(`Error executing statement in ${file}:`, stmtError);
-            console.error('Statement:', statement.trim());
-            throw stmtError;
+          } catch (stmtError: any) {
+            // Skip duplicate column errors for ALTER TABLE statements
+            if (stmtError.code === 'ER_DUP_FIELDNAME' || stmtError.errno === 1060) {
+              console.warn(`Warning: Column already exists in ${file}, skipping:`, stmtError.message);
+            } else {
+              console.error(`Error executing statement in ${file}:`, stmtError);
+              console.error('Statement:', statement.trim());
+              throw stmtError;
+            }
           }
         }
       }

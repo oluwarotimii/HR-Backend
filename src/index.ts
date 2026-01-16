@@ -11,6 +11,8 @@ import userRoutes from './api/user.route';
 import staffRoutes from './api/staff.route';
 import formRoutes from './api/form.route';
 import formSubmissionRoutes from './api/form-submission.route';
+import leaveRoutes from './api/leave.route';
+import attendanceApiRoutes from './api/attendance-api.route';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +63,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/forms', formRoutes);
 app.use('/api/form-submissions', formSubmissionRoutes);
+app.use('/api/leave', leaveRoutes);
+app.use('/api/attendance', attendanceApiRoutes);
 
 // Basic route
 app.get('/', (req, res) => {

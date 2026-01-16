@@ -71,24 +71,24 @@ class FormModel {
 
   static async create(formData: FormInput): Promise<Form> {
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} (name, description, form_type, branch_id, created_by) 
+      `INSERT INTO ${this.tableName} (name, description, form_type, branch_id, created_by)
        VALUES (?, ?, ?, ?, ?)`,
       [
         formData.name,
-        formData.description,
+        formData.description ?? null,
         formData.form_type,
-        formData.branch_id,
-        formData.created_by
+        formData.branch_id ?? null,
+        formData.created_by ?? null
       ]
     );
 
     const insertedId = result.insertId;
     const createdItem = await this.findById(insertedId);
-    
+
     if (!createdItem) {
       throw new Error('Failed to create form');
     }
-    
+
     return createdItem;
   }
 

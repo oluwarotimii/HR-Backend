@@ -17,14 +17,14 @@ export interface FormField {
 
 export interface FormFieldInput {
   form_id: number;
-  field_name: string;
-  field_label: string;
-  field_type: 'text' | 'email' | 'number' | 'date' | 'textarea' | 'dropdown' | 'checkbox' | 'file' | 'phone' | 'address';
+  field_name: string | null;
+  field_label: string | null;
+  field_type: 'text' | 'email' | 'number' | 'date' | 'textarea' | 'dropdown' | 'checkbox' | 'file' | 'phone' | 'address' | null;
   is_required?: boolean;
-  placeholder?: string;
-  help_text?: string;
-  validation_rule?: string;
-  options?: any; // JSON field
+  placeholder?: string | null;
+  help_text?: string | null;
+  validation_rule?: string | null;
+  options?: any | null; // JSON field
   field_order: number;
 }
 
@@ -47,7 +47,7 @@ class FormFieldModel {
     let query = `SELECT * FROM ${this.tableName}`;
     const params: any[] = [];
 
-    if (formId) {
+    if (formId !== undefined) {
       query += ' WHERE form_id = ?';
       params.push(formId);
     }
@@ -83,30 +83,77 @@ class FormFieldModel {
   }
 
   static async create(fieldData: FormFieldInput): Promise<FormField> {
+    // More aggressive debugging
+    console.log('DEBUG: Received fieldData:', JSON.stringify(fieldData, null, 2));
+
+    // Handle data type conversion properly to prevent NaN and other issues
+    const form_id = fieldData.form_id;
+    const field_name = fieldData.field_name;
+    const field_label = fieldData.field_label;
+    const field_type = fieldData.field_type;
+    const is_required = fieldData.is_required ?? false;
+    const placeholder = fieldData.placeholder;
+    const help_text = fieldData.help_text;
+    const validation_rule = fieldData.validation_rule;
+    const options = fieldData.options;
+    // Safely convert field_order to number, default to 0 if invalid
+    const field_order = Number.isFinite(Number(fieldData.field_order))
+      ? Number(fieldData.field_order)
+      : 0;
+
+    console.log('DEBUG: Individual values after processing:');
+    console.log({ form_id, field_name, field_label, field_type, is_required, placeholder, help_text, validation_rule, options, field_order });
+
+    const params = [
+      form_id ?? null,
+      field_name ?? null,
+      field_label ?? null,
+      field_type ?? null,
+      is_required,
+      placeholder ?? null,
+      help_text ?? null,
+      validation_rule ?? null,
+      // Handle options properly to avoid double JSON.stringify
+      (options === undefined || options === null)
+        ? null
+        : typeof options === 'string'
+          ? options
+          : JSON.stringify(options),
+      field_order
+    ];
+
+    console.log('DEBUG: Params array before safe conversion:', params);
+
+    // Bulletproof sanitization to prevent any undefined/NaN values from reaching mysql2
+    const safeParams = params.map((v, i) => {
+      if (v === undefined) {
+        console.error(`❌ PARAM ${i} IS UNDEFINED`, v);
+        throw new Error(`Undefined param at index ${i}`);
+      }
+
+      if (typeof v === 'number' && Number.isNaN(v)) {
+        console.error(`❌ PARAM ${i} IS NaN`, v);
+        throw new Error(`NaN param at index ${i}`);
+      }
+
+      return v;
+    });
+
+    console.log('✅ FINAL SAFE PARAMS:', safeParams);
+
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} (form_id, field_name, field_label, field_type, is_required, placeholder, help_text, validation_rule, options, field_order) 
+      `INSERT INTO ${this.tableName} (form_id, field_name, field_label, field_type, is_required, placeholder, help_text, validation_rule, options, field_order)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        fieldData.form_id,
-        fieldData.field_name,
-        fieldData.field_label,
-        fieldData.field_type,
-        fieldData.is_required || false,
-        fieldData.placeholder,
-        fieldData.help_text,
-        fieldData.validation_rule,
-        fieldData.options ? JSON.stringify(fieldData.options) : null,
-        fieldData.field_order
-      ]
+      safeParams
     );
 
     const insertedId = result.insertId;
     const createdItem = await this.findById(insertedId);
-    
+
     if (!createdItem) {
       throw new Error('Failed to create form field');
     }
-    
+
     return createdItem;
   }
 
