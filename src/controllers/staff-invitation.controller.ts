@@ -19,9 +19,15 @@ const generateTemporaryPassword = (): string => {
 // Function to create an email via cPanel API
 const createCpanelEmail = async (email: string, password: string): Promise<boolean> => {
   try {
+    // Check if cPanel credentials are configured
+    if (!process.env.CPANEL_HOST || !process.env.CPANEL_USERNAME || !process.env.CPANEL_PASSWORD) {
+      console.warn('cPanel credentials not configured. Skipping email creation.');
+      return true; // Return true to continue with the invitation process
+    }
+
     // Extract username and domain from email
     const [username, domain] = email.split('@');
-    
+
     // cPanel API parameters
     const cpanelParams = {
       cpanel_jsonapi_module: 'Email',
@@ -33,16 +39,19 @@ const createCpanelEmail = async (email: string, password: string): Promise<boole
       quota: 1000 // Quota in MB, adjust as needed
     };
 
+    // Import https module properly for ES modules
+    const https = await import('https');
+
     // Make request to cPanel API
     const response = await axios.post(
-      `https://${process.env.CPANEL_HOST || 'bhs108b.superfasthost.cloud'}:2083/json-api/cpanel`,
+      `https://${process.env.CPANEL_HOST}:2083/json-api/cpanel`,
       new URLSearchParams(cpanelParams as any),
       {
         headers: {
           'Authorization': `Basic ${Buffer.from(`${process.env.CPANEL_USERNAME}:${process.env.CPANEL_PASSWORD}`).toString('base64')}`,
           'Content-Type': 'application/x-www-form-urlencoded'
         },
-        httpsAgent: new (require('https')).Agent({ rejectUnauthorized: false }) // Note: In production, properly configure SSL
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }) // Note: In production, properly configure SSL
       }
     );
 
@@ -155,24 +164,51 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(temporaryPassword, saltRounds);
 
-    // Create the staff member in the database
+    // Create the user in the users table (without department_id)
     const fullName = `${firstName} ${lastName}`;
     const [userResult]: any = await pool.execute(
-      `INSERT INTO users 
-       (email, password_hash, full_name, phone, role_id, branch_id, department_id, status, must_change_password, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 1, NOW(), NOW())`,
+      `INSERT INTO users
+       (email, password_hash, full_name, phone, role_id, branch_id, status, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', 1, NOW(), NOW())`,
       [
-        workEmail, 
-        passwordHash, 
-        fullName, 
-        phone || null, 
-        roleId, 
-        branchId || null, 
-        departmentId || null
+        workEmail,
+        passwordHash,
+        fullName,
+        phone || null,
+        roleId,
+        branchId || null
       ]
     );
 
     const userId = userResult.insertId;
+
+    // Create the corresponding staff record with department
+    if (departmentId) {
+      // Get the department name from the departments table
+      const [deptRows]: any = await pool.execute(
+        'SELECT name FROM departments WHERE id = ?',
+        [departmentId]
+      );
+
+      if (deptRows.length > 0) {
+        const departmentName = deptRows[0].name;
+
+        await pool.execute(
+          `INSERT INTO staff
+           (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
+          [
+            userId,
+            `EMP${userId.toString().padStart(4, '0')}`, // Generate employee ID
+            'New Employee', // Default designation
+            departmentName, // Department name, not ID
+            branchId || null,
+            new Date().toISOString().split('T')[0], // Today's date
+            'full_time' // Default employment type
+          ]
+        );
+      }
+    }
 
     // Send invitation email to personal email
     try {
@@ -182,9 +218,9 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
         'SELECT full_name FROM users WHERE id = ?',
         [adminId]
       );
-      
+
       const adminName = adminRows[0]?.full_name || 'an administrator';
-      
+
       await sendStaffInvitationEmail({
         to: personalEmail,
         fullName: fullName,
