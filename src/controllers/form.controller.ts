@@ -92,35 +92,47 @@ export const createForm = async (req: Request, res: Response) => {
     const newForm = await FormModel.create(formData);
 
     // Create form fields if provided
-    if (fields && Array.isArray(fields)) {
+    if (fields && Array.isArray(fields) && fields.length > 0) {
       for (const field of fields) {
+        // Skip if field data is incomplete
+        if (!field ||
+            field.field_name === undefined || field.field_name === null || field.field_name === '' ||
+            field.field_label === undefined || field.field_label === null || field.field_label === '' ||
+            field.field_type === undefined || field.field_type === null || field.field_type === '') {
+          console.warn('Skipping incomplete or null field:', field);
+          continue;
+        }
+
         const fieldData: FormFieldInput = {
           form_id: newForm.id,
-          field_name: field.field_name,
-          field_label: field.field_label,
-          field_type: field.field_type,
-          is_required: field.is_required || false,
-          placeholder: field.placeholder,
-          help_text: field.help_text,
-          validation_rule: field.validation_rule,
-          options: field.options,
-          field_order: field.field_order
+          field_name: field.field_name ?? null,
+          field_label: field.field_label ?? null,
+          field_type: field.field_type ?? null,
+          is_required: field.is_required ?? false,
+          placeholder: field.placeholder ?? null,
+          help_text: field.help_text ?? null,
+          validation_rule: field.validation_rule ?? null,
+          options: field.options ?? null,
+          field_order: field.field_order ?? 0
         };
-        
+
         await FormFieldModel.create(fieldData);
       }
     }
 
-    // Log the form creation
-    await AuditLogModel.logStaffOperation(
-      req.currentUser.id,
-      'form.created',
-      newForm.id,
-      null,
-      newForm,
-      req.ip,
-      req.get('User-Agent') || undefined
-    );
+    // Log the form creation if currentUser exists
+    if (req.currentUser) {
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'form.created',
+        entity_type: 'form',
+        entity_id: newForm.id,
+        before_data: null,
+        after_data: newForm,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent') || null
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -172,37 +184,47 @@ export const updateForm = async (req: Request, res: Response) => {
     if (fields && Array.isArray(fields)) {
       // First, delete all existing fields for this form
       await FormFieldModel.deleteByFormId(formId);
-      
+
       // Then create new fields
       for (const field of fields) {
+        // Skip if field data is incomplete
+        if (!field ||
+            field.field_name === undefined || field.field_name === null || field.field_name === '' ||
+            field.field_label === undefined || field.field_label === null || field.field_label === '' ||
+            field.field_type === undefined || field.field_type === null || field.field_type === '') {
+          console.warn('Skipping incomplete field during update:', field);
+          continue;
+        }
+
         const fieldData: FormFieldInput = {
           form_id: formId,
-          field_name: field.field_name,
-          field_label: field.field_label,
-          field_type: field.field_type,
-          is_required: field.is_required || false,
-          placeholder: field.placeholder,
-          help_text: field.help_text,
-          validation_rule: field.validation_rule,
-          options: field.options,
-          field_order: field.field_order
+          field_name: field.field_name ?? null,
+          field_label: field.field_label ?? null,
+          field_type: field.field_type ?? null,
+          is_required: field.is_required ?? false,
+          placeholder: field.placeholder ?? null,
+          help_text: field.help_text ?? null,
+          validation_rule: field.validation_rule ?? null,
+          options: field.options ?? null,
+          field_order: field.field_order ?? 0
         };
-        
+
         await FormFieldModel.create(fieldData);
       }
     }
 
     // Log the form update
     if (req.currentUser) {
-      await AuditLogModel.logStaffOperation(
-        req.currentUser.id,
-        'form.updated',
-        formId,
-        existingForm,
-        updatedForm,
-        req.ip,
-        req.get('User-Agent') || undefined
-      );
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'form.updated',
+        entity_type: 'form',
+        entity_id: formId,
+        before_data: existingForm,
+        after_data: updatedForm,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent') || null
+      });
     }
 
     return res.json({
@@ -253,15 +275,16 @@ export const deleteForm = async (req: Request, res: Response) => {
 
     // Log the form deactivation
     if (req.currentUser) {
-      await AuditLogModel.logStaffOperation(
-        req.currentUser.id,
-        'form.deactivated',
-        formId,
-        existingForm,
-        updatedForm,
-        req.ip,
-        req.get('User-Agent') || undefined
-      );
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'form.deactivated',
+        entity_type: 'form',
+        entity_id: formId,
+        before_data: existingForm,
+        after_data: updatedForm,
+        ip_address: req.ip,
+        user_agent: req.get('User-Agent') || null
+      });
     }
 
     return res.json({

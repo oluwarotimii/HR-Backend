@@ -1,0 +1,216 @@
+import { pool } from '../config/database';
+
+export interface AttendanceLocation {
+  id: number;
+  name: string;
+  location_coordinates: string; // POINT data stored as WKT string: "POINT(longitude latitude)"
+  location_radius_meters: number;
+  branch_id: number | null;
+  is_active: boolean;
+  created_by: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AttendanceLocationInput {
+  name: string;
+  location_coordinates: string; // WKT format: "POINT(longitude latitude)"
+  location_radius_meters?: number;
+  branch_id?: number | null;
+  is_active?: boolean;
+  created_by?: number | null;
+}
+
+export interface AttendanceLocationUpdate {
+  name?: string;
+  location_coordinates?: string; // WKT format: "POINT(longitude latitude)"
+  location_radius_meters?: number;
+  branch_id?: number | null;
+  is_active?: boolean;
+}
+
+class AttendanceLocationModel {
+  static tableName = 'attendance_locations';
+
+  static async findAll(): Promise<AttendanceLocation[]> {
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`
+    );
+    return rows as AttendanceLocation[];
+  }
+
+  static async findById(id: number): Promise<AttendanceLocation | null> {
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE id = ?`,
+      [id]
+    );
+    return (rows as AttendanceLocation[])[0] || null;
+  }
+
+  static async findActiveLocations(): Promise<AttendanceLocation[]> {
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`
+    );
+    return rows as AttendanceLocation[];
+  }
+
+  static async findByBranch(branchId: number): Promise<AttendanceLocation[]> {
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE branch_id = ? AND is_active = TRUE ORDER BY name`,
+      [branchId]
+    );
+    return rows as AttendanceLocation[];
+  }
+
+  static async create(locationData: AttendanceLocationInput): Promise<AttendanceLocation> {
+    const [result]: any = await pool.execute(
+      `INSERT INTO ${this.tableName} (name, location_coordinates, location_radius_meters, branch_id, is_active, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        locationData.name,
+        locationData.location_coordinates,
+        locationData.location_radius_meters || 100,
+        locationData.branch_id || null,
+        locationData.is_active ?? true,
+        locationData.created_by || null
+      ]
+    );
+
+    const insertedId = result.insertId;
+    const createdItem = await this.findById(insertedId);
+
+    if (!createdItem) {
+      throw new Error('Failed to create attendance location');
+    }
+
+    return createdItem;
+  }
+
+  static async update(id: number, locationData: AttendanceLocationUpdate): Promise<AttendanceLocation | null> {
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (locationData.name !== undefined) {
+      updates.push('name = ?');
+      values.push(locationData.name);
+    }
+
+    if (locationData.location_coordinates !== undefined) {
+      updates.push('location_coordinates = ?');
+      values.push(locationData.location_coordinates);
+    }
+
+    if (locationData.location_radius_meters !== undefined) {
+      updates.push('location_radius_meters = ?');
+      values.push(locationData.location_radius_meters);
+    }
+
+    if (locationData.branch_id !== undefined) {
+      updates.push('branch_id = ?');
+      values.push(locationData.branch_id);
+    }
+
+    if (locationData.is_active !== undefined) {
+      updates.push('is_active = ?');
+      values.push(locationData.is_active);
+    }
+
+    if (updates.length === 0) {
+      return await this.findById(id);
+    }
+
+    values.push(id);
+
+    await pool.execute(
+      `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    return await this.findById(id);
+  }
+
+  static async delete(id: number): Promise<boolean> {
+    // Soft delete by setting is_active to false
+    const result: any = await pool.execute(
+      `UPDATE ${this.tableName} SET is_active = FALSE WHERE id = ?`,
+      [id]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  // Method to check if a coordinate is within any attendance location
+  static async isWithinAttendanceLocation(lat: number, lng: number, branchId?: number | null): Promise<AttendanceLocation | null> {
+    let query = '';
+    const params: any[] = [`POINT(${lng} ${lat})`];
+
+    if (branchId !== undefined && branchId !== null) {
+      query = `
+        SELECT * FROM ${this.tableName}
+        WHERE is_active = TRUE
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= location_radius_meters
+        AND (branch_id = ? OR branch_id IS NULL)
+        LIMIT 1`;
+      params.push(branchId);
+    } else {
+      query = `
+        SELECT * FROM ${this.tableName}
+        WHERE is_active = TRUE
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= location_radius_meters
+        LIMIT 1`;
+    }
+
+    const [rows] = await pool.execute(query, params) as [AttendanceLocation[], any];
+    return (rows as AttendanceLocation[])[0] || null;
+  }
+
+  // Method to get all locations within a certain distance of a coordinate
+  static async getLocationsNearby(lat: number, lng: number, maxDistanceMeters: number = 1000, branchId?: number | null): Promise<AttendanceLocation[]> {
+    let query = '';
+    const params: any[] = [`POINT(${lng} ${lat})`, maxDistanceMeters];
+
+    if (branchId !== undefined && branchId !== null) {
+      query = `
+        SELECT *, ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) AS distance_meters
+        FROM ${this.tableName} 
+        WHERE is_active = TRUE 
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= ?
+        AND (branch_id = ? OR branch_id IS NULL)
+        ORDER BY distance_meters ASC`;
+      params.push(branchId);
+    } else {
+      query = `
+        SELECT *, ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) AS distance_meters
+        FROM ${this.tableName} 
+        WHERE is_active = TRUE 
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= ?
+        ORDER BY distance_meters ASC`;
+    }
+
+    const [rows] = await pool.execute(query, params);
+    return rows as AttendanceLocation[];
+  }
+
+  // Method to check if a coordinate is within a specific location's radius
+  static async isWithinSpecificLocation(locationId: number, lat: number, lng: number): Promise<boolean> {
+    const [rows] = await pool.execute(`
+      SELECT id FROM ${this.tableName}
+      WHERE id = ?
+      AND is_active = TRUE
+      AND ST_Distance_Sphere(location_coordinates, ST_PointFromText('POINT(${lng} ${lat})')) <= location_radius_meters
+    `, [locationId]) as [any[], any];
+
+    return (rows as any[]).length > 0;
+  }
+
+  // Method to find locations by active status
+  static async findByActiveStatus(isActive: boolean): Promise<AttendanceLocation[]> {
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE is_active = ? ORDER BY name`,
+      [isActive]
+    ) as [AttendanceLocation[], any];
+    return rows as AttendanceLocation[];
+  }
+}
+
+export default AttendanceLocationModel;

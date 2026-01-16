@@ -72,14 +72,14 @@ class AuditLogModel {
       `INSERT INTO ${this.tableName} (user_id, action, entity_type, entity_id, before_data, after_data, ip_address, user_agent)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        logData.user_id,
+        logData.user_id ?? null,
         logData.action,
         logData.entity_type,
         logData.entity_id,
         logData.before_data ? JSON.stringify(logData.before_data) : null,
         logData.after_data ? JSON.stringify(logData.after_data) : null,
-        logData.ip_address,
-        logData.user_agent
+        logData.ip_address ?? null,
+        logData.user_agent ?? null
       ]
     );
 
