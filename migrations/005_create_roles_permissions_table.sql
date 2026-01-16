@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS roles_permissions (
   permission VARCHAR(255) NOT NULL,
   allow_deny ENUM('allow', 'deny') DEFAULT 'allow',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  
+
   FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
   UNIQUE KEY unique_role_permission (role_id, permission),
   INDEX idx_role_id (role_id),

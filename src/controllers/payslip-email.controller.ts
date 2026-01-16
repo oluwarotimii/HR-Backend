@@ -4,7 +4,7 @@ import PayrollRecordModel from '../models/payroll-record.model';
 import PayrollRunModel from '../models/payroll-run.model';
 import StaffModel from '../models/staff.model';
 import UserModel from '../models/user.model';
-import EmailService from '../services/email.service';
+import { sendPayrollReady } from '../services/email.service';
 
 export const sendPayslipByEmail = async (req: Request, res: Response) => {
   try {
@@ -95,7 +95,7 @@ export const sendPayslipByEmail = async (req: Request, res: Response) => {
       ];
       const monthName = monthNames[payrollRun.month - 1];
 
-      const result = await EmailService.sendPayrollReady(user.email, monthName, payrollRun.year);
+      const result = await sendPayrollReady({ to: user.email, month: monthName, year: payrollRun.year });
 
       if (result.success) {
         return res.json({

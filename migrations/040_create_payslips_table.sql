@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS payslips (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  payroll_record_id INT NOT NULL,
+  staff_id INT NOT NULL,
+  pdf_url VARCHAR(500),
+  generated_by INT NOT NULL,
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (payroll_record_id) REFERENCES payroll_records(id),
+  FOREIGN KEY (staff_id) REFERENCES staff(id),
+  FOREIGN KEY (generated_by) REFERENCES users(id)
+);

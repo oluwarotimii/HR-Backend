@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS performance_scores (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  kpi_id INT NOT NULL,
+  template_id INT NOT NULL,
+  score DECIMAL(10,2) NOT NULL,
+  achieved_value DECIMAL(10,2) NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  calculated_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES staff(id),
+  FOREIGN KEY (kpi_id) REFERENCES kpi_definitions(id),
+  FOREIGN KEY (template_id) REFERENCES appraisal_templates(id),
+  FOREIGN KEY (calculated_by) REFERENCES users(id),
+  INDEX idx_employee_id (employee_id),
+  INDEX idx_kpi_id (kpi_id),
+  INDEX idx_template_id (template_id),
+  INDEX idx_calculated_at (calculated_at)
+);
