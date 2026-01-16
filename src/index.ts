@@ -31,6 +31,9 @@ import kpiAssignmentRoutes from './api/kpi-assignment.route';
 import kpiScoreRoutes from './api/kpi-score.route';
 import staffInvitationRoutes from './api/staff-invitation.route';
 import passwordChangeRoutes from './api/password-change.route';
+import systemInitRoutes from './api/system-init.route';
+import roleManagementRoutes from './api/role-management.route';
+import completeSystemInitRoutes from './api/complete-system-init.route';
 
 // Load environment variables
 dotenv.config();
@@ -101,6 +104,9 @@ app.use('/api/kpi-assignments', kpiAssignmentRoutes);
 app.use('/api/kpi-scores', kpiScoreRoutes);
 app.use('/api/staff-invitation', staffInvitationRoutes);
 app.use('/api/password-change', passwordChangeRoutes);
+app.use('/api/system', systemInitRoutes);
+app.use('/api/role-management', roleManagementRoutes);
+app.use('/api/system-complete', completeSystemInitRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
