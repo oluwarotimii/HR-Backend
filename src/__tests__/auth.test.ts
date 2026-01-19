@@ -1,16 +1,28 @@
 import request from 'supertest';
-import app from '../src/index';
-import UserModel from '../src/models/user.model';
-import RoleModel from '../src/models/role.model';
+import app from '../test-app';
+import UserModel from '../models/user.model';
+import RoleModel from '../models/role.model';
 import bcrypt from 'bcryptjs';
 
-// Mock the database connection
-jest.mock('../src/config/database', () => ({
-  pool: {
-    execute: jest.fn()
+// Mock the authentication middleware (for endpoints that require auth)
+jest.mock('../middleware/auth.middleware', () => ({
+  authenticateJWT: (req: any, res: any, next: any) => {
+    req.currentUser = {
+      id: 1,
+      email: 'test@example.com',
+      role_id: 1,
+      branch_id: 1
+    };
+    next();
   },
-  testConnection: jest.fn()
+  checkPermission: (permission: string) => (req: any, res: any, next: any) => {
+    next();
+  }
 }));
+
+// Mock the models to test the API endpoints
+jest.mock('../models/user.model');
+jest.mock('../models/role.model');
 
 describe('Authentication API', () => {
   const mockUser = {
@@ -21,7 +33,8 @@ describe('Authentication API', () => {
     phone: '+1234567890',
     role_id: 1,
     branch_id: 1,
-    status: 'active',
+    status: 'active' as const,
+    must_change_password: false,
     created_at: new Date(),
     updated_at: new Date()
   };

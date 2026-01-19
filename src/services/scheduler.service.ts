@@ -7,6 +7,7 @@ import { BirthdayNotificationWorker } from '../workers/birthday-notification.wor
 
 export class SchedulerService {
   private static workers: Array<{name: string, start: () => void}> = [];
+  private static initialized = false;
 
   /**
    * Initialize all scheduled workers
@@ -22,6 +23,7 @@ export class SchedulerService {
 
     // Start all workers
     this.startAllWorkers();
+    this.initialized = true;
   }
 
   /**
@@ -41,6 +43,13 @@ export class SchedulerService {
     }
 
     console.log('All scheduled workers initialized');
+  }
+
+  /**
+   * Check if scheduler has been initialized
+   */
+  static isInitialized(): boolean {
+    return this.initialized;
   }
 
   /**

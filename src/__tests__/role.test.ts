@@ -1,13 +1,24 @@
 import request from 'supertest';
-import app from '../src/index';
-import RoleModel from '../src/models/role.model';
+import app from '../test-app';
+import RoleModel from '../models/role.model';
 
-// Mock the database connection
-jest.mock('../src/config/database', () => ({
-  pool: {
-    execute: jest.fn()
+// Mock the RoleModel to test the API endpoints
+jest.mock('../models/role.model');
+
+// Mock the authentication middleware
+jest.mock('../middleware/auth.middleware', () => ({
+  authenticateJWT: (req: any, res: any, next: any) => {
+    req.currentUser = {
+      id: 1,
+      email: 'test@example.com',
+      role_id: 1,
+      branch_id: 1
+    };
+    next();
   },
-  testConnection: jest.fn()
+  checkPermission: (permission: string) => (req: any, res: any, next: any) => {
+    next();
+  }
 }));
 
 describe('Role Management API', () => {
@@ -27,8 +38,8 @@ describe('Role Management API', () => {
   describe('GET /api/roles', () => {
     it('should return all roles', async () => {
       // Mock the database call
-      (RoleModel.findAll as jest.MockedFunction<typeof RoleModel.findAll>)
-        .mockResolvedValue([mockRole]);
+      (RoleModel.findAllWithFilters as jest.MockedFunction<any>)
+        .mockResolvedValue({ roles: [mockRole], totalCount: 1 });
 
       const response = await request(app)
         .get('/api/roles')
@@ -37,7 +48,11 @@ describe('Role Management API', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.roles).toHaveLength(1);
-      expect(response.body.data.roles[0]).toEqual(mockRole);
+      // Compare only the essential properties since dates might be formatted differently
+      expect(response.body.data.roles[0].id).toBe(mockRole.id);
+      expect(response.body.data.roles[0].name).toBe(mockRole.name);
+      expect(response.body.data.roles[0].description).toBe(mockRole.description);
+      expect(response.body.data.roles[0].permissions).toEqual(mockRole.permissions);
     });
   });
 
@@ -53,7 +68,11 @@ describe('Role Management API', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.role).toEqual(mockRole);
+      // Compare individual properties since dates might be serialized differently
+      expect(response.body.data.role.id).toBe(mockRole.id);
+      expect(response.body.data.role.name).toBe(mockRole.name);
+      expect(response.body.data.role.description).toBe(mockRole.description);
+      expect(response.body.data.role.permissions).toEqual(mockRole.permissions);
     });
 
     it('should return 404 for non-existent role', async () => {
@@ -73,11 +92,21 @@ describe('Role Management API', () => {
 
   describe('POST /api/roles', () => {
     it('should create a new role', async () => {
+      // Create a new mock role for the creation test
+      const newRole = {
+        id: 2,
+        name: 'New Role',
+        description: 'A new role',
+        permissions: ['some.permission'],
+        created_at: new Date(),
+        updated_at: new Date()
+      };
+
       // Mock the database call
       (RoleModel.findByName as jest.MockedFunction<typeof RoleModel.findByName>)
         .mockResolvedValue(null); // No existing role with this name
       (RoleModel.create as jest.MockedFunction<typeof RoleModel.create>)
-        .mockResolvedValue(mockRole);
+        .mockResolvedValue(newRole);
 
       const response = await request(app)
         .post('/api/roles')
