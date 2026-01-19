@@ -71,14 +71,98 @@ export const runMigrations = async (): Promise<void> => {
       const migrationSql = await fs.readFile(migrationPath, 'utf8');
 
       // Split by semicolon to handle multiple statements in one file
-      const statements = migrationSql
-        .split(';')
-        .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
+      // But be smart about it - don't split if the semicolon is inside quotes or comments
+      const statements = [];
+      let currentStatement = '';
+      let inSingleQuote = false;
+      let inDoubleQuote = false;
+      let inLineComment = false;
+      let inBlockComment = false;
+      let i = 0;
+
+      while (i < migrationSql.length) {
+        const char = migrationSql[i];
+        const nextChar = i + 1 < migrationSql.length ? migrationSql[i + 1] : '';
+
+        if (inLineComment) {
+          if (char === '\n') {
+            inLineComment = false;
+            currentStatement += char;
+          } else {
+            currentStatement += char;
+          }
+          i++;
+          continue;
+        }
+
+        if (inBlockComment) {
+          if (char === '*' && nextChar === '/') {
+            inBlockComment = false;
+            currentStatement += char + nextChar;
+            i += 2;
+          } else {
+            currentStatement += char;
+            i++;
+          }
+          continue;
+        }
+
+        if (!inSingleQuote && !inDoubleQuote) {
+          if (char === '-' && nextChar === '-') {
+            inLineComment = true;
+            currentStatement += char + nextChar;
+            i += 2;
+            continue;
+          }
+          if (char === '/' && nextChar === '*') {
+            inBlockComment = true;
+            currentStatement += char + nextChar;
+            i += 2;
+            continue;
+          }
+        }
+
+        if (char === "'" && !inDoubleQuote && !inLineComment && !inBlockComment) {
+          inSingleQuote = !inSingleQuote;
+        } else if (char === '"' && !inSingleQuote && !inLineComment && !inBlockComment) {
+          inDoubleQuote = !inDoubleQuote;
+        } else if (char === ';' && !inSingleQuote && !inDoubleQuote && !inLineComment && !inBlockComment) {
+          statements.push(currentStatement.trim());
+          currentStatement = '';
+          i++;
+          continue;
+        }
+
+        currentStatement += char;
+        i++;
+      }
+
+      // Add the last statement if it exists
+      if (currentStatement.trim()) {
+        statements.push(currentStatement.trim());
+      }
 
       for (const statement of statements) {
         if (statement) {
-          await pool.execute(statement);
+          try {
+            await pool.execute(statement);
+          } catch (stmtError: any) {
+            // Handle specific errors that might occur during migrations
+            if (stmtError.errno === 1060) { // ER_DUP_FIELDNAME - Duplicate column name
+              console.log(`Column already exists, skipping: ${statement.substring(0, 50)}...`);
+              continue;
+            } else if (stmtError.errno === 1061) { // ER_DUP_KEYNAME - Duplicate key name
+              console.log(`Index already exists, skipping: ${statement.substring(0, 50)}...`);
+              continue;
+            } else if (stmtError.errno === 1050) { // ER_TABLE_EXISTS_ERROR - Table already exists
+              console.log(`Table already exists, skipping: ${statement.substring(0, 50)}...`);
+              continue;
+            } else {
+              // Re-throw if it's a different error
+              console.error(`Error executing statement in ${migrationFile}:`, stmtError);
+              throw stmtError;
+            }
+          }
         }
       }
 

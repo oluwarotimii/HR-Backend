@@ -15,6 +15,19 @@ export class BirthdayNotificationWorker {
     console.log('Starting birthday notification processing...');
 
     try {
+      // Check if required tables exist before proceeding
+      try {
+        await pool.execute('SELECT 1 FROM staff LIMIT 1');
+        await pool.execute('SELECT 1 FROM users LIMIT 1');
+        await pool.execute('SELECT 1 FROM branches LIMIT 1');
+      } catch (tableError: any) {
+        if (tableError.errno === 1146) { // ER_NO_SUCH_TABLE
+          console.warn('Required tables not found, skipping birthday notifications until database is initialized');
+          return;
+        }
+        throw tableError; // Re-throw if it's a different error
+      }
+
       // Get the date for tomorrow
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -162,18 +175,4 @@ export class BirthdayNotificationWorker {
 if (typeof require !== 'undefined' && require.main === module) {
   // CommonJS context
   BirthdayNotificationWorker.startWorker();
-} else if (import.meta.url && process.argv[1]) {
-  // ES module context - check if this file is the main module
-  import('url').then(urlModule => {
-    const __filename = urlModule.fileURLToPath(import.meta.url);
-    if (process.argv[1] && __filename) {
-      const filenameParts = __filename.split('/');
-      const filename = filenameParts[filenameParts.length - 1];
-      if (process.argv[1].endsWith(filename)) {
-        BirthdayNotificationWorker.startWorker();
-      }
-    }
-  }).catch(err => {
-    console.error('Error importing URL module:', err);
-  });
 }

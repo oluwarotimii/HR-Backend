@@ -1,13 +1,24 @@
 import request from 'supertest';
-import app from '../src/index';
-import FormModel from '../src/models/form.model';
+import app from '../test-app';
+import FormModel from '../models/form.model';
 
-// Mock the database connection
-jest.mock('../src/config/database', () => ({
-  pool: {
-    execute: jest.fn()
+// Mock the models to test the API endpoints
+jest.mock('../models/form.model');
+
+// Mock the authentication middleware
+jest.mock('../middleware/auth.middleware', () => ({
+  authenticateJWT: (req: any, res: any, next: any) => {
+    req.currentUser = {
+      id: 1,
+      email: 'test@example.com',
+      role_id: 1,
+      branch_id: 1
+    };
+    next();
   },
-  testConnection: jest.fn()
+  checkPermission: (permission: string) => (req: any, res: any, next: any) => {
+    next();
+  }
 }));
 
 describe('Forms Framework API', () => {
@@ -15,7 +26,7 @@ describe('Forms Framework API', () => {
     id: 1,
     name: 'Leave Request Form',
     description: 'Form for requesting leave',
-    form_type: 'leave_request',
+    form_type: 'leave_request' as const,
     branch_id: 1,
     created_by: 1,
     created_at: new Date(),

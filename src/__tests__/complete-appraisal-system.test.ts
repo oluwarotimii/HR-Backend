@@ -1,5 +1,21 @@
 import request from 'supertest';
-import app from '../src/index';
+import app from '../test-app';
+
+// Mock the authentication middleware
+jest.mock('../middleware/auth.middleware', () => ({
+  authenticateJWT: (req: any, res: any, next: any) => {
+    req.currentUser = {
+      id: 1,
+      email: 'test@example.com',
+      role_id: 1,
+      branch_id: 1
+    };
+    next();
+  },
+  checkPermission: (permission: string) => (req: any, res: any, next: any) => {
+    next();
+  }
+}));
 
 describe('Appraisal System API Endpoints', () => {
   let authToken: string;
