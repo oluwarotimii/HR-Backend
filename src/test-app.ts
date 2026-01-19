@@ -1,10 +1,9 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { testConnection } from './config/database';
 import authRoutes from './api/auth.route';
 import roleRoutes from './api/role.route';
 import userRoutes from './api/user.route';
@@ -42,7 +41,6 @@ import applicationSubmissionRoutes from './api/application-submission.route';
 import applicationManagementRoutes from './api/application-management.route';
 import shiftSchedulingRoutes from './api/shift-scheduling.route';
 import reportingAnalyticsRoutes from './api/reporting-analytics.route';
-import { SchedulerService } from './services/scheduler.service';
 
 // Load environment variables
 dotenv.config();
@@ -82,9 +80,6 @@ app.use(cors()); // Enable cross-origin requests
 app.use(morgan('combined')); // HTTP request logging
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-
-// Test database connection when server starts
-testConnection();
 
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
@@ -160,12 +155,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
-});
-
-app.listen(PORT, () => {
-  console.log(`HR Management System server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('Database connected successfully');
 });
 
 export default app;

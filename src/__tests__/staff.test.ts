@@ -1,14 +1,26 @@
 import request from 'supertest';
-import app from '../src/index';
-import StaffModel from '../src/models/staff.model';
-import UserModel from '../src/models/user.model';
+import app from '../test-app';
+import StaffModel from '../models/staff.model';
+import UserModel from '../models/user.model';
 
-// Mock the database connection
-jest.mock('../src/config/database', () => ({
-  pool: {
-    execute: jest.fn()
+// Mock the models to test the API endpoints
+jest.mock('../models/staff.model');
+jest.mock('../models/user.model');
+
+// Mock the authentication middleware
+jest.mock('../middleware/auth.middleware', () => ({
+  authenticateJWT: (req: any, res: any, next: any) => {
+    req.currentUser = {
+      id: 1,
+      email: 'test@example.com',
+      role_id: 1,
+      branch_id: 1
+    };
+    next();
   },
-  testConnection: jest.fn()
+  checkPermission: (permission: string) => (req: any, res: any, next: any) => {
+    next();
+  }
 }));
 
 describe('Staff Management API', () => {
@@ -35,6 +47,7 @@ describe('Staff Management API', () => {
     role_id: 1,
     branch_id: 1,
     status: 'active' as const,
+    must_change_password: false,
     created_at: new Date(),
     updated_at: new Date()
   };

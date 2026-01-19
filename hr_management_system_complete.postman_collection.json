@@ -403,6 +403,103 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Get Role Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Get permissions assigned to a specific role"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Multiple Permissions to Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"user.create\", \"user.read\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Assign multiple permissions to a role"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Multiple Permissions from Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"user.create\", \"user.read\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Remove multiple permissions from a role"
+          },
+          "response": []
         }
       ]
     },
@@ -926,6 +1023,73 @@
                 "1"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password After First Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"temporaryPassword\",\n  \"newPassword\": \"secureNewPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/password-change/change",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "password-change",
+                "change"
+              ]
+            },
+            "description": "Change password after first login"
+          },
+          "response": []
+        },
+        {
+          "name": "Force Password Change for User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"forcedNewPassword\",\n  \"resetRequired\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/password-change/force/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "password-change",
+                "force",
+                "{{userId}}"
+              ]
+            },
+            "description": "Force password change for a specific user (admin only)"
           },
           "response": []
         }
@@ -1584,6 +1748,121 @@
                 "1"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Leave Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Retrieve a specific leave type by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Leave Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Annual Leave\",\n  \"days_per_year\": 20,\n  \"is_paid\": true,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types"
+              ]
+            },
+            "description": "Create a new leave type"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Leave Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Annual Leave\",\n  \"days_per_year\": 25,\n  \"is_paid\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Update an existing leave type"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Leave Type",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Delete (deactivate) a leave type"
           },
           "response": []
         }
@@ -5497,514 +5776,6 @@
                 "reports",
                 "analytics",
                 "calculate-all"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Attendance Locations",
-      "item": [
-        {
-          "name": "Get All Attendance Locations",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Attendance Location by ID",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Attendance Locations by Branch",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations?branchId=1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations"
-              ],
-              "query": [
-                {
-                  "key": "branchId",
-                  "value": "1"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Attendance Location",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Main Office Location\",\n  \"location_coordinates\": \"POINT(3.3869 6.4458)\",\n  \"location_radius_meters\": 100,\n  \"branch_id\": 1,\n  \"is_active\": true\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Attendance Location",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Main Office Location\",\n  \"location_radius_meters\": 150,\n  \"is_active\": true\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Attendance Location",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/attendance-locations/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "attendance-locations",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Holidays",
-      "item": [
-        {
-          "name": "Get All Holidays",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Holiday by ID",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Holidays by Branch",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays?branchId=1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays"
-              ],
-              "query": [
-                {
-                  "key": "branchId",
-                  "value": "1"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Holidays in Date Range",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays?startDate=2023-01-01&endDate=2023-12-31",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays"
-              ],
-              "query": [
-                {
-                  "key": "startDate",
-                  "value": "2023-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2023-12-31"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Holiday",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"holiday_name\": \"New Year Day\",\n  \"date\": \"2023-01-01\",\n  \"branch_id\": 1,\n  \"is_mandatory\": true,\n  \"description\": \"Celebration of New Year\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Holiday",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"holiday_name\": \"Updated New Year Day\",\n  \"is_mandatory\": false,\n  \"description\": \"Observance of New Year\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Holiday",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/holidays/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "holidays",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Shift Timings",
-      "item": [
-        {
-          "name": "Get All Shift Timings",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/shift-timings",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "shift-timings"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Shift Timing by ID",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/shift-timings/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "shift-timings",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Shift Timing",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"user_id\": 1,\n  \"shift_name\": \"Morning Shift\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"16:00:00\",\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2023-12-31\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/shift-timings",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "shift-timings"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Shift Timing",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"shift_name\": \"Modified Morning Shift\",\n  \"start_time\": \"08:30:00\",\n  \"end_time\": \"16:30:00\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/shift-timings/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "shift-timings",
-                "1"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Shift Timing",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/shift-timings/1",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "shift-timings",
-                "1"
               ]
             }
           },
