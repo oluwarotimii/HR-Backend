@@ -37,13 +37,13 @@ class ApiKeyModel {
   static async create(apiKeyData: ApiKeyInput): Promise<{ apiKey: ApiKey, plainTextKey: string }> {
     // Generate a random API key
     const plainTextKey = 'hr_' + crypto.randomBytes(32).toString('hex');
-    
+
     // Hash the key for secure storage
     const hashedKey = crypto.createHash('sha256').update(plainTextKey).digest('hex');
-    
+
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} 
-       (key, name, user_id, permissions, is_active, expires_at, created_at, updated_at)
+      `INSERT INTO ${this.tableName}
+       (api_key, name, user_id, permissions, is_active, expires_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         hashedKey,
@@ -73,9 +73,21 @@ class ApiKeyModel {
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
       [id]
     );
-    
+
     const apiKeys = rows as ApiKey[];
-    return apiKeys[0] || null;
+    const apiKey = apiKeys[0] || null;
+
+    // Parse permissions from TEXT field if it exists
+    if (apiKey && typeof apiKey.permissions === 'string') {
+      try {
+        apiKey.permissions = JSON.parse(apiKey.permissions);
+      } catch (error) {
+        // If parsing fails, keep the original string value
+        console.error('Error parsing API key permissions:', error);
+      }
+    }
+
+    return apiKey;
   }
 
   /**
@@ -84,21 +96,21 @@ class ApiKeyModel {
    */
   static async findByKey(plainTextKey: string): Promise<ApiKey | null> {
     const hashedKey = crypto.createHash('sha256').update(plainTextKey).digest('hex');
-    
+
     const [rows] = await pool.execute(
-      `SELECT * FROM ${this.tableName} WHERE key = ? AND is_active = TRUE`,
+      `SELECT * FROM ${this.tableName} WHERE api_key = ? AND is_active = TRUE`,
       [hashedKey]
     );
-    
+
     const apiKeys = rows as ApiKey[];
-    
+
     // Check if key has expired
     if (apiKeys[0] && apiKeys[0].expires_at && new Date() > new Date(apiKeys[0].expires_at)) {
       // Deactivate expired key
       await this.update(apiKeys[0].id, { is_active: false });
       return null;
     }
-    
+
     return apiKeys[0] || null;
   }
 
@@ -110,19 +122,29 @@ class ApiKeyModel {
       `SELECT * FROM ${this.tableName} WHERE user_id = ? ORDER BY created_at DESC`,
       [userId]
     );
-    
+
     const apiKeys = rows as ApiKey[];
-    
-    // Filter out expired keys and deactivate them
+
+    // Filter out expired keys and deactivate them, and parse permissions
     const validKeys = [];
     for (const key of apiKeys) {
+      // Parse permissions from TEXT field if it exists
+      if (typeof key.permissions === 'string') {
+        try {
+          key.permissions = JSON.parse(key.permissions);
+        } catch (error) {
+          // If parsing fails, keep the original string value
+          console.error('Error parsing API key permissions:', error);
+        }
+      }
+
       if (key.expires_at && new Date() > new Date(key.expires_at)) {
         await this.update(key.id, { is_active: false });
       } else {
         validKeys.push(key);
       }
     }
-    
+
     return validKeys;
   }
 
@@ -155,7 +177,7 @@ class ApiKeyModel {
 
     // Always update the updated_at field
     updates.push('updated_at = NOW()');
-    
+
     if (updates.length <= 1) { // Only 'updated_at' was added
       return await this.findById(id);
     }
@@ -188,15 +210,23 @@ class ApiKeyModel {
    */
   static async hasPermission(apiKeyId: number, permission: string): Promise<boolean> {
     const apiKey = await this.findById(apiKeyId);
-    
+
     if (!apiKey) {
       return false;
     }
 
-    // Parse permissions from JSON string if it's stored as string
-    const permissions = typeof apiKey.permissions === 'string' 
-      ? JSON.parse(apiKey.permissions) 
-      : apiKey.permissions;
+    // Handle permissions as array (already parsed in findById) or string
+    let permissions: string[];
+    if (typeof apiKey.permissions === 'string') {
+      try {
+        permissions = JSON.parse(apiKey.permissions);
+      } catch (error) {
+        console.error('Error parsing API key permissions:', error);
+        return false;
+      }
+    } else {
+      permissions = apiKey.permissions as string[];
+    }
 
     // Check if key has wildcard permission
     if (permissions.includes('*')) {

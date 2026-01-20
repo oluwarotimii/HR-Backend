@@ -1,29 +1,27 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
-import LeaveHistoryModel from '../models/leave-history.model';
+import FormSubmissionModel from '../models/form-submission.model';
 import LeaveTypeModel from '../models/leave-type.model';
 import LeaveAllocationModel from '../models/leave-allocation.model';
 import UserModel from '../models/user.model';
+import { pool } from '../config/database';
 
 const router = Router();
 
 // GET /api/leave - Get all leave requests (with filters)
 router.get('/', authenticateJWT, checkPermission('leave:read'), async (req: Request, res: Response) => {
   try {
-    const { 
-      userId, 
-      leaveTypeId, 
-      status, 
-      startDate, 
-      endDate, 
-      limit = 20, 
-      page = 1 
+    const {
+      userId,
+      status,
+      limit = 20,
+      page = 1
     } = req.query;
 
     // Validate pagination parameters
     const pageNum = parseInt(page as string) || 1;
     const limitNum = parseInt(limit as string) || 20;
-    
+
     if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
       return res.status(400).json({
         success: false,
@@ -31,31 +29,83 @@ router.get('/', authenticateJWT, checkPermission('leave:read'), async (req: Requ
       });
     }
 
-    // Build filters object
-    const filters: any = {};
-    if (userId) filters.user_id = parseInt(userId as string);
-    if (leaveTypeId) filters.leave_type_id = parseInt(leaveTypeId as string);
-    if (status) filters.status = status as string;
-    if (startDate) filters.start_date = startDate as string;
-    if (endDate) filters.end_date = endDate as string;
-
-    // Get leave requests with pagination
-    const result = await LeaveHistoryModel.findAllWithFilters(
-      limitNum,
-      (pageNum - 1) * limitNum,
-      filters
+    // Find the "Leave Request" form to get its ID
+    const [leaveRequestForms]: any = await pool.execute(
+      `SELECT id FROM forms WHERE name = 'Leave Request' OR form_type = 'leave_request' LIMIT 1`
     );
+
+    if (leaveRequestForms.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Leave requests retrieved successfully',
+        data: {
+          leaveRequests: [],
+          pagination: {
+            currentPage: pageNum,
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: limitNum
+          }
+        }
+      });
+    }
+
+    const leaveFormId = leaveRequestForms[0].id;
+
+    // Build query based on filters
+    let query = `SELECT fs.*, u.full_name as user_name, f.name as form_name
+                 FROM form_submissions fs
+                 JOIN users u ON fs.user_id = u.id
+                 JOIN forms f ON fs.form_id = f.id
+                 WHERE fs.form_id = ?`;
+    const params: any[] = [leaveFormId];
+
+    if (userId) {
+      query += ' AND fs.user_id = ?';
+      params.push(parseInt(userId as string));
+    }
+
+    if (status) {
+      query += ' AND fs.status = ?';
+      params.push(status as string);
+    }
+
+    query += ' ORDER BY fs.submitted_at DESC';
+
+    // Add pagination
+    const offset = (pageNum - 1) * limitNum;
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limitNum, offset);
+
+    // Get the submissions
+    const [rows]: any = await pool.execute(query, params);
+
+    // Get total count for pagination
+    let countQuery = `SELECT COUNT(*) as total FROM form_submissions fs WHERE fs.form_id = ?`;
+    const countParams = [leaveFormId];
+
+    if (userId) {
+      countQuery += ' AND fs.user_id = ?';
+      countParams.push(parseInt(userId as string));
+    }
+
+    if (status) {
+      countQuery += ' AND fs.status = ?';
+      countParams.push(status as string);
+    }
+
+    const [countRows]: any = await pool.execute(countQuery, countParams);
 
     return res.json({
       success: true,
       message: 'Leave requests retrieved successfully',
       data: {
-        leaveRequests: result.leaveRequests,
+        leaveRequests: rows,
         pagination: {
           currentPage: pageNum,
-          itemsPerPage: limitNum,
-          totalItems: result.totalCount,
-          totalPages: Math.ceil(result.totalCount / limitNum)
+          totalPages: Math.ceil(countRows[0].total / limitNum),
+          totalItems: countRows[0].total,
+          itemsPerPage: limitNum
         }
       }
     });
@@ -82,7 +132,7 @@ router.get('/:id', authenticateJWT, checkPermission('leave:read'), async (req: R
       });
     }
 
-    const leaveRequest = await LeaveHistoryModel.findById(leaveRequestId);
+    const leaveRequest = await FormSubmissionModel.findById(leaveRequestId);
 
     if (!leaveRequest) {
       return res.status(404).json({
@@ -183,24 +233,41 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
       });
     }
 
-    // Create the leave request
-    const leaveRequestData = {
+    // Find the "Leave Request" form to submit to
+    const [leaveRequestForms]: any = await pool.execute(
+      `SELECT id FROM forms WHERE name = 'Leave Request' OR form_type = 'leave_request' LIMIT 1`
+    );
+
+    if (leaveRequestForms.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave Request form not found. Please contact system administrator.'
+      });
+    }
+
+    const leaveFormId = leaveRequestForms[0].id;
+
+    // Create form submission for the leave request
+    const formSubmissionData = {
+      form_id: leaveFormId,
       user_id: userId!,
-      leave_type_id,
-      start_date,
-      end_date,
-      days_taken: requestedDays,
-      reason,
-      status: 'pending' as const,
-      requested_by: userId!
+      submission_data: {
+        leave_type_id,
+        start_date,
+        end_date,
+        days_requested: requestedDays,
+        reason,
+        requested_by: userId!
+      },
+      status: 'submitted' as const  // Use 'submitted' as per FormSubmission model
     };
 
-    const newLeaveRequest = await LeaveHistoryModel.create(leaveRequestData);
+    const newSubmission = await FormSubmissionModel.create(formSubmissionData);
 
     return res.status(201).json({
       success: true,
-      message: 'Leave request created successfully',
-      data: { leaveRequest: newLeaveRequest }
+      message: 'Leave request submitted successfully',
+      data: { leaveRequest: newSubmission }
     });
   } catch (error) {
     console.error('Create leave request error:', error);
@@ -227,7 +294,7 @@ router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req:
     }
 
     // Get existing leave request
-    const existingRequest = await LeaveHistoryModel.findById(leaveRequestId);
+    const existingRequest = await FormSubmissionModel.findById(leaveRequestId);
 
     if (!existingRequest) {
       return res.status(404).json({
@@ -253,13 +320,13 @@ router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req:
       });
     }
 
-    // Use the new updateWithStatus method
-    const updatedLeaveRequest = await LeaveHistoryModel.updateWithStatus(leaveRequestId, updateData);
+    // Update the form submission status instead
+    const updatedSubmission = await FormSubmissionModel.update(leaveRequestId, { status: updateData.status, notes: updateData.reason });
 
     return res.json({
       success: true,
       message: 'Leave request updated successfully',
-      data: { leaveRequest: updatedLeaveRequest }
+      data: { leaveRequest: updatedSubmission }
     });
   } catch (error) {
     console.error('Update leave request error:', error);
@@ -285,7 +352,7 @@ router.delete('/:id', authenticateJWT, checkPermission('leave:delete'), async (r
     }
 
     // Check if leave request exists
-    const existingRequest = await LeaveHistoryModel.findById(leaveRequestId);
+    const existingRequest = await FormSubmissionModel.findById(leaveRequestId);
 
     if (!existingRequest) {
       return res.status(404).json({
@@ -295,7 +362,7 @@ router.delete('/:id', authenticateJWT, checkPermission('leave:delete'), async (r
     }
 
     // Only allow cancellation if status is pending
-    if (existingRequest.status !== 'pending') {
+    if (existingRequest.status !== 'submitted') {  // Changed from 'pending' to 'submitted' as per FormSubmission model
       return res.status(400).json({
         success: false,
         message: 'Cannot cancel leave request that is already approved or rejected'
@@ -303,7 +370,7 @@ router.delete('/:id', authenticateJWT, checkPermission('leave:delete'), async (r
     }
 
     // Update status to cancelled instead of hard deleting
-    await LeaveHistoryModel.updateWithStatus(leaveRequestId, { status: 'cancelled' });
+    await FormSubmissionModel.update(leaveRequestId, { status: 'rejected', notes: 'Cancelled by user' });
 
     return res.json({
       success: true,

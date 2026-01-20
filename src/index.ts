@@ -4,7 +4,7 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { testConnection } from './config/database';
+import { testConnection, initializeRedis } from './config/database';
 import authRoutes from './api/auth.route';
 import roleRoutes from './api/role.route';
 import userRoutes from './api/user.route';
@@ -42,7 +42,8 @@ import applicationSubmissionRoutes from './api/application-submission.route';
 import applicationManagementRoutes from './api/application-management.route';
 import shiftSchedulingRoutes from './api/shift-scheduling.route';
 import reportingAnalyticsRoutes from './api/reporting-analytics.route';
-// import apiKeyRoutes from './api/api-key.route';  // API Keys temporarily disabled
+// import apiKeyRoutes from './api/api-key.route';
+import healthRoutes from './api/health.route';  // API Keys temporarily disabled
 import testApiAuthRoutes from './api/test-api-auth.route';
 import { SchedulerService } from './services/scheduler.service';
 
@@ -88,6 +89,9 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 // Test database connection when server starts
 testConnection();
 
+// Initialize Redis connection when server starts
+initializeRedis();
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
 app.use('/api/roles', roleRoutes);
@@ -127,6 +131,7 @@ app.use('/api/job-application-management', applicationManagementRoutes);
 app.use('/api/shift-scheduling', shiftSchedulingRoutes);
 app.use('/api/reports', reportingAnalyticsRoutes);
 // app.use('/api/api-keys', apiKeyRoutes);  // API Keys temporarily disabled
+app.use('/api/health', healthRoutes);
 app.use('/api/test-auth', testApiAuthRoutes);
 
 // Basic route
