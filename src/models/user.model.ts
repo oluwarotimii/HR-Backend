@@ -1,4 +1,5 @@
 import { pool } from '../config/database';
+import { CacheService } from '../services/cache.service';
 import bcrypt from 'bcryptjs';
 
 export interface User {
@@ -96,19 +97,55 @@ class UserModel {
   }
 
   static async findById(id: number): Promise<User | null> {
+    const cacheKey = `user:${id}`;
+
+    // Try to get from cache first
+    let user = await CacheService.get<User>(cacheKey);
+    if (user) {
+      return user;
+    }
+
+    // If not in cache, fetch from database
     const [rows] = await pool.execute(
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
       [id]
     );
-    return (rows as User[])[0] || null;
+
+    user = (rows as User[])[0] || null;
+
+    // Cache the user for 30 minutes if found
+    if (user) {
+      await CacheService.set(cacheKey, user, 1800); // 30 minutes
+    }
+
+    return user;
   }
 
   static async findByEmail(email: string): Promise<User | null> {
+    const cacheKey = `user:email:${email}`;
+
+    // Try to get from cache first
+    let user = await CacheService.get<User>(cacheKey);
+    if (user) {
+      return user;
+    }
+
+    // If not in cache, fetch from database
     const [rows] = await pool.execute(
       `SELECT * FROM ${this.tableName} WHERE email = ?`,
       [email]
     );
-    return (rows as User[])[0] || null;
+
+    user = (rows as User[])[0] || null;
+
+    // Cache the user for 30 minutes if found
+    if (user) {
+      await CacheService.set(cacheKey, user, 1800); // 30 minutes
+      // Also cache by ID for consistency
+      await CacheService.set(`user:${user.id}`, user, 1800);
+    }
+
+    return user;
   }
 
   static async create(userData: UserInput): Promise<User> {
@@ -188,6 +225,12 @@ class UserModel {
       `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
+
+    // Invalidate cache for this user
+    await CacheService.del(`user:${id}`);
+    if (userData.email) {
+      await CacheService.del(`user:email:${userData.email}`);
+    }
 
     return this.findById(id);
   }

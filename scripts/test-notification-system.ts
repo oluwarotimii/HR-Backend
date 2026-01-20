@@ -1,4 +1,4 @@
-import { notificationService } from './src/services/notification.service';
+import { notificationService } from '../src/services/notification.service';
 
 async function testNotificationSystem() {
   console.log('Testing notification system...');

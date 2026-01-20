@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { redisService } from '../services/redis.service';
 
 dotenv.config();
 
@@ -21,6 +22,11 @@ const dbConfig = {
 
 // Create a connection pool
 const pool = mysql.createPool(dbConfig);
+
+// Initialize Redis connection
+export async function initializeRedis(): Promise<void> {
+  await redisService.connect();
+}
 
 // Test database connection
 const testConnection = async (): Promise<void> => {

@@ -1,4 +1,5 @@
 import { pool } from '../config/database';
+import { CacheService } from '../services/cache.service';
 
 export interface LeaveAllocation {
   id: number;
@@ -27,6 +28,8 @@ export interface LeaveAllocationUpdate {
   allocated_days?: number;
   used_days?: number;
   carried_over_days?: number;
+  cycle_start_date?: Date;
+  cycle_end_date?: Date;
 }
 
 class LeaveAllocationModel {
@@ -46,19 +49,49 @@ class LeaveAllocationModel {
   }
 
   static async findByUserId(userId: number): Promise<LeaveAllocation[]> {
+    const cacheKey = `leave_allocations:user:${userId}`;
+
+    // Try to get from cache first
+    const cachedAllocations = await CacheService.get<LeaveAllocation[]>(cacheKey);
+    if (cachedAllocations) {
+      return cachedAllocations;
+    }
+
+    // If not in cache, fetch from database
     const [rows] = await pool.execute(
       `SELECT * FROM ${this.tableName} WHERE user_id = ? ORDER BY cycle_start_date DESC`,
       [userId]
     );
-    return rows as LeaveAllocation[];
+
+    const allocations = rows as LeaveAllocation[];
+
+    // Cache the allocations for 1 hour
+    await CacheService.set(cacheKey, allocations, 3600);
+
+    return allocations;
   }
 
   static async findByUserIdAndTypeId(userId: number, leaveTypeId: number): Promise<LeaveAllocation[]> {
+    const cacheKey = `leave_allocations:user:${userId}:type:${leaveTypeId}`;
+
+    // Try to get from cache first
+    const cachedAllocations = await CacheService.get<LeaveAllocation[]>(cacheKey);
+    if (cachedAllocations) {
+      return cachedAllocations;
+    }
+
+    // If not in cache, fetch from database
     const [rows] = await pool.execute(
       `SELECT * FROM ${this.tableName} WHERE user_id = ? AND leave_type_id = ? ORDER BY cycle_start_date DESC`,
       [userId, leaveTypeId]
     );
-    return rows as LeaveAllocation[];
+
+    const allocations = rows as LeaveAllocation[];
+
+    // Cache the allocations for 1 hour
+    await CacheService.set(cacheKey, allocations, 3600);
+
+    return allocations;
   }
 
   static async findByCycleDates(startDate: Date, endDate: Date): Promise<LeaveAllocation[]> {
@@ -91,10 +124,20 @@ class LeaveAllocationModel {
       throw new Error('Failed to create leave allocation');
     }
 
+    // Invalidate cache for this user's allocations
+    await CacheService.del(`leave_allocations:user:${allocationData.user_id}`);
+    await CacheService.del(`leave_allocations:user:${allocationData.user_id}:type:${allocationData.leave_type_id}`);
+
     return createdItem;
   }
 
   static async update(id: number, allocationData: LeaveAllocationUpdate): Promise<LeaveAllocation | null> {
+    // First get the existing allocation to know which user and type to invalidate
+    const existingAllocation = await this.findById(id);
+    if (!existingAllocation) {
+      return null;
+    }
+
     const updates: string[] = [];
     const values: any[] = [];
 
@@ -113,6 +156,16 @@ class LeaveAllocationModel {
       values.push(allocationData.carried_over_days);
     }
 
+    if (allocationData.cycle_start_date !== undefined) {
+      updates.push('cycle_start_date = ?');
+      values.push(allocationData.cycle_start_date);
+    }
+
+    if (allocationData.cycle_end_date !== undefined) {
+      updates.push('cycle_end_date = ?');
+      values.push(allocationData.cycle_end_date);
+    }
+
     if (updates.length === 0) {
       return await this.findById(id);
     }
@@ -123,6 +176,10 @@ class LeaveAllocationModel {
       `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
+
+    // Invalidate cache for this user's allocations
+    await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}`);
+    await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}:type:${existingAllocation.leave_type_id}`);
 
     return await this.findById(id);
   }
@@ -155,10 +212,22 @@ class LeaveAllocationModel {
 
   // Method to update used days when leave is taken
   static async updateUsedDays(allocationId: number, daysUsed: number): Promise<boolean> {
+    // First get the existing allocation to know which user and type to invalidate
+    const existingAllocation = await this.findById(allocationId);
+    if (!existingAllocation) {
+      return false;
+    }
+
     const result: any = await pool.execute(
       `UPDATE ${this.tableName} SET used_days = used_days + ? WHERE id = ?`,
       [daysUsed, allocationId]
     );
+
+    if (result.affectedRows > 0) {
+      // Invalidate cache for this user's allocations
+      await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}`);
+      await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}:type:${existingAllocation.leave_type_id}`);
+    }
 
     return result.affectedRows > 0;
   }
