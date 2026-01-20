@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "hr-management-system-api",
     "name": "HR Management System API",
-    "description": "API collection for the HR Management System with authentication, user management, role management, staff management, forms framework, attendance tracking, leave management, payroll processing, performance appraisal, notification system, and recruitment module features.",
+    "description": "API collection for the HR Management System with authentication, user management, role management, staff management, forms framework, attendance tracking, leave management, payroll processing, performance appraisal, notification system, and reporting/analytics features.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "1.0.0"
   },
@@ -22,7 +22,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@company.com\",\n  \"password\": \"admin123\"\n}"
+              "raw": "{\n  \"email\": \"oluwarotimiadewumi@gmail.com\",\n  \"password\": \"admin123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
@@ -165,6 +165,43 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health/details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health",
+                "details"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -202,7 +239,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"securePassword123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
+              "raw": "{\n  \"email\": \"oluwarotimiadewumi@gmail.com\",\n  \"password\": \"admin123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/system-complete/setup-complete",
@@ -249,7 +286,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"securePassword123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
+              "raw": "{\n  \"email\": \"oluwarotimiadewumi@gmail.com\",\n  \"password\": \"admin123\",\n  \"fullName\": \"System Administrator\",\n  \"phone\": \"+1234567890\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/system/initialize",
@@ -401,6 +438,103 @@
                 "2"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Role Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Get permissions assigned to a specific role"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Multiple Permissions to Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"user.create\", \"user.read\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Assign multiple permissions to a role"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Multiple Permissions from Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"user.create\", \"user.read\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/permissions/roles/{{roleId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "permissions",
+                "roles",
+                "{{roleId}}",
+                "permissions"
+              ]
+            },
+            "description": "Remove multiple permissions from a role"
           },
           "response": []
         }
@@ -926,6 +1060,73 @@
                 "1"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password After First Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"temporaryPassword\",\n  \"newPassword\": \"secureNewPassword\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/password-change/change",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "password-change",
+                "change"
+              ]
+            },
+            "description": "Change password after first login"
+          },
+          "response": []
+        },
+        {
+          "name": "Force Password Change for User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"forcedNewPassword\",\n  \"resetRequired\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/password-change/force/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "password-change",
+                "force",
+                "{{userId}}"
+              ]
+            },
+            "description": "Force password change for a specific user (admin only)"
           },
           "response": []
         }
@@ -1586,6 +1787,121 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Get Leave Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Retrieve a specific leave type by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Leave Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Annual Leave\",\n  \"days_per_year\": 20,\n  \"is_paid\": true,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types"
+              ]
+            },
+            "description": "Create a new leave type"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Leave Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Annual Leave\",\n  \"days_per_year\": 25,\n  \"is_paid\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Update an existing leave type"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Leave Type",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "leave-types",
+                "{{leaveTypeId}}"
+              ]
+            },
+            "description": "Delete (deactivate) a leave type"
+          },
+          "response": []
         }
       ]
     },
@@ -2140,7 +2456,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"shift_name\": \"Morning Shift\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"16:00:00\",\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2023-12-31\",\n  \"user_id\": 1\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"shift_name\": \"Morning Shift\",\n  \"start_time\": \"08:00:00\",\n  \"end_time\": \"16:00:00\",\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2023-12-31\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/shift-timings",
@@ -4628,6 +4944,997 @@
                 "job-application-management",
                 "1",
                 "comments"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Shift Scheduling",
+      "item": [
+        {
+          "name": "Get All Shift Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/shift-templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "shift-templates"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Shift Template by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/shift-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "shift-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Shift Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Standard Office Hours\",\n  \"description\": \"Standard office hours for most employees\",\n  \"start_time\": \"09:00:00\",\n  \"end_time\": \"17:00:00\",\n  \"break_duration_minutes\": 60,\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2024-12-31\",\n  \"recurrence_pattern\": \"weekly\",\n  \"recurrence_days\": [\"monday\", \"tuesday\", \"wednesday\", \"thursday\", \"friday\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/shift-templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "shift-templates"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Shift Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Standard Office Hours\",\n  \"start_time\": \"08:30:00\",\n  \"end_time\": \"16:30:00\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/shift-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "shift-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Shift Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/shift-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "shift-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Employee Shift Assignments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/employee-shift-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "employee-shift-assignments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Employee Shift Assignment by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/employee-shift-assignments/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "employee-shift-assignments",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Shift to Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"shift_template_id\": 1,\n  \"custom_start_time\": \"08:00:00\",\n  \"custom_end_time\": \"16:00:00\",\n  \"custom_break_duration_minutes\": 45,\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2023-12-31\",\n  \"assignment_type\": \"temporary\",\n  \"notes\": \"Special assignment for project work\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/employee-shift-assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "employee-shift-assignments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Employee Shift Assignment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"custom_start_time\": \"08:30:00\",\n  \"custom_end_time\": \"16:30:00\",\n  \"effective_to\": \"2024-06-30\",\n  \"notes\": \"Extended assignment period\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/employee-shift-assignments/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "employee-shift-assignments",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk Assign Shifts to Multiple Employees",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_ids\": [1, 2, 3],\n  \"shift_template_id\": 1,\n  \"custom_start_time\": \"08:00:00\",\n  \"custom_end_time\": \"16:00:00\",\n  \"custom_break_duration_minutes\": 60,\n  \"effective_from\": \"2023-01-01\",\n  \"effective_to\": \"2023-12-31\",\n  \"assignment_type\": \"permanent\",\n  \"notes\": \"Bulk assignment for new team\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shift-scheduling/employee-shift-assignments/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shift-scheduling",
+                "employee-shift-assignments",
+                "bulk"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports & Analytics",
+      "item": [
+        {
+          "name": "Get All Report Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/report-templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "report-templates"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Report Template by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/report-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "report-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Report Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Monthly Attendance Summary\",\n  \"description\": \"Summary of attendance for the month\",\n  \"category\": \"attendance\",\n  \"query_definition\": \"SELECT * FROM attendance WHERE date BETWEEN ? AND ?\",\n  \"parameters_schema\": {\n    \"startDate\": \"date\",\n    \"endDate\": \"date\"\n  },\n  \"output_format\": \"json\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/report-templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "report-templates"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Report Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Monthly Attendance Summary\",\n  \"description\": \"Updated summary of attendance for the month\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/report-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "report-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Report Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/report-templates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "report-templates",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Scheduled Reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/scheduled-reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "scheduled-reports"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Scheduled Report by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/scheduled-reports/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "scheduled-reports",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Scheduled Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"report_template_id\": 1,\n  \"name\": \"Monthly Attendance Report\",\n  \"description\": \"Monthly attendance summary for HR\",\n  \"schedule_type\": \"monthly\",\n  \"schedule_config\": {\n    \"dayOfMonth\": 1\n  },\n  \"recipients\": [\"hr@company.com\"],\n  \"parameters\": {\n    \"startDate\": \"2023-01-01\",\n    \"endDate\": \"2023-01-31\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/scheduled-reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "scheduled-reports"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Scheduled Report",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Monthly Attendance Report\",\n  \"recipients\": [\"hr@company.com\", \"admin@company.com\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/scheduled-reports/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "scheduled-reports",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Scheduled Report",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/scheduled-reports/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "scheduled-reports",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/attendance-metrics?startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "attendance-metrics"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Leave Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/leave-metrics?startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "leave-metrics"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payroll Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/payroll-metrics?startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "payroll-metrics"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Performance Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/performance-metrics?startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "performance-metrics"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/staff-metrics?startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "staff-metrics"
+              ],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Calculated Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/calculated-metrics?category=attendance&startDate=2023-01-01&endDate=2023-01-31&branchId=1&departmentId=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "calculated-metrics"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "attendance"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2023-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2023-01-31"
+                },
+                {
+                  "key": "branchId",
+                  "value": "1"
+                },
+                {
+                  "key": "departmentId",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate All Metrics",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2023-01-01\",\n  \"endDate\": \"2023-01-31\",\n  \"branchId\": 1,\n  \"departmentId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/analytics/calculate-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "analytics",
+                "calculate-all"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "API Endpoints",
+      "item": [
+        {
+          "name": "Get Attendance Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/attendance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "attendance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payroll Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payroll/records",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payroll",
+                "records"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All KPIs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/kpis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "kpis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Appraisals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/appraisals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "appraisals"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/my-notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "my-notifications"
               ]
             }
           },

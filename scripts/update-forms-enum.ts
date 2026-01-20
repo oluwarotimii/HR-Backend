@@ -1,4 +1,4 @@
-import { pool } from './src/config/database';
+import { pool } from '../src/config/database';
 
 async function updateFormsTable() {
   console.log('Updating forms table to add general form type...');

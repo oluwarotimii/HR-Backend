@@ -2,6 +2,7 @@ import UserModel from '../models/user.model';
 import RoleModel from '../models/role.model';
 import UserPermissionModel from '../models/user-permission.model';
 import RolePermissionModel from '../models/role-permission.model';
+import { CacheService } from './cache.service';
 
 interface PermissionCheckResult {
   hasPermission: boolean;
@@ -113,6 +114,14 @@ class PermissionService {
    * This would be sent to the frontend to determine which UI elements to show
    */
   static async generatePermissionManifest(userId: number): Promise<Record<string, boolean>> {
+    const cacheKey = `user:permissions:${userId}`;
+
+    // Try to get from cache first
+    const cachedManifest = await CacheService.get<Record<string, boolean>>(cacheKey);
+    if (cachedManifest) {
+      return cachedManifest;
+    }
+
     const user = await UserModel.findById(userId);
     if (!user) {
       return {};
@@ -122,7 +131,12 @@ class PermissionService {
     const role = await RoleModel.findById(user.role_id);
     if (role && role.permissions && role.permissions.includes('*')) {
       // If role has '*' permission, return a special manifest indicating all permissions
-      return { '*': true };
+      const manifest = { '*': true };
+
+      // Cache the result for 1 hour (3600 seconds)
+      await CacheService.set(cacheKey, manifest, 3600);
+
+      return manifest;
     }
 
     const allPermissions = await this.getAllUserPermissions(userId);
@@ -132,7 +146,25 @@ class PermissionService {
       manifest[perm.permission] = perm.allowDeny === 'allow';
     });
 
+    // Cache the result for 1 hour (3600 seconds)
+    await CacheService.set(cacheKey, manifest, 3600);
+
     return manifest;
+  }
+
+  /**
+   * Invalidate a user's permission cache
+   */
+  static async invalidateUserPermissionCache(userId: number): Promise<void> {
+    const cacheKey = `user:permissions:${userId}`;
+    await CacheService.del(cacheKey);
+  }
+
+  /**
+   * Invalidate all user permission caches (useful when role permissions change)
+   */
+  static async invalidateAllUserPermissionCaches(): Promise<void> {
+    await CacheService.invalidatePattern('user:permissions:*');
   }
 }
 
