@@ -8,6 +8,7 @@ declare global {
   namespace Express {
     interface Request {
       currentUser?: any;
+      numericId?: number;
       // apiKey?: any; // API key information when authenticated via API key (disabled)
     }
   }

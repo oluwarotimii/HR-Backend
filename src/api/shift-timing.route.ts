@@ -5,7 +5,7 @@ import ShiftTimingModel from '../models/shift-timing.model';
 const router = Router();
 
 // GET /api/shift-timings - Get all shift timings
-router.get('/', authenticateJWT, checkPermission('shift:read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('shift_timing:read'), async (req: Request, res: Response) => {
   try {
     const shiftTimings = await ShiftTimingModel.findAll();
     return res.json({
@@ -23,7 +23,7 @@ router.get('/', authenticateJWT, checkPermission('shift:read'), async (req: Requ
 });
 
 // GET /api/shift-timings/:id - Get shift timing by ID
-router.get('/:id', authenticateJWT, checkPermission('shift:read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('shift_timing:read'), async (req: Request, res: Response) => {
   try {
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;

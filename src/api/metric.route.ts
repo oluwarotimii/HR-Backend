@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/metrics - List all available metrics
-router.get('/', authenticateJWT, checkPermission('metric.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('metric:read'), async (req: Request, res: Response) => {
   try {
     const metrics = await MetricsLibraryModel.findAll();
     res.json({
@@ -25,7 +25,7 @@ router.get('/', authenticateJWT, checkPermission('metric.read'), async (req: Req
 });
 
 // GET /api/metrics/:id - Get specific metric
-router.get('/:id', authenticateJWT, checkPermission('metric.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('metric:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -60,7 +60,7 @@ router.get('/:id', authenticateJWT, checkPermission('metric.read'), async (req: 
 });
 
 // GET /api/metrics/categories/:category - Get metrics for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('metric.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('metric:read'), async (req: Request, res: Response) => {
   try {
     const categoryParam = Array.isArray(req.params.category) ? req.params.category[0] : req.params.category;
     const category = categoryParam;

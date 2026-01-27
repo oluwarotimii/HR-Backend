@@ -14,8 +14,8 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 const router = express.Router();
 
 // Role management routes
-router.get('/', authenticateJWT, checkPermission('role.view'), getAllRoles);
-router.get('/:id', authenticateJWT, checkPermission('role.view'), getRoleById);
+router.get('/', authenticateJWT, checkPermission('roles:read'), getAllRoles);
+router.get('/:id', authenticateJWT, checkPermission('roles:read'), getRoleById);
 router.post('/', authenticateJWT, checkPermission('role.create'), createRole);
 router.put('/:id', authenticateJWT, checkPermission('role.update'), updateRole);
 router.delete('/:id', authenticateJWT, checkPermission('role.delete'), deleteRole);

@@ -14,10 +14,10 @@ const router = Router();
 router.use(authenticateJWT);
 
 // Get all departments
-router.get('/', getAllDepartments);
+router.get('/', authenticateJWT, checkPermission('departments:read'), getAllDepartments);
 
 // Get department by ID
-router.get('/:id', getDepartmentById);
+router.get('/:id', authenticateJWT, checkPermission('departments:read'), getDepartmentById);
 
 // Create a new department - requires departments:create permission
 router.post('/', checkPermission('departments:create'), createDepartment);

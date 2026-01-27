@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/appraisal-templates - List all appraisal templates
-router.get('/', authenticateJWT, checkPermission('appraisal_template.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('appraisal_template:read'), async (req: Request, res: Response) => {
   try {
     const templates = await AppraisalTemplateModel.findAll();
     res.json({
@@ -26,7 +26,7 @@ router.get('/', authenticateJWT, checkPermission('appraisal_template.read'), asy
 });
 
 // GET /api/appraisal-templates/:id - Get specific appraisal template
-router.get('/:id', authenticateJWT, checkPermission('appraisal_template.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('appraisal_template:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -61,7 +61,7 @@ router.get('/:id', authenticateJWT, checkPermission('appraisal_template.read'), 
 });
 
 // GET /api/appraisal-templates/categories/:category - Get templates for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('appraisal_template.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('appraisal_template:read'), async (req: Request, res: Response) => {
   try {
     const categoryParam = Array.isArray(req.params.category) ? req.params.category[0] : req.params.category;
     const category = categoryParam;

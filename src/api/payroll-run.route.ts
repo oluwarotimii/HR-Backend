@@ -12,8 +12,8 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 const router = express.Router();
 
 // Payroll run management routes
-router.get('/', authenticateJWT, checkPermission('payroll_run.read'), getAllPayrollRuns);
-router.get('/:id', authenticateJWT, checkPermission('payroll_run.read'), getPayrollRunById);
+router.get('/', authenticateJWT, checkPermission('payroll_run:read'), getAllPayrollRuns);
+router.get('/:id', authenticateJWT, checkPermission('payroll_run:read'), getPayrollRunById);
 router.post('/', authenticateJWT, checkPermission('payroll_run.create'), createPayrollRun);
 router.put('/:id', authenticateJWT, checkPermission('payroll_run.update'), updatePayrollRun);
 router.delete('/:id', authenticateJWT, checkPermission('payroll_run.delete'), deletePayrollRun);

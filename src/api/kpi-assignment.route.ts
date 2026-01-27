@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/kpi-assignments - List all KPI assignments
-router.get('/', authenticateJWT, checkPermission('kpi_assignment.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('kpi_assignment:read'), async (req: Request, res: Response) => {
   try {
     const assignments = await KpiAssignmentModel.findAll();
     res.json({
@@ -26,7 +26,7 @@ router.get('/', authenticateJWT, checkPermission('kpi_assignment.read'), async (
 });
 
 // GET /api/kpi-assignments/:id - Get specific KPI assignment
-router.get('/:id', authenticateJWT, checkPermission('kpi_assignment.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('kpi_assignment:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -61,7 +61,7 @@ router.get('/:id', authenticateJWT, checkPermission('kpi_assignment.read'), asyn
 });
 
 // GET /api/kpi-assignments/user/:userId - Get KPI assignments for specific user
-router.get('/user/:userId', authenticateJWT, checkPermission('kpi_assignment.read'), async (req: Request, res: Response) => {
+router.get('/user/:userId', authenticateJWT, checkPermission('kpi_assignment:read'), async (req: Request, res: Response) => {
   try {
     const userIdParam = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
     const userId = parseInt(userIdParam);
@@ -90,7 +90,7 @@ router.get('/user/:userId', authenticateJWT, checkPermission('kpi_assignment.rea
 });
 
 // GET /api/kpi-assignments/kpi/:kpiId - Get KPI assignments for specific KPI
-router.get('/kpi/:kpiId', authenticateJWT, checkPermission('kpi_assignment.read'), async (req: Request, res: Response) => {
+router.get('/kpi/:kpiId', authenticateJWT, checkPermission('kpi_assignment:read'), async (req: Request, res: Response) => {
   try {
     const kpiIdParam = Array.isArray(req.params.kpiId) ? req.params.kpiId[0] : req.params.kpiId;
     const kpiId = parseInt(kpiIdParam);
