@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/kpis - List all KPI definitions
-router.get('/', authenticateJWT, checkPermission('kpi.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('kpi:read'), async (req: Request, res: Response) => {
   try {
     const kpis = await KpiDefinitionModel.findAll();
     res.json({
@@ -26,7 +26,7 @@ router.get('/', authenticateJWT, checkPermission('kpi.read'), async (req: Reques
 });
 
 // GET /api/kpis/:id - Get specific KPI
-router.get('/:id', authenticateJWT, checkPermission('kpi.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('kpi:read'), async (req: Request, res: Response) => {
   try {
     const idParam = typeof req.params.id === 'string' ? req.params.id : '';
     const id = parseInt(idParam);
@@ -61,7 +61,7 @@ router.get('/:id', authenticateJWT, checkPermission('kpi.read'), async (req: Req
 });
 
 // GET /api/kpis/categories/:category - Get KPIs for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('kpi.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('kpi:read'), async (req: Request, res: Response) => {
   try {
     const category = typeof req.params.category === 'string' ? req.params.category : '';
     if (!category) {

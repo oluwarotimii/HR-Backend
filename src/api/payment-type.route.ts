@@ -12,8 +12,8 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 const router = express.Router();
 
 // Payment type management routes
-router.get('/', authenticateJWT, checkPermission('payment_type.read'), getAllPaymentTypes);
-router.get('/:id', authenticateJWT, checkPermission('payment_type.read'), getPaymentTypeById);
+router.get('/', authenticateJWT, checkPermission('payment_type:read'), getAllPaymentTypes);
+router.get('/:id', authenticateJWT, checkPermission('payment_type:read'), getPaymentTypeById);
 router.post('/', authenticateJWT, checkPermission('payment_type.create'), createPaymentType);
 router.put('/:id', authenticateJWT, checkPermission('payment_type.update'), updatePaymentType);
 router.delete('/:id', authenticateJWT, checkPermission('payment_type.delete'), deletePaymentType);

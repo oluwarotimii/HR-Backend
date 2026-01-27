@@ -40,15 +40,21 @@ export const getAllStaff = async (req: Request, res: Response) => {
 
 export const getStaffById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const staffIdStr = Array.isArray(id) ? id[0] : id;
-    const staffId = parseInt(staffIdStr);
+    // Use the validated numeric ID from middleware if available, otherwise parse from params
+    let staffId: number;
+    if (req.numericId !== undefined) {
+      staffId = req.numericId;
+    } else {
+      const { id } = req.params;
+      const staffIdStr = Array.isArray(id) ? id[0] : id;
+      staffId = parseInt(staffIdStr);
 
-    if (isNaN(staffId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid staff ID'
-      });
+      if (isNaN(staffId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid staff ID'
+        });
+      }
     }
 
     const staff = await StaffModel.findById(staffId);
@@ -145,17 +151,24 @@ export const createStaff = async (req: Request, res: Response) => {
 
 export const updateStaff = async (req: Request, res: Response) => {
   try {
-    const idParam = req.params.id;
-    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
-    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
-    const { employee_id, designation, department, branch_id, joining_date, employment_type, status }: StaffUpdate = req.body;
+    // Use the validated numeric ID from middleware if available, otherwise parse from params
+    let staffId: number;
+    if (req.numericId !== undefined) {
+      staffId = req.numericId;
+    } else {
+      const idParam = req.params.id;
+      const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+      staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
-    if (isNaN(staffId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid staff ID'
-      });
+      if (isNaN(staffId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid staff ID'
+        });
+      }
     }
+
+    const { employee_id, designation, department, branch_id, joining_date, employment_type, status }: StaffUpdate = req.body;
 
     // Check if staff exists
     const existingStaff = await StaffModel.findById(staffId);
@@ -210,15 +223,21 @@ export const updateStaff = async (req: Request, res: Response) => {
 
 export const deleteStaff = async (req: Request, res: Response) => {
   try {
-    const idParam = req.params.id;
-    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
-    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
+    // Use the validated numeric ID from middleware if available, otherwise parse from params
+    let staffId: number;
+    if (req.numericId !== undefined) {
+      staffId = req.numericId;
+    } else {
+      const idParam = req.params.id;
+      const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+      staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
-    if (isNaN(staffId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid staff ID'
-      });
+      if (isNaN(staffId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid staff ID'
+        });
+      }
     }
 
     const existingStaff = await StaffModel.findById(staffId);
@@ -268,13 +287,13 @@ export const deleteStaff = async (req: Request, res: Response) => {
     if (emailParts.length === 2) {
       const domain = emailParts[1];
       const companyDomain = process.env.CPANEL_DOMAIN || 'example.com';
-      
+
       if (domain === companyDomain) {
         try {
           const emailPrefix = emailParts[0];
           const cpanelService = new CpanelEmailService();
           const deletionResult = await cpanelService.deleteEmailAccount(emailPrefix);
-          
+
           if (deletionResult.success) {
             console.log(`Email account ${user.email} removed from cPanel successfully`);
           } else {
@@ -303,15 +322,21 @@ export const deleteStaff = async (req: Request, res: Response) => {
 
 export const terminateStaff = async (req: Request, res: Response) => {
   try {
-    const idParam = req.params.id;
-    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
-    const staffId = parseInt(typeof idStr === 'string' ? idStr : '');
+    // Use the validated numeric ID from middleware if available, otherwise parse from params
+    let staffId: number;
+    if (req.numericId !== undefined) {
+      staffId = req.numericId;
+    } else {
+      const idParam = req.params.id;
+      const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+      staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
-    if (isNaN(staffId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid staff ID'
-      });
+      if (isNaN(staffId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid staff ID'
+        });
+      }
     }
 
     const existingStaff = await StaffModel.findById(staffId);
@@ -358,13 +383,13 @@ export const terminateStaff = async (req: Request, res: Response) => {
     if (emailParts.length === 2) {
       const domain = emailParts[1];
       const companyDomain = process.env.CPANEL_DOMAIN || 'example.com';
-      
+
       if (domain === companyDomain) {
         try {
           const emailPrefix = emailParts[0];
           const cpanelService = new CpanelEmailService();
           const deletionResult = await cpanelService.deleteEmailAccount(emailPrefix);
-          
+
           if (deletionResult.success) {
             console.log(`Email account ${user.email} removed from cPanel successfully`);
           } else {
@@ -413,6 +438,41 @@ export const getStaffByDepartment = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get staff by department error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+export const getCurrentUserStaffDetails = async (req: Request, res: Response) => {
+  try {
+    if (!req.currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const userId = req.currentUser.id;
+
+    // Get staff details by user ID
+    const staff = await StaffModel.findByUserId(userId);
+
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff details not found for current user'
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Current user staff details retrieved successfully',
+      data: { staff }
+    });
+  } catch (error) {
+    console.error('Get current user staff details error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'

@@ -11,9 +11,9 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 
 const router = Router();
 
-// Public route for job seekers to view job postings
-router.get('/', getAllJobPostings);
-router.get('/:id', getJobPostingById);
+// Route for viewing job postings (requires authentication)
+router.get('/', authenticateJWT, checkPermission('job_posting:read'), getAllJobPostings);
+router.get('/:id', authenticateJWT, checkPermission('job_posting:read'), getJobPostingById);
 
 // Protected routes for HR/Admin to manage job postings
 router.use(authenticateJWT);

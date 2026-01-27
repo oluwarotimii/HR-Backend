@@ -15,8 +15,8 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 const router = express.Router();
 
 // User management routes
-router.get('/', authenticateJWT, checkPermission('user.view'), getAllUsers);
-router.get('/:id', authenticateJWT, checkPermission('user.view'), getUserById);
+router.get('/', authenticateJWT, checkPermission('users:read'), getAllUsers);
+router.get('/:id', authenticateJWT, checkPermission('users:read'), getUserById);
 router.post('/', authenticateJWT, checkPermission('user.create'), createUser);
 router.put('/:id', authenticateJWT, checkPermission('user.update'), updateUser);
 router.delete('/:id', authenticateJWT, checkPermission('user.delete'), deleteUser);

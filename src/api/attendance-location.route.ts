@@ -5,7 +5,7 @@ import AttendanceLocationModel from '../models/attendance-location.model';
 const router = Router();
 
 // GET /api/attendance-locations - Get all attendance locations
-router.get('/', authenticateJWT, checkPermission('attendance-location:read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('attendance_location:read'), async (req: Request, res: Response) => {
   try {
     const { branchId, isActive } = req.query;
 
@@ -37,7 +37,7 @@ router.get('/', authenticateJWT, checkPermission('attendance-location:read'), as
 });
 
 // GET /api/attendance-locations/:id - Get attendance location by ID
-router.get('/:id', authenticateJWT, checkPermission('attendance-location:read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('attendance_location:read'), async (req: Request, res: Response) => {
   try {
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
