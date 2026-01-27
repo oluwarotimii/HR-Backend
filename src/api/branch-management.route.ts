@@ -14,10 +14,10 @@ const router = Router();
 router.use(authenticateJWT);
 
 // Get all branches
-router.get('/', getAllBranches);
+router.get('/', authenticateJWT, checkPermission('branches:read'), getAllBranches);
 
 // Get branch by ID
-router.get('/:id', getBranchById);
+router.get('/:id', authenticateJWT, checkPermission('branches:read'), getBranchById);
 
 // Create a new branch - requires branches:create permission
 router.post('/', checkPermission('branches:create'), createBranch);

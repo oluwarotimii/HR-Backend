@@ -8,7 +8,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/kpi-scores - List all KPI scores
-router.get('/', authenticateJWT, checkPermission('kpi_score.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('kpi_score:read'), async (req: Request, res: Response) => {
   try {
     const scores = await KpiScoreModel.findAll();
     res.json({
@@ -27,7 +27,7 @@ router.get('/', authenticateJWT, checkPermission('kpi_score.read'), async (req: 
 });
 
 // GET /api/kpi-scores/:id - Get specific KPI score
-router.get('/:id', authenticateJWT, checkPermission('kpi_score.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('kpi_score:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -62,7 +62,7 @@ router.get('/:id', authenticateJWT, checkPermission('kpi_score.read'), async (re
 });
 
 // GET /api/kpi-scores/assignment/:assignmentId - Get scores for specific assignment
-router.get('/assignment/:assignmentId', authenticateJWT, checkPermission('kpi_score.read'), async (req: Request, res: Response) => {
+router.get('/assignment/:assignmentId', authenticateJWT, checkPermission('kpi_score:read'), async (req: Request, res: Response) => {
   try {
     const assignmentIdParam = Array.isArray(req.params.assignmentId) ? req.params.assignmentId[0] : req.params.assignmentId;
     const assignmentId = parseInt(assignmentIdParam);
@@ -100,7 +100,7 @@ router.get('/assignment/:assignmentId', authenticateJWT, checkPermission('kpi_sc
 });
 
 // GET /api/kpi-scores/user/:userId - Get scores for specific user
-router.get('/user/:userId', authenticateJWT, checkPermission('kpi_score.read'), async (req: Request, res: Response) => {
+router.get('/user/:userId', authenticateJWT, checkPermission('kpi_score:read'), async (req: Request, res: Response) => {
   try {
     const userIdParam = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
     const userId = parseInt(userIdParam);

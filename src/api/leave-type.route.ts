@@ -5,7 +5,7 @@ import LeaveTypeModel from '../models/leave-type.model';
 const router = Router();
 
 // GET /api/leave-types - List all leave types
-router.get('/', authenticateJWT, checkPermission('leave:read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('leave_type:read'), async (req: Request, res: Response) => {
   try {
     const leaveTypes = await LeaveTypeModel.findAll();
     return res.json({
@@ -23,7 +23,7 @@ router.get('/', authenticateJWT, checkPermission('leave:read'), async (req: Requ
 });
 
 // GET /api/leave-types/:id - Get leave type by ID
-router.get('/:id', authenticateJWT, checkPermission('leave:read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('leave_type:read'), async (req: Request, res: Response) => {
   try {
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
@@ -59,7 +59,7 @@ router.get('/:id', authenticateJWT, checkPermission('leave:read'), async (req: R
 });
 
 // POST /api/leave-types - Create new leave type
-router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: Request, res: Response) => {
+router.post('/', authenticateJWT, checkPermission('leave:request'), async (req: Request, res: Response) => {
   try {
     const { name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id } = req.body;
 
@@ -108,7 +108,7 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
 });
 
 // PUT /api/leave-types/:id - Update leave type
-router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req: Request, res: Response) => {
+router.put('/:id', authenticateJWT, checkPermission('leave:approve'), async (req: Request, res: Response) => {
   try {
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
@@ -158,7 +158,7 @@ router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req:
 });
 
 // DELETE /api/leave-types/:id - Delete (deactivate) leave type
-router.delete('/:id', authenticateJWT, checkPermission('leave:delete'), async (req: Request, res: Response) => {
+router.delete('/:id', authenticateJWT, checkPermission('leave:approve'), async (req: Request, res: Response) => {
   try {
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;

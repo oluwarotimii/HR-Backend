@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/appraisals - List all appraisal cycles
-router.get('/', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const appraisals = await AppraisalCycleModel.findAll();
     res.json({
@@ -25,7 +25,7 @@ router.get('/', authenticateJWT, checkPermission('appraisal.read'), async (req: 
 });
 
 // GET /api/appraisals/:id - Get specific appraisal cycle
-router.get('/:id', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -60,7 +60,7 @@ router.get('/:id', authenticateJWT, checkPermission('appraisal.read'), async (re
 });
 
 // GET /api/appraisals/template/:templateId - Get appraisals for specific template
-router.get('/template/:templateId', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/template/:templateId', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const templateIdParam = Array.isArray(req.params.templateId) ? req.params.templateId[0] : req.params.templateId;
     const templateId = parseInt(templateIdParam);
@@ -89,7 +89,7 @@ router.get('/template/:templateId', authenticateJWT, checkPermission('appraisal.
 });
 
 // GET /api/appraisals/categories/:category - Get appraisals for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const categoryParam = Array.isArray(req.params.category) ? req.params.category[0] : req.params.category;
     const category = categoryParam;

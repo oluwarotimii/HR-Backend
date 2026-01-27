@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/targets - List all targets
-router.get('/', authenticateJWT, checkPermission('target.read'), async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('target:read'), async (req: Request, res: Response) => {
   try {
     const targets = await TargetModel.findAll();
     res.json({
@@ -25,7 +25,7 @@ router.get('/', authenticateJWT, checkPermission('target.read'), async (req: Req
 });
 
 // GET /api/targets/:id - Get specific target
-router.get('/:id', authenticateJWT, checkPermission('target.read'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateJWT, checkPermission('target:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(idParam);
@@ -60,7 +60,7 @@ router.get('/:id', authenticateJWT, checkPermission('target.read'), async (req: 
 });
 
 // GET /api/targets/employee/:employeeId - Get targets for specific employee
-router.get('/employee/:employeeId', authenticateJWT, checkPermission('target.read'), async (req: Request, res: Response) => {
+router.get('/employee/:employeeId', authenticateJWT, checkPermission('target:read'), async (req: Request, res: Response) => {
   try {
     const employeeIdParam = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdParam);
@@ -89,7 +89,7 @@ router.get('/employee/:employeeId', authenticateJWT, checkPermission('target.rea
 });
 
 // GET /api/targets/template/:templateId - Get targets for specific template
-router.get('/template/:templateId', authenticateJWT, checkPermission('target.read'), async (req: Request, res: Response) => {
+router.get('/template/:templateId', authenticateJWT, checkPermission('target:read'), async (req: Request, res: Response) => {
   try {
     const templateIdParam = Array.isArray(req.params.templateId) ? req.params.templateId[0] : req.params.templateId;
     const templateId = parseInt(templateIdParam);
@@ -118,7 +118,7 @@ router.get('/template/:templateId', authenticateJWT, checkPermission('target.rea
 });
 
 // GET /api/targets/categories/:category - Get targets for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('target.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('target:read'), async (req: Request, res: Response) => {
   try {
     const categoryParam = Array.isArray(req.params.category) ? req.params.category[0] : req.params.category;
     const category = categoryParam;

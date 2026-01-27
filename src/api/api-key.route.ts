@@ -9,7 +9,7 @@ const router = Router();
 /**
  * GET /api/api-keys - Get all API keys for the authenticated user
  */
-router.get('/', authenticateJWT, async (req: Request, res: Response) => {
+router.get('/', authenticateJWT, checkPermission('api_key:read'), async (req: Request, res: Response) => {
   try {
     const userId = req.currentUser?.id;
 

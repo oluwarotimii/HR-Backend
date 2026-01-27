@@ -7,7 +7,7 @@ import UserModel from '../models/user.model';
 const router = express.Router();
 
 // GET /api/performance/employee/:employeeId - Get performance scores for employee
-router.get('/employee/:employeeId', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.get('/employee/:employeeId', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const employeeIdParam = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdParam);
@@ -36,7 +36,7 @@ router.get('/employee/:employeeId', authenticateJWT, checkPermission('performanc
 });
 
 // GET /api/performance/template/:templateId - Get scores for specific template
-router.get('/template/:templateId', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.get('/template/:templateId', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const templateIdParam = Array.isArray(req.params.templateId) ? req.params.templateId[0] : req.params.templateId;
     const templateId = parseInt(templateIdParam);
@@ -65,7 +65,7 @@ router.get('/template/:templateId', authenticateJWT, checkPermission('performanc
 });
 
 // GET /api/performance/categories/:category - Get scores for specific category
-router.get('/categories/:category', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.get('/categories/:category', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const categoryParam = Array.isArray(req.params.category) ? req.params.category[0] : req.params.category;
     const category = categoryParam;
@@ -94,7 +94,7 @@ router.get('/categories/:category', authenticateJWT, checkPermission('performanc
 });
 
 // GET /api/performance/period/:startDate/:endDate - Get performance for specific period
-router.get('/period/:startDate/:endDate', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.get('/period/:startDate/:endDate', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const startDateParam = Array.isArray(req.params.startDate) ? req.params.startDate[0] : req.params.startDate;
     const endDateParam = Array.isArray(req.params.endDate) ? req.params.endDate[0] : req.params.endDate;
@@ -127,7 +127,7 @@ router.get('/period/:startDate/:endDate', authenticateJWT, checkPermission('perf
 });
 
 // POST /api/performance/recalculate - Recalculate scores for all employees
-router.post('/recalculate', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.post('/recalculate', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     // This would typically trigger a background job to recalculate all scores
     // For now, we'll just return a success message indicating the job was queued
@@ -146,7 +146,7 @@ router.post('/recalculate', authenticateJWT, checkPermission('performance.read')
 });
 
 // POST /api/performance - Create/update performance score
-router.post('/', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.post('/', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const { employee_id, kpi_id, template_id, score, achieved_value, period_start, period_end } = req.body;
 

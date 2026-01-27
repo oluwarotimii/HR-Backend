@@ -11,8 +11,8 @@ import { authenticateJWT, checkPermission } from '../middleware/auth.middleware'
 const router = express.Router();
 
 // Form submission routes
-router.get('/', authenticateJWT, checkPermission('form.submission.view'), getAllFormSubmissions);
-router.get('/:id', authenticateJWT, checkPermission('form.submission.view'), getFormSubmissionById);
+router.get('/', authenticateJWT, checkPermission('form_submission:read'), getAllFormSubmissions);
+router.get('/:id', authenticateJWT, checkPermission('form_submission:read'), getFormSubmissionById);
 router.post('/', authenticateJWT, checkPermission('form.submission.create'), submitForm);
 router.put('/:id', authenticateJWT, checkPermission('form.submission.update'), updateFormSubmission);
 router.delete('/:id', authenticateJWT, checkPermission('form.submission.delete'), deleteFormSubmission);

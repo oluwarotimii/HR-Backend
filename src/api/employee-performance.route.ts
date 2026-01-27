@@ -7,7 +7,7 @@ import { AppraisalAssignmentModel } from '../models/appraisal-assignment.model';
 const router = express.Router();
 
 // GET /api/employees/:id/performance - Get employee's performance history
-router.get('/:id/performance', authenticateJWT, checkPermission('performance.read'), async (req: Request, res: Response) => {
+router.get('/:id/performance', authenticateJWT, checkPermission('performance:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const employeeId = parseInt(idParam);
@@ -39,7 +39,7 @@ router.get('/:id/performance', authenticateJWT, checkPermission('performance.rea
 });
 
 // GET /api/employees/:id/appraisals - Get employee's appraisal history
-router.get('/:id/appraisals', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/:id/appraisals', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const employeeId = parseInt(idParam);
@@ -68,7 +68,7 @@ router.get('/:id/appraisals', authenticateJWT, checkPermission('appraisal.read')
 });
 
 // GET /api/employees/:id/appraisals/template/:templateId - Get employee's appraisals for specific template
-router.get('/:id/appraisals/template/:templateId', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/:id/appraisals/template/:templateId', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const templateIdParam = Array.isArray(req.params.templateId) ? req.params.templateId[0] : req.params.templateId;
@@ -154,7 +154,7 @@ router.post('/:id/self-assessment', authenticateJWT, checkPermission('appraisal.
 });
 
 // GET /api/employees/:id/self-assessment - Get employee's self-assessment
-router.get('/:id/self-assessment', authenticateJWT, checkPermission('appraisal.read'), async (req: Request, res: Response) => {
+router.get('/:id/self-assessment', authenticateJWT, checkPermission('appraisal:read'), async (req: Request, res: Response) => {
   try {
     const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const employeeId = parseInt(idParam);
