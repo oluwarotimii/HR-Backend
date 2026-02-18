@@ -9,6 +9,7 @@ import StaffModel from '../models/staff.model';
 import LeaveHistoryModel from '../models/leave-history.model';
 import attendanceProcessRoutes from './attendance-process.route';
 import attendanceSettingsRoutes from './attendance-settings.route';
+import attendanceCheckRoutes from './attendance-check.route';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -414,6 +415,73 @@ router.get('/records', authenticateJWT, checkPermission('attendance:read'), asyn
     });
   } catch (error) {
     console.error('Get attendance records error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/attendance/staff-data - Get staff attendance data for dashboard
+router.get('/staff-data', authenticateJWT, checkPermission('attendance:read'), async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, branchId, departmentId } = req.query;
+
+    // Build query to get staff attendance summary
+    let query = `
+      SELECT
+        s.id,
+        s.user_id,
+        s.first_name,
+        s.last_name,
+        s.employee_id,
+        d.name as department,
+        b.name as branch,
+        COUNT(CASE WHEN a.status = 'present' THEN 1 END) as present,
+        COUNT(CASE WHEN a.status = 'late' THEN 1 END) as late,
+        COUNT(CASE WHEN a.status = 'early' THEN 1 END) as early,
+        COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent,
+        COUNT(CASE WHEN a.status = 'leave' THEN 1 END) as leave,
+        COUNT(CASE WHEN a.status = 'holiday' THEN 1 END) as holiday
+      FROM staff s
+      LEFT JOIN users u ON s.user_id = u.id
+      LEFT JOIN departments d ON s.department_id = d.id
+      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN attendance a ON s.user_id = a.user_id
+      WHERE s.status = 'active' AND u.status = 'active'
+    `;
+
+    const params: any[] = [];
+
+    if (branchId) {
+      query += ' AND s.branch_id = ?';
+      params.push(branchId);
+    }
+
+    if (departmentId) {
+      query += ' AND s.department_id = ?';
+      params.push(departmentId);
+    }
+
+    if (startDate && endDate) {
+      query += ' AND a.date BETWEEN ? AND ?';
+      params.push(startDate, endDate);
+    }
+
+    query += `
+      GROUP BY s.id, s.user_id, s.first_name, s.last_name, s.employee_id, d.name, b.name
+      ORDER BY s.first_name, s.last_name
+    `;
+
+    const [results] = await pool.execute(query, params);
+
+    return res.json({
+      success: true,
+      message: 'Staff attendance data retrieved successfully',
+      data: { staff: results }
+    });
+  } catch (error) {
+    console.error('Get staff attendance data error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -866,5 +934,8 @@ router.use('/process', attendanceProcessRoutes);
 
 // Mount attendance settings routes
 router.use('/settings', attendanceSettingsRoutes);
+
+// Mount attendance check-in/check-out routes
+router.use(attendanceCheckRoutes);
 
 export default router;
