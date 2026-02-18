@@ -152,12 +152,12 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       }
 
       // Check if user has approved leave on this date
-      const leaveHistory = await pool.execute(
+      const [leaveHistory] = await pool.execute(
         `SELECT id, start_date, end_date FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date`,
         [userId, new Date(date)]
-      );
-      
-      if (leaveHistory[0].length > 0) {
+      ) as [any[], any];
+
+      if (leaveHistory.length > 0) {
         // Mark as on leave attendance
         const attendanceData = {
           user_id: userId,
@@ -206,16 +206,25 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       }
 
       // Get attendance settings for this branch
-      const [branchSettings] = await pool.execute(
-        `SELECT * FROM attendance_settings WHERE branch_id = ?`,
-        [branchId]
-      ) as [any[], any];
-      
-      const settings = branchSettings[0] || {
+      let settings = {
         require_check_in: true,
         require_check_out: true,
         grace_period_minutes: 0
       };
+
+      try {
+        const [branchSettings] = await pool.execute(
+          `SELECT * FROM attendance_settings WHERE branch_id = ?`,
+          [branchId]
+        ) as [any[], any];
+
+        if (branchSettings && branchSettings.length > 0) {
+          settings = branchSettings[0];
+        }
+      } catch (error) {
+        // Table may not exist yet, use defaults
+        console.log('Using default attendance settings (table may not exist)');
+      }
 
       // Check if check-in is required for this branch
       if (settings.require_check_in === false) {
@@ -372,16 +381,25 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
     }
 
     // Get attendance settings for this branch
-    const [branchSettings] = await pool.execute(
-      `SELECT * FROM attendance_settings WHERE branch_id = ?`,
-      [branchId]
-    ) as [any[], any];
-    
-    const settings = branchSettings[0] || {
+    let settings = {
       require_check_in: true,
       require_check_out: true,
       grace_period_minutes: 0
     };
+
+    try {
+      const [branchSettings] = await pool.execute(
+        `SELECT * FROM attendance_settings WHERE branch_id = ?`,
+        [branchId]
+      ) as [any[], any];
+
+      if (branchSettings && branchSettings.length > 0) {
+        settings = branchSettings[0];
+      }
+    } catch (error) {
+      // Table may not exist yet, use defaults
+      console.log('Using default attendance settings (table may not exist)');
+    }
 
     // Check if check-out is required for this branch
     if (settings.require_check_out === false) {

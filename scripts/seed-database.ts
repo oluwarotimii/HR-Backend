@@ -1,6 +1,6 @@
 /**
  * HR App Database Seeder
- * 
+ *
  * Populates the database with realistic test data including:
  * - Branches (5 branches across Kenya)
  * - Users & Staff (50+ employees)
@@ -9,7 +9,9 @@
  * - Holidays (Kenyan public holidays)
  * - Attendance Records (6+ months of daily data)
  * - Leave History
- * 
+ *
+ * Note: Admin user is NOT created by this script. Create admin manually through signup after seeding.
+ *
  * Usage: npm run seed
  */
 
@@ -115,9 +117,9 @@ async function hashPassword(password) {
 
 async function clearExistingData() {
   console.log('🗑️  Clearing existing data...');
-  
+
   await pool.execute('SET FOREIGN_KEY_CHECKS = 0');
-  
+
   const tablesToClear = [
     'attendance',
     'leave_history',
@@ -128,9 +130,10 @@ async function clearExistingData() {
     'departments',
     'holidays',
     'branches',
+    'roles_permissions',
     'roles',
   ];
-  
+
   for (const table of tablesToClear) {
     try {
       await pool.execute(`DELETE FROM ${table}`);
@@ -154,22 +157,80 @@ async function clearExistingData() {
 
 async function seedRoles() {
   console.log('🔐 Seeding roles...');
-  
+
   const roles = [
     { name: 'Admin', description: 'System Administrator' },
     { name: 'Manager', description: 'Department/Branch Manager' },
     { name: 'HR', description: 'Human Resources' },
     { name: 'Employee', description: 'Regular Employee' },
   ];
-  
+
+  const rolePermissions = {
+    Admin: ['*'], // All permissions
+    Manager: [
+      'staff:read', 'staff:update',
+      'users:read', 'users:update',
+      'attendance:read', 'attendance:manage',
+      'leave:request', 'leave:view', 'leave:approve',
+      'reports:view', 'reports:generate',
+      'branches:read',
+      'departments:read', 'departments:update',
+      'shifts:read', 'shifts:manage',
+      'performance:review'
+    ],
+    HR: [
+      'staff:create', 'staff:read', 'staff:update',
+      'users:create', 'users:read', 'users:update',
+      'attendance:read', 'attendance:manage',
+      'leave:request', 'leave:view', 'leave:approve',
+      'leave_type:read',
+      'reports:view', 'reports:generate',
+      'branches:read',
+      'departments:read',
+      'shifts:read', 'shifts:manage',
+      'payroll:read',
+      'performance:review',
+      'documents:upload', 'documents:download'
+    ],
+    Employee: [
+      'staff:read',
+      'users:read',
+      'attendance:read',
+      'leave:request', 'leave:view',
+      'leave_type:read',
+      'reports:view',
+      'branches:read',
+      'departments:read',
+      'shifts:read',
+      'documents:download'
+    ]
+  };
+
+  const roleIds: Record<string, number> = {};
+
   for (const role of roles) {
-    await pool.execute(
-      `INSERT INTO roles (name, description) VALUES (?, ?)`,
-      [role.name, role.description]
+    const permissions = rolePermissions[role.name as keyof typeof rolePermissions] || [];
+    
+    // Insert role with permissions JSON array
+    const [result] = await pool.execute(
+      `INSERT INTO roles (name, description, permissions) VALUES (?, ?, ?)`,
+      [role.name, role.description, JSON.stringify(permissions)]
     );
-    console.log(`   ✓ Created ${role.name}`);
+    console.log(`   ✓ Created ${role.name} with ${permissions.length} permissions`);
+
+    // Store role ID
+    const roleId = (result as any).insertId;
+    roleIds[role.name] = roleId;
+
+    // Also add permissions to the junction table for backward compatibility and detailed queries
+    for (const permission of permissions) {
+      await pool.execute(
+        `INSERT IGNORE INTO roles_permissions (role_id, permission, allow_deny) VALUES (?, ?, 'allow')`,
+        [roleId, permission]
+      );
+    }
   }
-  
+
   console.log('✅ Roles seeded\n');
 }
 
@@ -198,23 +259,11 @@ async function seedBranches() {
 
 async function seedUsersAndStaff() {
   console.log('👥 Seeding users and staff...');
-  
+
   const passwordHash = await hashPassword('Password123!');
-  
-  await pool.execute(
-    `INSERT INTO users (email, password_hash, full_name, role_id, status)
-     VALUES (?, ?, ?, 1, 'active')`,
-    ['admin@company.co.ke', passwordHash, 'System Administrator']
-  );
-  
-  await pool.execute(
-    `INSERT INTO staff (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'full_time', 'active')`,
-    [1, 'EMP0001', 'System Administrator', 'IT', 1, '2023-01-01']
-  );
-  
-  console.log('   ✓ Created admin user');
-  
+
+  // Note: Admin user is NOT created here - create manually through signup after seeding
+
   for (let i = 0; i < CONFIG.numEmployees; i++) {
     const firstName = randomElement(FIRST_NAMES);
     const lastName = randomElement(LAST_NAMES);
@@ -230,16 +279,16 @@ async function seedUsersAndStaff() {
        VALUES (?, ?, ?, ?, ?, 'active')`,
       [email, passwordHash, `${firstName} ${lastName}`, roleId, branchId]
     );
-    
+
     const userId = userResult.insertId;
-    
+
     const designations = ['Associate', 'Senior Associate', 'Officer', 'Senior Officer', 'Manager'];
     const designation = randomElement(designations);
-    
+
     await pool.execute(
       `INSERT INTO staff (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
-      [userId, generateEmployeeId(i + 2), designation, department, branchId, joiningDate, employmentType]
+      [userId, generateEmployeeId(i + 1), designation, department, branchId, joiningDate, employmentType]
     );
     
     if ((i + 1) % 10 === 0) {
@@ -247,7 +296,7 @@ async function seedUsersAndStaff() {
     }
   }
   
-  console.log(`✅ Users and staff seeded (${CONFIG.numEmployees + 1} records)\n`);
+  console.log(`✅ Users and staff seeded (${CONFIG.numEmployees} records)\n`);
 }
 
 async function seedDepartments() {
@@ -543,9 +592,8 @@ async function printSummary() {
   
   console.log('\n✅ Seeding complete!\n');
   console.log('📝 Test Credentials:');
-  console.log('   Admin Email: admin@company.co.ke');
-  console.log('   Password: Password123!');
-  console.log('\n   All employees use the same password for testing.\n');
+  console.log('   All employees use the same password: Password123!');
+  console.log('   Create admin user manually through signup after seeding.\n');
 }
 
 async function seedDatabase() {
