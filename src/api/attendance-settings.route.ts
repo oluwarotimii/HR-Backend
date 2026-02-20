@@ -344,17 +344,17 @@ router.patch('/settings/global', authenticateJWT, checkPermission('attendance:ma
     } else {
       // Insert new settings
       const columns = ['id'];
-      const values = [1]; // Global settings always has ID 1
+      const values: any[] = [1]; // Global settings always has ID 1
       const placeholders = ['?'];
-      
+
       for (const [key, value] of Object.entries(settings)) {
-        if (typeof value !== 'undefined') {
+        if (typeof value !== 'undefined' && value !== null) {
           columns.push(key);
           values.push(value);
           placeholders.push('?');
         }
       }
-      
+
       await pool.execute(
         `INSERT INTO global_attendance_settings (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`,
         values

@@ -6,6 +6,7 @@ import HolidayModel from '../models/holiday.model';
 import AttendanceLocationModel from '../models/attendance-location.model';
 import BranchModel from '../models/branch.model';
 import StaffModel from '../models/staff.model';
+import { pool } from '../config/database';
 
 const router = Router();
 
@@ -66,12 +67,12 @@ router.post('/manual', authenticateJWT, async (req: Request, res: Response) => {
     }
 
     // Check if user has approved leave on this date
-    const leaveHistory = await pool.execute(
+    const [leaveHistoryRows] = await pool.execute(
       `SELECT id, start_date, end_date FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date`,
       [requestingUserId, new Date(date)]
-    );
-    
-    if (leaveHistory[0].length > 0) {
+    ) as [any[], any];
+
+    if ((leaveHistoryRows as any[]).length > 0) {
       // For approved leave, mark attendance as leave regardless
       const attendanceData = {
         user_id: requestingUserId,
