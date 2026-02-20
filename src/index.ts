@@ -46,7 +46,6 @@ import shiftSchedulingRoutes from './api/shift-scheduling.route';
 import reportingAnalyticsRoutes from './api/reporting-analytics.route';
 // import apiKeyRoutes from './api/api-key.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
-import testApiAuthRoutes from './api/test-api-auth.route';
 import { SchedulerService } from './services/scheduler.service';
 
 // Load environment variables
@@ -136,7 +135,6 @@ app.use('/api/shift-scheduling', shiftSchedulingRoutes);
 app.use('/api/reports', reportingAnalyticsRoutes);
 // app.use('/api/api-keys', apiKeyRoutes);  // API Keys temporarily disabled
 app.use('/api/health', healthRoutes);
-app.use('/api/test-auth', testApiAuthRoutes);
 
 // Basic route
 app.get('/', (req, res) => {

@@ -116,22 +116,16 @@ async function hashPassword(password) {
 }
 
 async function clearExistingData() {
-  console.log('🗑️  Clearing existing data...');
+  console.log('🗑️  Clearing existing transactional data (preserving users & staff)...');
 
   await pool.execute('SET FOREIGN_KEY_CHECKS = 0');
 
+  // Only clear transactional data, NOT users, staff, roles, or branches
   const tablesToClear = [
     'attendance',
     'leave_history',
-    'leave_types',
     'shift_timings',
-    'staff',
-    'users',
-    'departments',
     'holidays',
-    'branches',
-    'roles_permissions',
-    'roles',
   ];
 
   for (const table of tablesToClear) {
@@ -142,7 +136,7 @@ async function clearExistingData() {
       console.log(`   - Skipped ${table} (may not exist)`);
     }
   }
-  
+
   for (const table of tablesToClear) {
     try {
       await pool.execute(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
@@ -150,9 +144,9 @@ async function clearExistingData() {
       // Ignore errors
     }
   }
-  
+
   await pool.execute('SET FOREIGN_KEY_CHECKS = 1');
-  console.log('✅ Data cleared\n');
+  console.log('✅ Transactional data cleared (users, staff, roles, branches preserved)\n');
 }
 
 async function seedRoles() {
@@ -166,7 +160,7 @@ async function seedRoles() {
   ];
 
   const rolePermissions = {
-    Admin: ['*'], // All permissions
+    Admin: ['*'],
     Manager: [
       'staff:read', 'staff:update',
       'users:read', 'users:update',
@@ -206,23 +200,25 @@ async function seedRoles() {
     ]
   };
 
-  const roleIds: Record<string, number> = {};
-
   for (const role of roles) {
-    const permissions = rolePermissions[role.name as keyof typeof rolePermissions] || [];
+    // Check if role already exists
+    const [existing] = await pool.execute('SELECT id FROM roles WHERE name = ?', [role.name]);
     
-    // Insert role with permissions JSON array
+    if ((existing as any).length > 0) {
+      console.log(`   ✓ Role ${role.name} already exists, skipping...`);
+      continue;
+    }
+
+    const permissions = rolePermissions[role.name as keyof typeof rolePermissions] || [];
+
     const [result] = await pool.execute(
       `INSERT INTO roles (name, description, permissions) VALUES (?, ?, ?)`,
       [role.name, role.description, JSON.stringify(permissions)]
     );
     console.log(`   ✓ Created ${role.name} with ${permissions.length} permissions`);
 
-    // Store role ID
     const roleId = (result as any).insertId;
-    roleIds[role.name] = roleId;
 
-    // Also add permissions to the junction table for backward compatibility and detailed queries
     for (const permission of permissions) {
       await pool.execute(
         `INSERT IGNORE INTO roles_permissions (role_id, permission, allow_deny) VALUES (?, ?, 'allow')`,
@@ -238,6 +234,14 @@ async function seedBranches() {
   console.log('🏢 Seeding branches...');
 
   for (const branch of BRANCH_DATA) {
+    // Check if branch already exists
+    const [existing] = await pool.execute('SELECT id FROM branches WHERE code = ?', [branch.code]);
+    
+    if ((existing as any).length > 0) {
+      console.log(`   ✓ Branch ${branch.name} already exists, skipping...`);
+      continue;
+    }
+
     await pool.execute(
       `INSERT INTO branches (name, code, city, country, phone, email, location_coordinates, location_radius_meters, attendance_mode, status)
        VALUES (?, ?, ?, 'Kenya', ?, ?, ?, ?, 'branch_based', 'active')`,
@@ -264,6 +268,9 @@ async function seedUsersAndStaff() {
 
   // Note: Admin user is NOT created here - create manually through signup after seeding
 
+  let createdCount = 0;
+  let skippedCount = 0;
+
   for (let i = 0; i < CONFIG.numEmployees; i++) {
     const firstName = randomElement(FIRST_NAMES);
     const lastName = randomElement(LAST_NAMES);
@@ -273,7 +280,25 @@ async function seedUsersAndStaff() {
     const department = randomElement(DEPARTMENTS);
     const joiningDate = randomDate(new Date('2023-01-01'), new Date('2024-12-31'));
     const employmentType = randomElement(['full_time', 'full_time', 'full_time', 'part_time', 'contract']);
+
+    // Check if user already exists
+    const [existingUsers] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
     
+    if ((existingUsers as any).length > 0) {
+      skippedCount++;
+      continue;
+    }
+
+    // Check if employee_id already exists
+    const employeeId = generateEmployeeId(i + 1);
+    const [existingStaff] = await pool.execute('SELECT id FROM staff WHERE employee_id = ?', [employeeId]);
+    
+    if ((existingStaff as any).length > 0) {
+      console.log(`   ⚠️  Employee ${employeeId} already exists, skipping...`);
+      skippedCount++;
+      continue;
+    }
+
     const [userResult] = await pool.execute(
       `INSERT INTO users (email, password_hash, full_name, role_id, branch_id, status)
        VALUES (?, ?, ?, ?, ?, 'active')`,
@@ -288,21 +313,32 @@ async function seedUsersAndStaff() {
     await pool.execute(
       `INSERT INTO staff (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
-      [userId, generateEmployeeId(i + 1), designation, department, branchId, joiningDate, employmentType]
+      [userId, employeeId, designation, department, branchId, joiningDate, employmentType]
     );
-    
+
+    createdCount++;
+
     if ((i + 1) % 10 === 0) {
-      console.log(`   ✓ Created ${i + 1} employees...`);
+      console.log(`   ✓ Processed ${i + 1} employees...`);
     }
   }
-  
-  console.log(`✅ Users and staff seeded (${CONFIG.numEmployees} records)\n`);
+
+  console.log(`   Created: ${createdCount}, Skipped (already exist): ${skippedCount}`);
+  console.log(`✅ Users and staff seeded\n`);
 }
 
 async function seedDepartments() {
   console.log('🏛️  Seeding departments...');
-  
+
   for (const dept of DEPARTMENTS) {
+    // Check if department already exists
+    const [existing] = await pool.execute('SELECT id FROM departments WHERE name = ?', [dept]);
+    
+    if ((existing as any).length > 0) {
+      console.log(`   ✓ Department ${dept} already exists, skipping...`);
+      continue;
+    }
+
     const branchId = Math.floor(Math.random() * CONFIG.numBranches) + 1;
     await pool.execute(
       `INSERT INTO departments (name, description, branch_id)
@@ -311,13 +347,13 @@ async function seedDepartments() {
     );
     console.log(`   ✓ Created ${dept}`);
   }
-  
+
   console.log('✅ Departments seeded\n');
 }
 
 async function seedLeaveTypes() {
   console.log('📋 Seeding leave types...');
-  
+
   const leaveTypes = [
     { name: 'Annual Leave', days: 21, paid: true },
     { name: 'Sick Leave', days: 14, paid: true },
@@ -327,8 +363,16 @@ async function seedLeaveTypes() {
     { name: 'Compassionate Leave', days: 5, paid: false },
     { name: 'Study Leave', days: 30, paid: false },
   ];
-  
+
   for (const lt of leaveTypes) {
+    // Check if leave type already exists
+    const [existing] = await pool.execute('SELECT id FROM leave_types WHERE name = ?', [lt.name]);
+    
+    if ((existing as any).length > 0) {
+      console.log(`   ✓ Leave type ${lt.name} already exists, skipping...`);
+      continue;
+    }
+
     await pool.execute(
       `INSERT INTO leave_types (name, days_per_year, is_paid, is_active)
        VALUES (?, ?, ?, TRUE)`,
@@ -336,7 +380,7 @@ async function seedLeaveTypes() {
     );
     console.log(`   ✓ Created ${lt.name}`);
   }
-  
+
   console.log('✅ Leave types seeded\n');
 }
 
@@ -580,16 +624,81 @@ async function seedLeaveTypes$() {
   console.log('✅ Leave history seeded\n');
 }
 
+async function seedForms() {
+  console.log('📝 Seeding forms...');
+
+  const forms = [
+    {
+      name: 'Leave Request',
+      form_type: 'leave_request',
+      description: 'Submit leave requests for approval',
+      fields: JSON.stringify([
+        { name: 'leave_type_id', label: 'Leave Type', type: 'select', required: true },
+        { name: 'start_date', label: 'Start Date', type: 'date', required: true },
+        { name: 'end_date', label: 'End Date', type: 'date', required: true },
+        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
+        { name: 'attachments', label: 'Attachments', type: 'file', required: false }
+      ]),
+      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
+      status: 'active'
+    },
+    {
+      name: 'Attendance Regularization',
+      form_type: 'attendance_regularization',
+      description: 'Request attendance correction for missed check-ins',
+      fields: JSON.stringify([
+        { name: 'date', label: 'Date', type: 'date', required: true },
+        { name: 'check_in_time', label: 'Check-in Time', type: 'time', required: false },
+        { name: 'check_out_time', label: 'Check-out Time', type: 'time', required: false },
+        { name: 'reason', label: 'Reason', type: 'textarea', required: true }
+      ]),
+      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
+      status: 'active'
+    },
+    {
+      name: 'Shift Change Request',
+      form_type: 'shift_change',
+      description: 'Request shift change or swap',
+      fields: JSON.stringify([
+        { name: 'current_shift', label: 'Current Shift', type: 'text', required: true },
+        { name: 'requested_shift', label: 'Requested Shift', type: 'text', required: true },
+        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
+        { name: 'effective_date', label: 'Effective Date', type: 'date', required: true }
+      ]),
+      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
+      status: 'active'
+    }
+  ];
+
+  for (const form of forms) {
+    const [existing] = await pool.execute('SELECT id FROM forms WHERE form_type = ?', [form.form_type]);
+
+    if ((existing as any).length > 0) {
+      console.log(`   ✓ Form ${form.name} already exists, skipping...`);
+      continue;
+    }
+
+    await pool.execute(
+      `INSERT INTO forms (name, form_type, description, fields, approval_workflow, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [form.name, form.form_type, form.description, form.fields, form.approval_workflow, form.status]
+    );
+    console.log(`   ✓ Created ${form.name}`);
+  }
+
+  console.log('✅ Forms seeded\n');
+}
+
 async function printSummary() {
   console.log('📈 Database Summary:\n');
-  
-  const tables = ['branches', 'users', 'staff', 'departments', 'holidays', 'shift_timings', 'attendance', 'leave_history'];
-  
+
+  const tables = ['branches', 'users', 'staff', 'departments', 'forms', 'holidays', 'shift_timings', 'attendance', 'leave_history'];
+
   for (const table of tables) {
     const [result] = await pool.execute(`SELECT COUNT(*) as count FROM ${table}`);
     console.log(`   ${table.padEnd(20)}: ${result[0].count.toLocaleString()} records`);
   }
-  
+
   console.log('\n✅ Seeding complete!\n');
   console.log('📝 Test Credentials:');
   console.log('   All employees use the same password: Password123!');
@@ -603,7 +712,7 @@ async function seedDatabase() {
   console.log(`   Branches: ${CONFIG.numBranches}`);
   console.log(`   Employees: ${CONFIG.numEmployees}`);
   console.log('');
-  
+
   try {
     await clearExistingData();
     await seedRoles();
@@ -615,6 +724,7 @@ async function seedDatabase() {
     await seedShiftTimings();
     await seedAttendance();
     await seedLeaveTypes$();
+    await seedForms();
     await printSummary();
   } catch (error) {
     console.error('❌ Seeding failed:', error);
