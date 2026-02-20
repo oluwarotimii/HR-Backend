@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -27,25 +28,29 @@ async function runSetup() {
     // 1. Create database if it doesn't exist
     console.log('1️⃣  Creating database...');
     await createDatabaseIfNotExists();
-    
+
     // 2. Run migrations
     console.log('\n2️⃣  Running database migrations...');
     await runMigrations();
-    
+
     // 3. Seed admin user
     console.log('\n3️⃣  Seeding admin user...');
     await seedAdminUser();
-    
+
     // 4. Create additional default data
     console.log('\n4️⃣  Creating default system data...');
     await createDefaultData();
-    
+
+    // 5. Seed database with test data
+    console.log('\n5️⃣  Seeding database with test data...');
+    await runSeedScript();
+
     console.log('\n✅ Setup completed successfully!');
     console.log('\n📋 Admin User Credentials:');
     console.log('   Email: admin@company.com');
     console.log('   Password: admin123');
     console.log('   Please change the password after first login!');
-    
+
   } catch (error) {
     console.error('❌ Setup failed:', error);
     process.exit(1);
@@ -73,7 +78,8 @@ async function runMigrations() {
   const dbName = process.env.DB_NAME || 'hr_management_system';
   const dbConfigWithDb = {
     ...dbConfig,
-    database: dbName
+    database: dbName,
+    multipleStatements: true  // Enable multiple statements
   };
   const pool = mysql.createPool(dbConfigWithDb);
 
@@ -91,19 +97,12 @@ async function runMigrations() {
 
       console.log(`   Running migration: ${file}`);
 
-      // Split by semicolon to handle multiple statements in one file
-      const statements = sqlContent.split(';').filter(stmt => stmt.trim() !== '');
-
-      for (const statement of statements) {
-        if (statement.trim()) {
-          try {
-            await pool.execute(statement.trim());
-          } catch (stmtError) {
-            console.error(`   ❌ Error executing statement in ${file}:`, stmtError);
-            console.error('   Statement:', statement.trim());
-            throw stmtError;
-          }
-        }
+      try {
+        // Execute the entire file as one multi-statement query
+        await pool.execute(sqlContent);
+      } catch (stmtError) {
+        console.error(`   ❌ Error executing migration ${file}:`, stmtError);
+        throw stmtError;
       }
     }
 
@@ -248,13 +247,13 @@ async function createDefaultData() {
   try {
     // Create default branch
     const defaultBranchQuery = `
-      INSERT INTO branches (name, code, address, city, state, country, phone, email, status) 
+      INSERT INTO branches (name, code, address, city, state, country, phone, email, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
+      ON DUPLICATE KEY UPDATE
         name = VALUES(name),
         address = VALUES(address)
     `;
-    
+
     await pool.execute(defaultBranchQuery, [
       'Main Office',
       'MAIN',
@@ -278,9 +277,9 @@ async function createDefaultData() {
 
     for (const role of defaultRoles) {
       const roleQuery = `
-        INSERT INTO roles (name, description, permissions) 
+        INSERT INTO roles (name, description, permissions)
         VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE 
+        ON DUPLICATE KEY UPDATE
           description = VALUES(description)
       `;
       await pool.execute(roleQuery, [role.name, role.description, role.permissions]);
@@ -291,6 +290,39 @@ async function createDefaultData() {
   } finally {
     await pool.end();
   }
+}
+
+async function runSeedScript() {
+  return new Promise((resolve, reject) => {
+    const seedScriptPath = path.join(process.cwd(), 'scripts', 'seed-database.ts');
+    
+    console.log('   Running seed script...');
+    
+    const seedProcess = exec(`tsx ${seedScriptPath}`, {
+      env: process.env,
+    });
+
+    seedProcess.stdout?.on('data', (data) => {
+      console.log(`   ${data}`);
+    });
+
+    seedProcess.stderr?.on('data', (data) => {
+      console.error(`   ${data}`);
+    });
+
+    seedProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('   ✅ Database seeded successfully!');
+        resolve();
+      } else {
+        reject(new Error(`Seed script exited with code ${code}`));
+      }
+    });
+
+    seedProcess.on('error', (error) => {
+      reject(error);
+    });
+  });
 }
 
 // Run the setup
