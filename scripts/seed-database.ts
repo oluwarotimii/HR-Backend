@@ -624,75 +624,115 @@ async function seedLeaveTypes$() {
   console.log('✅ Leave history seeded\n');
 }
 
-async function seedForms() {
-  console.log('📝 Seeding forms...');
+async function seedLeaveRequests() {
+  console.log('📝 Seeding leave requests...');
 
-  const forms = [
-    {
-      name: 'Leave Request',
-      form_type: 'leave_request',
-      description: 'Submit leave requests for approval',
-      fields: JSON.stringify([
-        { name: 'leave_type_id', label: 'Leave Type', type: 'select', required: true },
-        { name: 'start_date', label: 'Start Date', type: 'date', required: true },
-        { name: 'end_date', label: 'End Date', type: 'date', required: true },
-        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-        { name: 'attachments', label: 'Attachments', type: 'file', required: false }
-      ]),
-      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
-      status: 'active'
-    },
-    {
-      name: 'Attendance Regularization',
-      form_type: 'attendance_regularization',
-      description: 'Request attendance correction for missed check-ins',
-      fields: JSON.stringify([
-        { name: 'date', label: 'Date', type: 'date', required: true },
-        { name: 'check_in_time', label: 'Check-in Time', type: 'time', required: false },
-        { name: 'check_out_time', label: 'Check-out Time', type: 'time', required: false },
-        { name: 'reason', label: 'Reason', type: 'textarea', required: true }
-      ]),
-      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
-      status: 'active'
-    },
-    {
-      name: 'Shift Change Request',
-      form_type: 'shift_change',
-      description: 'Request shift change or swap',
-      fields: JSON.stringify([
-        { name: 'current_shift', label: 'Current Shift', type: 'text', required: true },
-        { name: 'requested_shift', label: 'Requested Shift', type: 'text', required: true },
-        { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-        { name: 'effective_date', label: 'Effective Date', type: 'date', required: true }
-      ]),
-      approval_workflow: JSON.stringify(['pending', 'approved', 'rejected']),
-      status: 'active'
-    }
-  ];
+  const [staff]: any = await pool.execute(`
+    SELECT s.user_id, s.joining_date, u.full_name
+    FROM staff s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.status = 'active'
+  `);
 
-  for (const form of forms) {
-    const [existing] = await pool.execute('SELECT id FROM forms WHERE form_type = ?', [form.form_type]);
-
-    if ((existing as any).length > 0) {
-      console.log(`   ✓ Form ${form.name} already exists, skipping...`);
-      continue;
-    }
-
-    await pool.execute(
-      `INSERT INTO forms (name, form_type, description, fields, approval_workflow, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [form.name, form.form_type, form.description, form.fields, form.approval_workflow, form.status]
-    );
-    console.log(`   ✓ Created ${form.name}`);
+  const [leaveTypes]: any = await pool.execute('SELECT id FROM leave_types WHERE is_active = TRUE');
+  
+  if (leaveTypes.length === 0) {
+    console.log('   ⚠️  No leave types found, skipping leave requests');
+    return;
   }
 
-  console.log('✅ Forms seeded\n');
+  const statuses = ['submitted', 'submitted', 'submitted', 'approved', 'approved', 'approved', 'rejected', 'cancelled'];
+  
+  let createdCount = 0;
+  const batchSize = 100;
+  let batch = [];
+
+  for (const employee of staff) {
+    // Each employee gets 1-3 leave requests
+    const numRequests = Math.floor(Math.random() * 3) + 1;
+
+    for (let i = 0; i < numRequests; i++) {
+      const leaveType = randomElement(leaveTypes);
+      const status = randomElement(statuses);
+      
+      // Generate dates after joining date
+      const joinDate = new Date(employee.joining_date);
+      const startDate = randomDate(
+        joinDate,
+        new Date('2025-02-15')
+      );
+      
+      const duration = Math.floor(Math.random() * 10) + 1; // 1-10 days
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + duration);
+
+      // Don't create requests that end in the future for approved status
+      if (endDate > new Date() && status === 'approved') {
+        continue;
+      }
+
+      const reasons = [
+        'Annual vacation',
+        'Family emergency',
+        'Medical appointment',
+        'Personal matters',
+        'Rest and relaxation',
+        'Family wedding',
+        'Medical treatment',
+        'Mental health day'
+      ];
+
+      batch.push([
+        employee.user_id,
+        leaveType.id,
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0],
+        duration,
+        randomElement(reasons),
+        status,
+        status !== 'submitted' ? Math.floor(Math.random() * 50) + 1 : null, // reviewed_by
+        status !== 'submitted' ? new Date() : null, // reviewed_at
+        status === 'rejected' ? 'Requires additional documentation' : null // notes
+      ]);
+
+      createdCount++;
+
+      if (batch.length >= batchSize) {
+        await insertLeaveRequestsBatch(batch);
+        console.log(`   ✓ Processed ${createdCount} leave requests...`);
+        batch = [];
+      }
+    }
+  }
+
+  if (batch.length > 0) {
+    await insertLeaveRequestsBatch(batch);
+  }
+
+  console.log(`✅ Leave requests seeded (${createdCount} records)\n`);
+}
+
+async function insertLeaveRequestsBatch(batch: any[]) {
+  if (batch.length === 0) return;
+
+  const placeholders = batch.map(() => 
+    '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).join(', ');
+
+  const values = batch.flat();
+
+  await pool.execute(
+    `INSERT INTO leave_requests 
+     (user_id, leave_type_id, start_date, end_date, days_requested, reason, status, reviewed_by, reviewed_at, notes)
+     VALUES ${placeholders}`,
+    values
+  );
 }
 
 async function printSummary() {
   console.log('📈 Database Summary:\n');
 
-  const tables = ['branches', 'users', 'staff', 'departments', 'forms', 'holidays', 'shift_timings', 'attendance', 'leave_history'];
+  const tables = ['branches', 'users', 'staff', 'departments', 'holidays', 'shift_timings', 'attendance', 'leave_history', 'leave_requests', 'leave_types'];
 
   for (const table of tables) {
     const [result] = await pool.execute(`SELECT COUNT(*) as count FROM ${table}`);
@@ -724,7 +764,7 @@ async function seedDatabase() {
     await seedShiftTimings();
     await seedAttendance();
     await seedLeaveTypes$();
-    await seedForms();
+    await seedLeaveRequests();
     await printSummary();
   } catch (error) {
     console.error('❌ Seeding failed:', error);

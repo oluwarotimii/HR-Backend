@@ -354,4 +354,173 @@ router.delete('/:id', authenticateJWT, checkPermission('leave_allocation:delete'
   }
 });
 
+// POST /api/leave/allocations/bulk - Bulk create allocations for selected users
+router.post('/bulk', authenticateJWT, checkPermission('leave_allocation:create'), async (req: Request, res: Response) => {
+  try {
+    const {
+      leave_type_id,
+      allocated_days,
+      cycle_start_date,
+      cycle_end_date,
+      carried_over_days = 0,
+      user_ids = []
+    } = req.body;
+
+    // Validate required fields
+    if (!leave_type_id || allocated_days === undefined || !cycle_start_date || !cycle_end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Leave type ID, allocated days, cycle start date, and cycle end date are required'
+      });
+    }
+
+    if (!Array.isArray(user_ids) || user_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one user ID must be provided'
+      });
+    }
+
+    // Validate that leave type exists
+    const leaveType = await LeaveTypeModel.findById(leave_type_id);
+    if (!leaveType) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave type not found'
+      });
+    }
+
+    // Validate dates
+    const fromDate = new Date(cycle_start_date);
+    const toDate = new Date(cycle_end_date);
+
+    if (fromDate > toDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cycle start date cannot be after cycle end date'
+      });
+    }
+
+    // Validate that all users exist and are active
+    const placeholders = user_ids.map(() => '?').join(',');
+    const [users]: any = await (LeaveAllocationModel as any).pool.execute(
+      `SELECT id, full_name, email FROM users WHERE id IN (${placeholders}) AND status = 'active'`,
+      user_ids
+    );
+
+    if (users.length !== user_ids.length) {
+      const foundIds = users.map((u: any) => u.id);
+      const invalidIds = user_ids.filter(id => !foundIds.includes(id));
+      return res.status(400).json({
+        success: false,
+        message: `Invalid or inactive user IDs: ${invalidIds.join(', ')}`
+      });
+    }
+
+    // Prepare allocation data for all users
+    const allocationsData = users.map((user: any) => ({
+      user_id: user.id,
+      leave_type_id,
+      allocated_days,
+      cycle_start_date,
+      cycle_end_date,
+      carried_over_days
+    }));
+
+    // Create allocations
+    const createdAllocations = await LeaveAllocationModel.bulkCreate(allocationsData);
+
+    return res.status(201).json({
+      success: true,
+      message: `Leave allocations created successfully for ${createdAllocations.length} users`,
+      data: { 
+        allocations: createdAllocations,
+        summary: {
+          totalAllocated: createdAllocations.length,
+          leaveTypeName: leaveType.name,
+          daysPerUser: allocated_days,
+          cyclePeriod: `${cycle_start_date} to ${cycle_end_date}`
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Bulk create leave allocations error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/leave/allocations/allocate-all - Create allocations for ALL active users
+router.post('/allocate-all', authenticateJWT, checkPermission('leave_allocation:create'), async (req: Request, res: Response) => {
+  try {
+    const {
+      leave_type_id,
+      allocated_days,
+      cycle_start_date,
+      cycle_end_date,
+      carried_over_days = 0
+    } = req.body;
+
+    // Validate required fields
+    if (!leave_type_id || allocated_days === undefined || !cycle_start_date || !cycle_end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Leave type ID, allocated days, cycle start date, and cycle end date are required'
+      });
+    }
+
+    // Validate that leave type exists
+    const leaveType = await LeaveTypeModel.findById(leave_type_id);
+    if (!leaveType) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave type not found'
+      });
+    }
+
+    // Validate dates
+    const fromDate = new Date(cycle_start_date);
+    const toDate = new Date(cycle_end_date);
+
+    if (fromDate > toDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cycle start date cannot be after cycle end date'
+      });
+    }
+
+    // Create allocations for all active users
+    const result = await LeaveAllocationModel.createForAllUsers(
+      leave_type_id,
+      allocated_days,
+      cycle_start_date,
+      cycle_end_date,
+      carried_over_days
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Leave allocations created for ${result.success} users`,
+      data: { 
+        allocations: result.allocations,
+        summary: {
+          totalAllocated: result.success,
+          failed: result.failed,
+          leaveTypeName: leaveType.name,
+          daysPerUser: allocated_days,
+          cyclePeriod: `${cycle_start_date} to ${cycle_end_date}`
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Allocate-all leave allocations error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 export default router;

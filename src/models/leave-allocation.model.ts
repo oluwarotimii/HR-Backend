@@ -231,6 +231,93 @@ class LeaveAllocationModel {
 
     return result.affectedRows > 0;
   }
+
+  // Bulk create allocations for multiple users
+  static async bulkCreate(allocationsData: {
+    user_id: number;
+    leave_type_id: number;
+    allocated_days: number;
+    cycle_start_date: string;
+    cycle_end_date: string;
+    carried_over_days?: number;
+  }[]): Promise<LeaveAllocation[]> {
+    if (allocationsData.length === 0) {
+      return [];
+    }
+
+    const values: any[] = [];
+    const placeholders: string[] = [];
+
+    for (const data of allocationsData) {
+      placeholders.push('(?, ?, ?, ?, ?, ?, ?)');
+      values.push(
+        data.user_id,
+        data.leave_type_id,
+        data.allocated_days,
+        data.cycle_start_date,
+        data.cycle_end_date,
+        data.carried_over_days || 0,
+        0 // used_days
+      );
+    }
+
+    const query = `INSERT INTO ${this.tableName} 
+      (user_id, leave_type_id, allocated_days, cycle_start_date, cycle_end_date, carried_over_days, used_days) 
+      VALUES ${placeholders.join(', ')}`;
+
+    await pool.execute(query, values);
+
+    // Invalidate cache for all affected users
+    for (const data of allocationsData) {
+      await CacheService.del(`leave_allocations:user:${data.user_id}`);
+      await CacheService.del(`leave_allocations:user:${data.user_id}:type:${data.leave_type_id}`);
+    }
+
+    // Fetch and return the created allocations
+    const userIds = allocationsData.map(a => a.user_id);
+    const leaveTypeId = allocationsData[0].leave_type_id;
+    const [rows] = await pool.execute(
+      `SELECT * FROM ${this.tableName} WHERE user_id IN (?) AND leave_type_id = ? ORDER BY created_at DESC`,
+      [userIds, leaveTypeId]
+    );
+
+    return rows as LeaveAllocation[];
+  }
+
+  // Create allocations for all active users for a given leave type
+  static async createForAllUsers(
+    leaveTypeId: number,
+    allocatedDays: number,
+    cycleStartDate: string,
+    cycleEndDate: string,
+    carriedOverDays: number = 0
+  ): Promise<{ success: number; failed: number; allocations: LeaveAllocation[] }> {
+    // Get all active users
+    const [users]: any = await pool.execute(
+      `SELECT id FROM users WHERE status = 'active'`
+    );
+
+    if (!users || users.length === 0) {
+      return { success: 0, failed: 0, allocations: [] };
+    }
+
+    const allocationsData = users.map((user: any) => ({
+      user_id: user.id,
+      leave_type_id: leaveTypeId,
+      allocated_days: allocatedDays,
+      cycle_start_date: cycleStartDate,
+      cycle_end_date: cycleEndDate,
+      carried_over_days: carriedOverDays
+    }));
+
+    const createdAllocations = await this.bulkCreate(allocationsData);
+
+    return {
+      success: createdAllocations.length,
+      failed: users.length - createdAllocations.length,
+      allocations: createdAllocations
+    };
+  }
 }
 
 export default LeaveAllocationModel;

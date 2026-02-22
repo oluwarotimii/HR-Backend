@@ -1,0 +1,381 @@
+{
+  "info": {
+    "name": "Leave Requests - User Specific",
+    "description": "API endpoints for checking a specific user's leave requests. Fixed version with correct endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get My Leave Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/my-requests",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "my-requests"]
+        },
+        "description": "Get the current logged-in user's own leave requests. No special permission needed."
+      },
+      "response": []
+    },
+    {
+      "name": "Get My Leave Requests (Filtered by Status)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/my-requests?status=approved",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "my-requests"],
+          "query": [
+            {
+              "key": "status",
+              "value": "approved",
+              "description": "Filter by status: submitted, approved, rejected, cancelled"
+            }
+          ]
+        },
+        "description": "Get current user's leave requests filtered by status"
+      },
+      "response": []
+    },
+    {
+      "name": "Get My Leave Requests (With Pagination)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/my-requests?page=1&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "my-requests"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number (default: 1)"
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "Items per page (default: 20, max: 100)"
+            }
+          ]
+        },
+        "description": "Get current user's leave requests with pagination"
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Leave Requests (HR/Admin)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave?status=pending&page=1&limit=20",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave"],
+          "query": [
+            {
+              "key": "status",
+              "value": "pending",
+              "description": "Filter by status: submitted, approved, rejected, cancelled"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number (default: 1)"
+            },
+            {
+              "key": "limit",
+              "value": "20",
+              "description": "Items per page (default: 20, max: 100)"
+            }
+          ]
+        },
+        "description": "Get all leave requests. Requires 'leave:read' permission. Only HR/Admin should have this."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Leave Requests for Specific User (HR/Admin)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave?userId=1&status=approved",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave"],
+          "query": [
+            {
+              "key": "userId",
+              "value": "1",
+              "description": "The user ID to filter by (e.g., 1 for admin user)"
+            },
+            {
+              "key": "status",
+              "value": "approved",
+              "description": "Filter by status: approved"
+            }
+          ]
+        },
+        "description": "Get leave requests for a specific user by ID. Requires 'leave:read' permission. Use this to check one particular user's history."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Specific User's Approved Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave?userId=1&status=approved",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave"],
+          "query": [
+            {
+              "key": "userId",
+              "value": "1",
+              "description": "The user ID to filter by"
+            },
+            {
+              "key": "status",
+              "value": "approved",
+              "description": "Filter by status: approved"
+            }
+          ]
+        },
+        "description": "Get only approved leave requests for a specific user"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Specific User's Pending Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave?userId=1&status=submitted",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave"],
+          "query": [
+            {
+              "key": "userId",
+              "value": "1",
+              "description": "The user ID to filter by"
+            },
+            {
+              "key": "status",
+              "value": "submitted",
+              "description": "Filter by status: submitted (pending)"
+            }
+          ]
+        },
+        "description": "Get only pending (submitted) leave requests for a specific user"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Single Leave Request by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "1"]
+        },
+        "description": "Get a specific leave request by ID. Owner or admin can view."
+      },
+      "response": []
+    },
+    {
+      "name": "Get My Leave Balance",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/balance",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "balance"]
+        },
+        "description": "Get current user's leave balances by leave type. No special permission needed."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Leave History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/history?userId=1&year=2026",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "history"],
+          "query": [
+            {
+              "key": "userId",
+              "value": "1",
+              "description": "Filter by user ID"
+            },
+            {
+              "key": "year",
+              "value": "2026",
+              "description": "Filter by year"
+            }
+          ]
+        },
+        "description": "Get leave history from leave_history table. Can filter by userId and year."
+      },
+      "response": []
+    },
+    {
+      "name": "Create Leave Request",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"leave_type_id\": 1,\n  \"start_date\": \"2026-03-01\",\n  \"end_date\": \"2026-03-05\",\n  \"reason\": \"Family vacation\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/leave",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave"]
+        },
+        "description": "Create a new leave request. Requires 'leave:create' permission."
+      },
+      "response": []
+    },
+    {
+      "name": "Update Leave Request",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"approved\",\n  \"reason\": \"Approved by manager\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/leave/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "1"]
+        },
+        "description": "Update a leave request (approve/reject). Requires 'leave:update' permission."
+      },
+      "response": []
+    },
+    {
+      "name": "Delete/Cancel Leave Request",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/leave/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "leave", "1"]
+        },
+        "description": "Cancel a leave request. Requires 'leave:delete' permission. Only submitted requests can be cancelled."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
