@@ -9,7 +9,11 @@ import {
   getEmployeeShiftAssignmentById,
   assignShiftToEmployee,
   updateEmployeeShiftAssignment,
-  bulkAssignShifts
+  bulkAssignShifts,
+  bulkAssignRecurringShifts,
+  getRecurringShifts,
+  updateRecurringShift,
+  deleteRecurringShift
 } from '../controllers/shift-management.controller';
 import {
   getAllScheduleRequests,
@@ -40,6 +44,12 @@ router.get('/employee-shift-assignments/:id', authenticateJWT, checkPermission('
 router.post('/employee-shift-assignments', authenticateJWT, checkPermission('employee_shift_assignment:create'), assignShiftToEmployee);
 router.put('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), updateEmployeeShiftAssignment);
 router.post('/employee-shift-assignments/bulk', authenticateJWT, checkPermission('employee_shift_assignment:create'), bulkAssignShifts);
+
+// Recurring Shift Assignments Routes (for Resume Late / Close Early use cases)
+router.get('/recurring-shifts', authenticateJWT, checkPermission('employee_shift_assignment:read'), getRecurringShifts);
+router.post('/recurring-shifts/bulk', authenticateJWT, checkPermission('employee_shift_assignment:create'), bulkAssignRecurringShifts);
+router.put('/recurring-shifts/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), updateRecurringShift);
+router.delete('/recurring-shifts/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), deleteRecurringShift);
 
 // Schedule Requests Routes
 router.get('/schedule-requests', authenticateJWT, getAllScheduleRequests);

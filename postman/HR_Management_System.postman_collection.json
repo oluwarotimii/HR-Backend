@@ -921,362 +921,393 @@
       "name": "Leave Management (Core)",
       "item": [
         {
-          "name": "Leave Types - Get All",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/types",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "types"]
-            }
-          }
-        },
-        {
-          "name": "Leave Types - Create",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Study Leave\",\n  \"days_per_year\": 30,\n  \"is_paid\": false,\n  \"is_active\": true\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/types",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "types"]
-            }
-          }
-        },
-        {
-          "name": "Leave Types - Update",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Annual Leave\",\n  \"days_per_year\": 24,\n  \"is_paid\": true\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/types/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "types", "1"]
-            }
-          }
-        },
-        {
-          "name": "Leave Types - Delete",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/types/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "types", "1"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Get My Requests",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/my?status=pending&page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "my"],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "pending"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
+          "name": "Leave Types",
+          "item": [
+            {
+              "name": "Get All Leave Types",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types"]
                 }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Get All (Admin/HR)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests?status=pending&page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests"],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "pending"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
+              },
+              "description": "Get all active leave types. Requires authentication."
+            },
+            {
+              "name": "Get Leave Type by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
                 }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Create",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"leave_type_id\": 1,\n  \"start_date\": \"2025-03-01\",\n  \"end_date\": \"2025-03-10\",\n  \"reason\": \"Family vacation\",\n  \"attachment_url\": \"https://example.com/document.pdf\"\n}"
+              },
+              "description": "Get a specific leave type by ID. Requires authentication."
             },
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Get by ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "1"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Approve",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"comments\": \"Approved. Enjoy your vacation!\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/1/approve",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "1", "approve"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Reject",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"comments\": \"Cannot approve due to project deadline. Please reschedule.\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/1/reject",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "1", "reject"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Cancel",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Change of plans\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/1/cancel",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "1", "cancel"]
-            }
-          }
-        },
-        {
-          "name": "Leave Requests - Update",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"start_date\": \"2025-03-05\",\n  \"end_date\": \"2025-03-15\",\n  \"reason\": \"Updated reason\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/requests/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "requests", "1"]
-            }
-          }
-        },
-        {
-          "name": "Leave Allocations - Get My Balance",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/allocations/my",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "allocations", "my"]
-            }
-          }
-        },
-        {
-          "name": "Leave Allocations - Get All (Admin/HR)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/allocations?userId=1&year=2025",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "allocations"],
-              "query": [
-                {
-                  "key": "userId",
-                  "value": "1"
+            {
+              "name": "Create Leave Type",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Study Leave\",\n  \"days_per_year\": 30,\n  \"is_paid\": false,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 5,\n  \"expiry_rule_id\": null\n}"
                 },
-                {
-                  "key": "year",
-                  "value": "2025"
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types"]
                 }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Leave Allocations - Create",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"user_id\": 1,\n  \"leave_type_id\": 1,\n  \"year\": 2025,\n  \"allocated_days\": 21\n}"
+              },
+              "description": "Create a new leave type. Requires 'leave:request' permission."
             },
-            "url": {
-              "raw": "{{baseUrl}}/leave/allocations",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "allocations"]
-            }
-          }
-        },
-        {
-          "name": "Leave Allocations - Update",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"allocated_days\": 24\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/allocations/1",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "allocations", "1"]
-            }
-          }
-        },
-        {
-          "name": "Leave Allocations - Bulk Allocate",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"leave_type_id\": 1,\n  \"year\": 2025,\n  \"allocated_days\": 21,\n  \"user_ids\": [1, 2, 3, 4, 5]\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave/allocations/bulk",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "allocations", "bulk"]
-            }
-          }
-        },
-        {
-          "name": "Leave History - Get All",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/leave/history?userId=1&year=2025&status=approved",
-              "host": ["{{baseUrl}}"],
-              "path": ["leave", "history"],
-              "query": [
-                {
-                  "key": "userId",
-                  "value": "1"
+            {
+              "name": "Update Leave Type",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Annual Leave Updated\",\n  \"days_per_year\": 24,\n  \"is_paid\": true,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 10,\n  \"is_active\": true\n}"
                 },
-                {
-                  "key": "year",
-                  "value": "2025"
-                },
-                {
-                  "key": "status",
-                  "value": "approved"
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
                 }
-              ]
+              },
+              "description": "Update an existing leave type. Requires 'leave:approve' permission."
+            },
+            {
+              "name": "Delete (Deactivate) Leave Type",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/types/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "types", "1"]
+                }
+              },
+              "description": "Deactivate a leave type (soft delete). Requires 'leave:approve' permission."
             }
-          }
+          ]
+        },
+        {
+          "name": "Leave Requests",
+          "item": [
+            {
+              "name": "Get All Leave Requests (Admin/HR)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave?status=submitted&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "submitted"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get all leave requests with optional filters. Requires 'leave:read' permission. Status can be: submitted, approved, rejected, cancelled."
+            },
+            {
+              "name": "Get My Leave Requests",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/my-requests?status=submitted&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "my-requests"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "submitted"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get current user's own leave requests. No special permission required."
+            },
+            {
+              "name": "Get Leave Request by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "1"]
+                }
+              },
+              "description": "Get a specific leave request by ID. Accessible by owner or admin/HR users."
+            },
+            {
+              "name": "Create Leave Request",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"leave_type_id\": 1,\n  \"start_date\": \"2025-03-01\",\n  \"end_date\": \"2025-03-10\",\n  \"reason\": \"Family vacation\",\n  \"attachments\": null\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave"]
+                }
+              },
+              "description": "Create a new leave request. Requires 'leave:create' permission. Start date cannot be in the past. User must have sufficient leave balance."
+            },
+            {
+              "name": "Update Leave Request (Admin)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"approved\",\n  \"reason\": \"Approved by manager\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "1"]
+                }
+              },
+              "description": "Update a leave request (primarily for status changes). Requires 'leave:update' permission. Status can be: submitted, approved, rejected, cancelled."
+            },
+            {
+              "name": "Delete (Cancel) Leave Request",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "1"]
+                }
+              },
+              "description": "Cancel a leave request. Requires 'leave:delete' permission. Only 'submitted' requests can be cancelled."
+            }
+          ]
+        },
+        {
+          "name": "Leave Allocations",
+          "item": [
+            {
+              "name": "Get All Leave Allocations (Admin/HR)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations?userId=1&leaveTypeId=1&page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations"],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "leaveTypeId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              },
+              "description": "Get all leave allocations with optional filters. Requires 'leave_allocation:read' permission."
+            },
+            {
+              "name": "Get My Leave Allocations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/my-allocations",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "my-allocations"]
+                }
+              },
+              "description": "Get current user's own leave allocations. No special permission required."
+            },
+            {
+              "name": "Get Leave Allocation by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Get a specific leave allocation by ID. Requires 'leave_allocation:read' permission."
+            },
+            {
+              "name": "Create Leave Allocation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": 1,\n  \"leave_type_id\": 1,\n  \"allocated_days\": 21,\n  \"cycle_start_date\": \"2025-01-01\",\n  \"cycle_end_date\": \"2025-12-31\",\n  \"carried_over_days\": 0\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations"]
+                }
+              },
+              "description": "Create a new leave allocation for a user. Requires 'leave_allocation:create' permission."
+            },
+            {
+              "name": "Update Leave Allocation",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"allocated_days\": 24,\n  \"used_days\": 5,\n  \"carried_over_days\": 2\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Update an existing leave allocation. Requires 'leave_allocation:update' permission. Used days cannot exceed allocated + carried over days."
+            },
+            {
+              "name": "Delete Leave Allocation",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/allocations/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "allocations", "1"]
+                }
+              },
+              "description": "Delete a leave allocation. Requires 'leave_allocation:delete' permission."
+            }
+          ]
+        },
+        {
+          "name": "Leave Balance & History",
+          "item": [
+            {
+              "name": "Get My Leave Balance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/balance",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "balance"]
+                }
+              },
+              "description": "Get current user's leave balance by leave type. Shows allocated, used, carried over, and remaining days for each leave type."
+            },
+            {
+              "name": "Get Leave History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/leave/history?userId=1&year=2025&status=approved&page=1&limit=50",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["leave", "history"],
+                  "query": [
+                    {
+                      "key": "userId",
+                      "value": "1"
+                    },
+                    {
+                      "key": "year",
+                      "value": "2025"
+                    },
+                    {
+                      "key": "status",
+                      "value": "approved"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                }
+              },
+              "description": "Get leave history from leave_history table. Optional filters: userId, year, status."
+            }
+          ]
         }
       ]
     },
