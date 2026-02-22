@@ -1,0 +1,1017 @@
+{
+  "info": {
+    "name": "Leave Management - Complete API",
+    "description": "Complete API endpoints for Leave Management module including Leave Types, Leave Requests, Leave Balances, and Leave Allocations. All endpoints with expected responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Leave Types",
+      "description": "Manage leave types (Annual, Sick, Personal, etc.)",
+      "item": [
+        {
+          "name": "Get All Leave Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave-types",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave-types"]
+            },
+            "description": "Get all available leave types. No special permission required (just authentication)."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Types Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave types retrieved successfully\",\n  \"data\": {\n    \"leaveTypes\": [\n      {\n        \"id\": 1,\n        \"name\": \"Annual Leave\",\n        \"days_per_year\": 20,\n        \"is_paid\": true,\n        \"allow_carryover\": true,\n        \"carryover_limit\": 5,\n        \"is_active\": true,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Sick Leave\",\n        \"days_per_year\": 10,\n        \"is_paid\": true,\n        \"allow_carryover\": false,\n        \"carryover_limit\": 0,\n        \"is_active\": true,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 3,\n        \"name\": \"Personal Leave\",\n        \"days_per_year\": 5,\n        \"is_paid\": false,\n        \"allow_carryover\": false,\n        \"carryover_limit\": 0,\n        \"is_active\": true,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Leave Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave-types/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave-types", "1"]
+            },
+            "description": "Get a specific leave type by ID."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Type Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave type retrieved successfully\",\n  \"data\": {\n    \"leaveType\": {\n      \"id\": 1,\n      \"name\": \"Annual Leave\",\n      \"days_per_year\": 20,\n      \"is_paid\": true,\n      \"allow_carryover\": true,\n      \"carryover_limit\": 5,\n      \"is_active\": true\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Leave Type Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave type not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Leave Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maternity Leave\",\n  \"days_per_year\": 90,\n  \"is_paid\": true,\n  \"allow_carryover\": false,\n  \"carryover_limit\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave-types",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave-types"]
+            },
+            "description": "Create a new leave type. Requires 'leave:request' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Type Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave type created successfully\",\n  \"data\": {\n    \"leaveType\": {\n      \"id\": 4,\n      \"name\": \"Maternity Leave\",\n      \"days_per_year\": 90,\n      \"is_paid\": true,\n      \"allow_carryover\": false,\n      \"carryover_limit\": 0,\n      \"is_active\": true,\n      \"created_at\": \"2026-02-22T10:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Duplicate Name",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"success\": false,\n  \"message\": \"A leave type with this name already exists\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Leave Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Annual Leave\",\n  \"days_per_year\": 25,\n  \"is_paid\": true,\n  \"allow_carryover\": true,\n  \"carryover_limit\": 10,\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave-types/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave-types", "1"]
+            },
+            "description": "Update an existing leave type. Requires 'leave:approve' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Type Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave type updated successfully\",\n  \"data\": {\n    \"leaveType\": {\n      \"id\": 1,\n      \"name\": \"Annual Leave\",\n      \"days_per_year\": 25,\n      \"is_paid\": true,\n      \"allow_carryover\": true,\n      \"carryover_limit\": 10,\n      \"is_active\": true\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete (Deactivate) Leave Type",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave-types/4",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave-types", "4"]
+            },
+            "description": "Deactivate a leave type (soft delete). Requires 'leave:approve' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Type Deactivated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave type deactivated successfully\"\n}"
+            },
+            {
+              "name": "Error - Leave Type Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave type not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Leave Requests (User's Own)",
+      "description": "Endpoints for users to manage their own leave requests",
+      "item": [
+        {
+          "name": "Get My Leave Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/my-requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "my-requests"]
+            },
+            "description": "Get the current logged-in user's own leave requests. No special permission needed."
+          },
+          "response": [
+            {
+              "name": "Success - My Leave Requests Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 15,\n        \"form_id\": 5,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"leave_type_name\": \"Annual Leave\",\n          \"start_date\": \"2026-03-01\",\n          \"end_date\": \"2026-03-05\",\n          \"days_requested\": 5,\n          \"reason\": \"Family vacation\",\n          \"requested_by\": 123\n        },\n        \"status\": \"submitted\",\n        \"submitted_at\": \"2026-02-15T10:30:00Z\",\n        \"notes\": null\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 3,\n      \"totalItems\": 25,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Leave Requests (Filtered by Status)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/my-requests?status=approved",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "my-requests"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "approved",
+                  "description": "Filter by status: submitted, approved, rejected, cancelled"
+                }
+              ]
+            },
+            "description": "Get current user's leave requests filtered by status."
+          },
+          "response": [
+            {
+              "name": "Success - Filtered Requests",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 10,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"leave_type_name\": \"Annual Leave\",\n          \"start_date\": \"2026-01-15\",\n          \"end_date\": \"2026-01-20\",\n          \"days_requested\": 6,\n          \"reason\": \"Winter vacation\"\n        },\n        \"status\": \"approved\",\n        \"submitted_at\": \"2026-01-05T09:00:00Z\",\n        \"notes\": \"Approved by manager\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 1,\n      \"totalItems\": 1,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Leave Requests (With Pagination)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/my-requests?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "my-requests"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (default: 20, max: 100)"
+                }
+              ]
+            },
+            "description": "Get current user's leave requests with pagination."
+          },
+          "response": [
+            {
+              "name": "Success - Paginated Requests",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 15,\n        \"user_id\": 123,\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"start_date\": \"2026-03-01\",\n          \"end_date\": \"2026-03-05\",\n          \"days_requested\": 5,\n          \"reason\": \"Family vacation\"\n        },\n        \"status\": \"submitted\",\n        \"submitted_at\": \"2026-02-15T10:30:00Z\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 3,\n      \"totalItems\": 25,\n      \"itemsPerPage\": 10\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Leave Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/balance",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "balance"]
+            },
+            "description": "Get current user's leave balances by leave type. No special permission needed."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Balances Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave balances retrieved successfully\",\n  \"data\": {\n    \"balances\": [\n      {\n        \"leave_type_id\": 1,\n        \"leave_type_name\": \"Annual Leave\",\n        \"allocated_days\": 20,\n        \"used_days\": 5,\n        \"carried_over_days\": 2,\n        \"remaining_days\": 17,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      },\n      {\n        \"leave_type_id\": 2,\n        \"leave_type_name\": \"Sick Leave\",\n        \"allocated_days\": 10,\n        \"used_days\": 3,\n        \"carried_over_days\": 0,\n        \"remaining_days\": 7,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      },\n      {\n        \"leave_type_id\": 3,\n        \"leave_type_name\": \"Personal Leave\",\n        \"allocated_days\": 5,\n        \"used_days\": 0,\n        \"carried_over_days\": 0,\n        \"remaining_days\": 5,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Allocations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/my-allocations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "my-allocations"]
+            },
+            "description": "Get current user's own leave allocations with details. No special permission needed."
+          },
+          "response": [
+            {
+              "name": "Success - My Allocations Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your leave allocations retrieved successfully\",\n  \"data\": {\n    \"allocations\": [\n      {\n        \"id\": 1,\n        \"user_id\": 123,\n        \"leave_type_id\": 1,\n        \"leave_type_name\": \"Annual Leave\",\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n        \"allocated_days\": 20,\n        \"used_days\": 5,\n        \"carried_over_days\": 2,\n        \"remaining_days\": 17,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 2,\n        \"user_id\": 123,\n        \"leave_type_id\": 2,\n        \"leave_type_name\": \"Sick Leave\",\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n        \"allocated_days\": 10,\n        \"used_days\": 3,\n        \"carried_over_days\": 0,\n        \"remaining_days\": 7,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": 1,\n  \"start_date\": \"2026-03-01\",\n  \"end_date\": \"2026-03-05\",\n  \"reason\": \"Family vacation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave"]
+            },
+            "description": "Create a new leave request. Requires 'leave:create' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Request Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave request submitted successfully\",\n  \"data\": {\n    \"leaveRequest\": {\n      \"id\": 15,\n      \"form_id\": 5,\n      \"user_id\": 123,\n      \"submission_data\": {\n        \"leave_type_id\": 1,\n        \"start_date\": \"2026-03-01\",\n        \"end_date\": \"2026-03-05\",\n        \"days_requested\": 5,\n        \"reason\": \"Family vacation\",\n        \"requested_by\": 123\n      },\n      \"status\": \"submitted\",\n      \"submitted_at\": \"2026-02-19T14:30:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Insufficient Leave Balance",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Insufficient leave balance. Requested: 5 days, Available: 3 days\"\n}"
+            },
+            {
+              "name": "Error - Start Date in Past",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Start date cannot be in the past\"\n}"
+            },
+            {
+              "name": "Error - No Allocation Found",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"No leave allocation found for this user and leave type\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Single Leave Request by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "15"]
+            },
+            "description": "Get a specific leave request by ID. Owner or admin can view."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Request Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave request retrieved successfully\",\n  \"data\": {\n    \"leaveRequest\": {\n      \"id\": 15,\n      \"form_id\": 5,\n      \"user_id\": 123,\n      \"user_name\": \"John Doe\",\n      \"submission_data\": {\n        \"leave_type_id\": 1,\n        \"start_date\": \"2026-03-01\",\n        \"end_date\": \"2026-03-05\",\n        \"days_requested\": 5,\n        \"reason\": \"Family vacation\"\n      },\n      \"status\": \"approved\",\n      \"submitted_at\": \"2026-02-15T10:30:00Z\",\n      \"notes\": \"Approved by manager\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Leave Request Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave request not found\"\n}"
+            },
+            {
+              "name": "Error - Permission Denied",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"success\": false,\n  \"message\": \"You do not have permission to view this leave request\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete/Cancel My Leave Request",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "15"]
+            },
+            "description": "Cancel your own leave request. Requires 'leave:delete' permission. Only submitted requests can be cancelled."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Request Cancelled",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave request cancelled successfully\"\n}"
+            },
+            {
+              "name": "Error - Cannot Cancel Approved Request",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Cannot cancel leave request that is already approved or rejected\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Leave Requests (Admin/HR Management)",
+      "description": "Endpoints for HR/Admin to manage all leave requests across the organization",
+      "item": [
+        {
+          "name": "Get All Leave Requests (HR/Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave?status=submitted&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "submitted",
+                  "description": "Filter by status: submitted, approved, rejected, cancelled"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (default: 20, max: 100)"
+                }
+              ]
+            },
+            "description": "Get all leave requests. Requires 'leave:read' permission. Only HR/Admin should have this."
+          },
+          "response": [
+            {
+              "name": "Success - All Leave Requests Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 15,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"leave_type_name\": \"Annual Leave\",\n          \"start_date\": \"2026-03-01\",\n          \"end_date\": \"2026-03-05\",\n          \"days_requested\": 5,\n          \"reason\": \"Family vacation\",\n          \"requested_by\": 123\n        },\n        \"status\": \"submitted\",\n        \"submitted_at\": \"2026-02-15T10:30:00Z\",\n        \"notes\": null\n      },\n      {\n        \"id\": 16,\n        \"user_id\": 124,\n        \"user_name\": \"Jane Smith\",\n        \"submission_data\": {\n          \"leave_type_id\": 2,\n          \"leave_type_name\": \"Sick Leave\",\n          \"start_date\": \"2026-02-25\",\n          \"end_date\": \"2026-02-27\",\n          \"days_requested\": 3,\n          \"reason\": \"Medical appointment\",\n          \"requested_by\": 124\n        },\n        \"status\": \"submitted\",\n        \"submitted_at\": \"2026-02-20T08:15:00Z\",\n        \"notes\": null\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 5,\n      \"totalItems\": 100,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Leave Requests for Specific User (HR/Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave?userId=123&status=approved",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "123",
+                  "description": "The user ID to filter by"
+                },
+                {
+                  "key": "status",
+                  "value": "approved",
+                  "description": "Filter by status: approved"
+                }
+              ]
+            },
+            "description": "Get leave requests for a specific user by ID. Requires 'leave:read' permission."
+          },
+          "response": [
+            {
+              "name": "Success - User's Leave Requests Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 10,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"start_date\": \"2026-01-15\",\n          \"end_date\": \"2026-01-20\",\n          \"days_requested\": 6,\n          \"reason\": \"Winter vacation\"\n        },\n        \"status\": \"approved\",\n        \"submitted_at\": \"2026-01-05T09:00:00Z\",\n        \"notes\": \"Approved by manager\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 1,\n      \"totalItems\": 1,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Specific User's Pending Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave?userId=123&status=submitted",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "123",
+                  "description": "The user ID to filter by"
+                },
+                {
+                  "key": "status",
+                  "value": "submitted",
+                  "description": "Filter by status: submitted (pending)"
+                }
+              ]
+            },
+            "description": "Get only pending (submitted) leave requests for a specific user."
+          },
+          "response": [
+            {
+              "name": "Success - Pending Requests Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave requests retrieved successfully\",\n  \"data\": {\n    \"leaveRequests\": [\n      {\n        \"id\": 15,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"submission_data\": {\n          \"leave_type_id\": 1,\n          \"start_date\": \"2026-03-01\",\n          \"end_date\": \"2026-03-05\",\n          \"days_requested\": 5,\n          \"reason\": \"Family vacation\"\n        },\n        \"status\": \"submitted\",\n        \"submitted_at\": \"2026-02-15T10:30:00Z\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 1,\n      \"totalItems\": 1,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Leave Request (Approve/Reject)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"reason\": \"Approved - coverage arranged\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave/15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "15"]
+            },
+            "description": "Update a leave request (approve/reject). Requires 'leave:update' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Leave Request Approved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave request updated successfully\",\n  \"data\": {\n    \"leaveRequest\": {\n      \"id\": 15,\n      \"user_id\": 123,\n      \"status\": \"approved\",\n      \"notes\": \"Approved - coverage arranged\",\n      \"reviewed_by\": 1,\n      \"reviewed_at\": \"2026-02-22T10:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Success - Leave Request Rejected",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave request updated successfully\",\n  \"data\": {\n    \"leaveRequest\": {\n      \"id\": 15,\n      \"status\": \"rejected\",\n      \"notes\": \"Insufficient staff coverage during requested period\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Invalid Status Value",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid status value\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Leave History",
+      "description": "Access historical leave records from leave_history table",
+      "item": [
+        {
+          "name": "Get Leave History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/history?userId=123&year=2026&status=approved",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "history"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "123",
+                  "description": "Filter by user ID"
+                },
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "Filter by year"
+                },
+                {
+                  "key": "status",
+                  "value": "approved",
+                  "description": "Filter by status"
+                }
+              ]
+            },
+            "description": "Get leave history from leave_history table. Can filter by userId, year, and status."
+          },
+          "response": [
+            {
+              "name": "Success - Leave History Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave history retrieved successfully\",\n  \"data\": {\n    \"leaveHistory\": [\n      {\n        \"id\": 1,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"leave_type_id\": 1,\n        \"leave_type_name\": \"Annual Leave\",\n        \"start_date\": \"2026-01-15\",\n        \"end_date\": \"2026-01-20\",\n        \"days_taken\": 6,\n        \"status\": \"approved\",\n        \"created_at\": \"2026-01-05T09:00:00Z\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 1,\n      \"totalItems\": 1,\n      \"itemsPerPage\": 50\n    }\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Leave Allocations (Admin/HR)",
+      "description": "Manage leave allocations - assign leave days to employees",
+      "item": [
+        {
+          "name": "Get My Allocations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/my-allocations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "my-allocations"]
+            },
+            "description": "Get current user's own leave allocations. No special permission needed."
+          },
+          "response": [
+            {
+              "name": "Success - My Allocations Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Your leave allocations retrieved successfully\",\n  \"data\": {\n    \"allocations\": [\n      {\n        \"id\": 1,\n        \"user_id\": 123,\n        \"leave_type_id\": 1,\n        \"leave_type_name\": \"Annual Leave\",\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n        \"allocated_days\": 20,\n        \"used_days\": 5,\n        \"carried_over_days\": 2,\n        \"remaining_days\": 17,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Allocations (Admin/HR)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations?userId=123&leaveTypeId=1&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "123",
+                  "description": "Filter by user ID"
+                },
+                {
+                  "key": "leaveTypeId",
+                  "value": "1",
+                  "description": "Filter by leave type ID"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get all leave allocations with filters. Requires 'leave_allocation:read' permission."
+          },
+          "response": [
+            {
+              "name": "Success - All Allocations Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocations retrieved successfully\",\n  \"data\": {\n    \"leaveAllocations\": [\n      {\n        \"id\": 1,\n        \"user_id\": 123,\n        \"user_name\": \"John Doe\",\n        \"leave_type_id\": 1,\n        \"leave_type_name\": \"Annual Leave\",\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n        \"allocated_days\": 20,\n        \"used_days\": 5,\n        \"carried_over_days\": 2,\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 5,\n      \"totalItems\": 100,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Allocation by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "1"]
+            },
+            "description": "Get specific allocation by ID. Requires 'leave_allocation:read' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Allocation Retrieved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocation retrieved successfully\",\n  \"data\": {\n    \"leaveAllocation\": {\n      \"id\": 1,\n      \"user_id\": 123,\n      \"leave_type_id\": 1,\n      \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n      \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n      \"allocated_days\": 20,\n      \"used_days\": 5,\n      \"carried_over_days\": 2\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Allocation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave allocation not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Single Allocation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 123,\n  \"leave_type_id\": 1,\n  \"allocated_days\": 21,\n  \"cycle_start_date\": \"2026-01-01\",\n  \"cycle_end_date\": \"2026-12-31\",\n  \"carried_over_days\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations"]
+            },
+            "description": "Create a single leave allocation for one user. Requires 'leave_allocation:create' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Allocation Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocation created successfully\",\n  \"data\": {\n    \"leaveAllocation\": {\n      \"id\": 15,\n      \"user_id\": 123,\n      \"leave_type_id\": 1,\n      \"allocated_days\": 21,\n      \"used_days\": 0,\n      \"carried_over_days\": 0,\n      \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n      \"cycle_end_date\": \"2026-12-31T00:00:00Z\",\n      \"created_at\": \"2026-02-22T10:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - User Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"User not found\"\n}"
+            },
+            {
+              "name": "Error - Leave Type Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave type not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Allocate - Selected Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": 1,\n  \"allocated_days\": 20,\n  \"cycle_start_date\": \"2026-01-01\",\n  \"cycle_end_date\": \"2026-12-31\",\n  \"carried_over_days\": 0,\n  \"user_ids\": [123, 124, 125, 126]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "bulk"]
+            },
+            "description": "Bulk create allocations for selected users. Provide user_ids array. Requires 'leave_allocation:create' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Bulk Allocation Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocations created successfully for 4 users\",\n  \"data\": {\n    \"allocations\": [\n      {\n        \"id\": 15,\n        \"user_id\": 123,\n        \"leave_type_id\": 1,\n        \"allocated_days\": 20,\n        \"used_days\": 0,\n        \"carried_over_days\": 0,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      },\n      {\n        \"id\": 16,\n        \"user_id\": 124,\n        \"leave_type_id\": 1,\n        \"allocated_days\": 20,\n        \"used_days\": 0,\n        \"carried_over_days\": 0,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      }\n    ],\n    \"summary\": {\n      \"totalAllocated\": 4,\n      \"leaveTypeName\": \"Annual Leave\",\n      \"daysPerUser\": 20,\n      \"cyclePeriod\": \"2026-01-01 to 2026-12-31\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Invalid User IDs",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid or inactive user IDs: 999, 888\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Allocate - ALL Active Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leave_type_id\": 1,\n  \"allocated_days\": 21,\n  \"cycle_start_date\": \"2026-01-01\",\n  \"cycle_end_date\": \"2026-12-31\",\n  \"carried_over_days\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/allocate-all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "allocate-all"]
+            },
+            "description": "Create allocations for ALL active users at once. Uses leave_type's days_per_year as reference. Requires 'leave_allocation:create' permission."
+          },
+          "response": [
+            {
+              "name": "Success - All Users Allocated",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocations created for 200 users\",\n  \"data\": {\n    \"allocations\": [\n      {\n        \"id\": 1001,\n        \"user_id\": 1,\n        \"leave_type_id\": 1,\n        \"allocated_days\": 21,\n        \"used_days\": 0,\n        \"carried_over_days\": 0,\n        \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n        \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n      }\n    ],\n    \"summary\": {\n      \"totalAllocated\": 200,\n      \"failed\": 0,\n      \"leaveTypeName\": \"Annual Leave\",\n      \"daysPerUser\": 21,\n      \"cyclePeriod\": \"2026-01-01 to 2026-12-31\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Allocation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocated_days\": 25,\n  \"used_days\": 5,\n  \"carried_over_days\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "1"]
+            },
+            "description": "Update an existing allocation. Requires 'leave_allocation:update' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Allocation Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocation updated successfully\",\n  \"data\": {\n    \"leaveAllocation\": {\n      \"id\": 1,\n      \"user_id\": 123,\n      \"leave_type_id\": 1,\n      \"allocated_days\": 25,\n      \"used_days\": 5,\n      \"carried_over_days\": 2,\n      \"cycle_start_date\": \"2026-01-01T00:00:00Z\",\n      \"cycle_end_date\": \"2026-12-31T00:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Used Days Exceed Allocation",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Used days cannot exceed allocated days plus carried over days\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Allocation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leave/allocations/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leave", "allocations", "1"]
+            },
+            "description": "Delete an allocation. Requires 'leave_allocation:delete' permission."
+          },
+          "response": [
+            {
+              "name": "Success - Allocation Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave allocation deleted successfully\"\n}"
+            },
+            {
+              "name": "Error - Allocation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Leave allocation not found\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token obtained after login (from POST /api/auth/login response)"
+    }
+  ]
+}
