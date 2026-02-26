@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import AttendanceModel from '../models/attendance.model';
 import ShiftTimingModel from '../models/shift-timing.model';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import HolidayModel from '../models/holiday.model';
 import AttendanceLocationModel from '../models/attendance-location.model';
 import BranchModel from '../models/branch.model';
@@ -192,6 +193,14 @@ router.post('/manual', authenticateJWT, async (req: Request, res: Response) => {
     };
 
     const newAttendance = await AttendanceModel.create(attendanceData);
+
+    // Update attendance with shift schedule information
+    try {
+      await ShiftSchedulingService.updateAttendanceWithScheduleInfo(requestingUserId, new Date(date));
+    } catch (shiftError) {
+      console.error('Failed to update attendance with shift info:', shiftError);
+      // Don't fail the attendance creation if shift update fails
+    }
 
     return res.status(201).json({
       success: true,

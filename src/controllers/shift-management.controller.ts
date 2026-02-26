@@ -1293,6 +1293,231 @@ export const bulkAssignRecurringShifts = async (req: Request, res: Response) => 
 };
 
 /**
+ * Bulk assign recurring shifts to all employees in a branch
+ * POST /api/shift-scheduling/recurring-shifts/bulk-assign-branch
+ */
+export const bulkAssignRecurringShiftsByBranch = async (req: Request, res: Response) => {
+  try {
+    const {
+      branch_id,
+      user_ids,
+      shift_template_id,
+      days_of_week,
+      effective_from,
+      effective_to = null,
+      assignment_type = 'permanent'
+    } = req.body;
+
+    // Validate required fields
+    if (!shift_template_id || !days_of_week || !effective_from) {
+      return res.status(400).json({
+        success: false,
+        message: 'shift_template_id, days_of_week, and effective_from are required'
+      });
+    }
+
+    // Validate days_of_week
+    const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    if (!Array.isArray(days_of_week) || days_of_week.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'days_of_week must be a non-empty array'
+      });
+    }
+
+    for (const day of days_of_week) {
+      if (!validDays.includes(day.toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid day_of_week: ${day}. Must be one of: ${validDays.join(', ')}`
+        });
+      }
+    }
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(effective_from)) {
+      return res.status(400).json({
+        success: false,
+        message: 'effective_from must be in YYYY-MM-DD format'
+      });
+    }
+
+    if (effective_to && !dateRegex.test(effective_to)) {
+      return res.status(400).json({
+        success: false,
+        message: 'effective_to must be in YYYY-MM-DD format'
+      });
+    }
+
+    // Validate shift template exists
+    const [templateRows]: any = await pool.execute(
+      'SELECT id, name, start_time, end_time FROM shift_templates WHERE id = ? AND is_active = TRUE',
+      [shift_template_id]
+    );
+
+    if (templateRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shift template not found or inactive'
+      });
+    }
+
+    const shiftTemplate = templateRows[0];
+
+    // Get user IDs - either from provided list or from branch
+    let userIdsToAssign: number[] = [];
+
+    if (user_ids && Array.isArray(user_ids) && user_ids.length > 0) {
+      // Use provided user IDs
+      userIdsToAssign = user_ids;
+    } else if (branch_id) {
+      // Get all active staff from the branch
+      const [staffRows]: any = await pool.execute(
+        'SELECT user_id FROM staff WHERE branch_id = ? AND status = "active"',
+        [branch_id]
+      );
+
+      if (staffRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: `No active staff found in branch ${branch_id}`
+        });
+      }
+
+      userIdsToAssign = staffRows.map((row: any) => row.user_id);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either user_ids array or branch_id is required'
+      });
+    }
+
+    // Validate all users exist
+    const [userRows]: any = await pool.execute(
+      `SELECT id, full_name FROM users WHERE id IN (${userIdsToAssign.map(() => '?').join(',')}) AND status = 'active'`,
+      userIdsToAssign
+    );
+
+    if (userRows.length !== userIdsToAssign.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or more users not found or inactive'
+      });
+    }
+
+    const assignedBy = (req as any).currentUser.id;
+    const normalizedDays = days_of_week.map((d: string) => d.toLowerCase());
+
+    // Process each user
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    for (const userId of userIdsToAssign) {
+      try {
+        // For each day of week
+        for (const dayOfWeek of normalizedDays) {
+          // Expire existing recurring assignment for this day
+          await pool.execute(
+            `UPDATE employee_shift_assignments
+             SET status = 'expired', updated_at = NOW()
+             WHERE user_id = ?
+               AND recurrence_pattern = 'weekly'
+               AND recurrence_day_of_week = ?
+               AND status IN ('active', 'pending')`,
+            [userId, dayOfWeek]
+          );
+        }
+
+        // Create new recurring shift assignments for each day
+        for (const dayOfWeek of normalizedDays) {
+          await pool.execute(
+            `INSERT INTO employee_shift_assignments
+             (user_id, shift_template_id,
+              effective_from, recurrence_end_date,
+              recurrence_pattern, recurrence_day_of_week,
+              assignment_type, assigned_by, status, assigned_at)
+             VALUES (?, ?, ?, ?, 'weekly', ?, ?, ?, 'active', NOW())`,
+            [
+              userId,
+              shift_template_id,
+              effective_from,
+              effective_to,
+              dayOfWeek,
+              assignment_type,
+              assignedBy
+            ]
+          );
+        }
+
+        // Process attendance for this user to update with new schedule
+        try {
+          const startDate = new Date(effective_from);
+          const endDate = effective_to ? new Date(effective_to) : new Date();
+          endDate.setMonth(endDate.getMonth() + 3); // Default to 3 months if no end date
+
+          const date = new Date(startDate);
+          while (date <= endDate) {
+            await ShiftSchedulingService.processAttendanceForDate(userId, date);
+            date.setDate(date.getDate() + 1);
+          }
+        } catch (attendanceError) {
+          console.error(`Error processing attendance for user ${userId}:`, attendanceError);
+          // Don't fail the assignment if attendance processing fails
+        }
+
+        results.push({
+          user_id: userId,
+          success: true,
+          days_assigned: normalizedDays.length
+        });
+
+        successCount++;
+      } catch (assignmentError: unknown) {
+        console.error(`Error assigning recurring shift to user ${userId}:`, assignmentError);
+        results.push({
+          user_id: userId,
+          success: false,
+          error: (assignmentError as Error).message || 'Unknown error occurred'
+        });
+        failureCount++;
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Bulk shift assignment completed. ${successCount} users succeeded, ${failureCount} failed.`,
+      data: {
+        results,
+        summary: {
+          total_users: userIdsToAssign.length,
+          successful: successCount,
+          failed: failureCount,
+          days_per_user: normalizedDays.length,
+          total_assignments_created: successCount * normalizedDays.length
+        },
+        shift_template: {
+          id: shift_template.id,
+          name: shift_template.name,
+          start_time: shift_template.start_time,
+          end_time: shift_template.end_time
+        },
+        days_of_week: normalizedDays,
+        effective_from,
+        effective_to
+      }
+    });
+  } catch (error) {
+    console.error('Error in branch-based bulk shift assignment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during bulk shift assignment'
+    });
+  }
+};
+
+/**
  * Get recurring shifts for a specific user or all users (HR view)
  */
 export const getRecurringShifts = async (req: Request, res: Response) => {

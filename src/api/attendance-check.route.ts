@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import AttendanceModel, { AttendanceUpdate } from '../models/attendance.model';
 import ShiftTimingModel from '../models/shift-timing.model';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import HolidayModel from '../models/holiday.model';
 import BranchModel from '../models/branch.model';
 import StaffModel from '../models/staff.model';
@@ -309,6 +310,14 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
 
       const newAttendance = await AttendanceModel.create(attendanceData);
 
+      // Update attendance with shift schedule information
+      try {
+        await ShiftSchedulingService.updateAttendanceWithScheduleInfo(userId, new Date(date));
+      } catch (shiftError) {
+        console.error('Failed to update attendance with shift info:', shiftError);
+        // Don't fail the check-in if shift update fails
+      }
+
       return res.status(201).json({
         success: true,
         message: 'Check-in recorded successfully',
@@ -465,6 +474,14 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
     };
 
     const updatedAttendance = await AttendanceModel.update(attendanceRecord.id, updateData);
+
+    // Update attendance with shift schedule information (recalculates working hours)
+    try {
+      await ShiftSchedulingService.updateAttendanceWithScheduleInfo(userId, new Date(date));
+    } catch (shiftError) {
+      console.error('Failed to update attendance with shift info:', shiftError);
+      // Don't fail the check-out if shift update fails
+    }
 
     return res.status(200).json({
       success: true,
