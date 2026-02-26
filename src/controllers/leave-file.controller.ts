@@ -1,0 +1,230 @@
+import { Request, Response } from 'express';
+import path from 'path';
+import fs from 'fs';
+import { pool } from '../config/database';
+
+export interface UploadedFile {
+  file_name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: string;
+}
+
+/**
+ * Upload files for leave request
+ * POST /api/leave/upload
+ */
+export const uploadLeaveFiles = async (req: Request, res: Response) => {
+  try {
+    if (!req.files || !Array.isArray(req.files)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded'
+      });
+    }
+
+    const files = req.files as Express.Multer.File[];
+    const uploadedFiles: UploadedFile[] = [];
+
+    // Process each uploaded file
+    for (const file of files) {
+      const uploadedFile: UploadedFile = {
+        file_name: file.originalname,
+        file_path: `/uploads/leave-requests/${path.basename(file.filename)}`,
+        file_size: file.size,
+        mime_type: file.mimetype,
+        uploaded_at: new Date().toISOString()
+      };
+      uploadedFiles.push(uploadedFile);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Files uploaded successfully',
+      data: {
+        files: uploadedFiles
+      }
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload files'
+    });
+  }
+};
+
+/**
+ * Get files for a leave request
+ * GET /api/leave/:id/files
+ */
+export const getLeaveRequestFiles = async (req: Request, res: Response) => {
+  try {
+    const leaveRequestId = parseInt(req.params.id);
+
+    if (isNaN(leaveRequestId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid leave request ID'
+      });
+    }
+
+    // Get leave request to check ownership
+    const [rows]: any = await pool.execute(
+      'SELECT attachments, user_id FROM leave_requests WHERE id = ?',
+      [leaveRequestId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found'
+      });
+    }
+
+    const leaveRequest = rows[0];
+    const currentUserId = (req as any).currentUser?.id;
+
+    // Check permission - owner or admin
+    const userHasPermission = (req as any).permissions?.includes('leave:read');
+    if (leaveRequest.user_id !== currentUserId && !userHasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this request'
+      });
+    }
+
+    const attachments = leaveRequest.attachments ? JSON.parse(leaveRequest.attachments) : [];
+
+    return res.json({
+      success: true,
+      data: {
+        files: attachments
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching files:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch files'
+    });
+  }
+};
+
+/**
+ * Delete a file from leave request
+ * DELETE /api/leave/:id/files/:fileIndex
+ */
+export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
+  try {
+    const leaveRequestId = parseInt(req.params.id);
+    const fileIndex = parseInt(req.params.fileIndex);
+
+    if (isNaN(leaveRequestId) || isNaN(fileIndex)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ID or file index'
+      });
+    }
+
+    // Get leave request
+    const [rows]: any = await pool.execute(
+      'SELECT attachments, user_id FROM leave_requests WHERE id = ?',
+      [leaveRequestId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Leave request not found'
+      });
+    }
+
+    const leaveRequest = rows[0];
+    const currentUserId = (req as any).currentUser?.id;
+
+    // Check permission - owner or admin
+    const userHasPermission = (req as any).permissions?.includes('leave:delete');
+    if (leaveRequest.user_id !== currentUserId && !userHasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete files from this request'
+      });
+    }
+
+    // Can only delete if request is still in 'submitted' or 'pending' status
+    if (!['submitted', 'pending'].includes(leaveRequest.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete files from approved/rejected requests'
+      });
+    }
+
+    let attachments = leaveRequest.attachments ? JSON.parse(leaveRequest.attachments) : [];
+
+    if (fileIndex < 0 || fileIndex >= attachments.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+
+    // Get the file to delete
+    const fileToDelete = attachments[fileIndex];
+
+    // Delete physical file
+    const filePath = path.join(process.cwd(), fileToDelete.file_path);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Remove from array
+    attachments.splice(fileIndex, 1);
+
+    // Update database
+    await pool.execute(
+      'UPDATE leave_requests SET attachments = ? WHERE id = ?',
+      [JSON.stringify(attachments), leaveRequestId]
+    );
+
+    return res.json({
+      success: true,
+      message: 'File deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete file'
+    });
+  }
+};
+
+/**
+ * Serve uploaded files
+ * GET /uploads/leave-requests/:filename
+ */
+export const serveLeaveFile = async (req: Request, res: Response) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = path.join(process.cwd(), 'uploads', 'leave-requests', filename);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found'
+      });
+    }
+
+    // Send file
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Error serving file:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to serve file'
+    });
+  }
+};

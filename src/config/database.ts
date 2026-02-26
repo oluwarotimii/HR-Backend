@@ -4,8 +4,39 @@ import { redisService } from '../services/redis.service';
 
 dotenv.config();
 
+// Parse connection string if provided (e.g., from TiDB Cloud)
+// Format: mysql://user:password@host:port/database
+const parseConnectionString = (connectionString?: string) => {
+  if (!connectionString) {
+    return null;
+  }
+
+  try {
+    const url = new URL(connectionString);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port || '4000'),
+      user: url.username,
+      password: decodeURIComponent(url.password),
+      database: url.pathname.slice(1), // Remove leading '/'
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      namedPlaceholders: true,
+      ssl: {
+        rejectUnauthorized: true
+      }
+    };
+  } catch (error) {
+    console.error('Failed to parse connection string:', error);
+    return null;
+  }
+};
+
 // Database connection configuration
-const dbConfig = {
+const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
@@ -16,7 +47,6 @@ const dbConfig = {
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  // Ensure proper result format
   namedPlaceholders: true,
 };
 
