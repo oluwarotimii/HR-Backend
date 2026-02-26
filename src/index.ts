@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { testConnection, initializeRedis } from './config/database';
+import { SystemInitService } from './services/system-init.service';
 import authRoutes from './api/auth.route';
 import roleRoutes from './api/role.route';
 import userRoutes from './api/user.route';
@@ -33,7 +34,7 @@ import kpiScoreRoutes from './api/kpi-score.route';
 import staffInvitationRoutes from './api/staff-invitation.route';
 import timeOffBankRoutes from './api/time-off-bank.route';
 import passwordChangeRoutes from './api/password-change.route';
-import systemInitRoutes from './api/system-init.route';
+import systemRoutes from './api/system.route';
 import roleManagementRoutes from './api/role-management.route';
 import completeSystemInitRoutes from './api/complete-system-init.route';
 import branchManagementRoutes from './api/branch-management.route';
@@ -93,6 +94,9 @@ testConnection();
 // Initialize Redis connection when server starts
 initializeRedis();
 
+// Initialize system cache (pre-load static data)
+SystemInitService.initialize();
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
 app.use('/api/roles', roleRoutes);
@@ -122,7 +126,7 @@ app.use('/api/kpi-scores', kpiScoreRoutes);
 app.use('/api/staff-invitation', staffInvitationRoutes);
 app.use('/api/time-off-banks', timeOffBankRoutes);
 app.use('/api/password-change', passwordChangeRoutes);
-app.use('/api/system', systemInitRoutes);
+app.use('/api/system', systemRoutes);
 app.use('/api/role-management', roleManagementRoutes);
 app.use('/api/system-complete', completeSystemInitRoutes);
 app.use('/api/branches', branchManagementRoutes);
