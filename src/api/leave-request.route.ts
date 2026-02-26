@@ -128,6 +128,20 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
     // Get all allocations for this user
     const allocations = await LeaveAllocationModel.findByUserId(userId);
 
+    // Get pending leave requests for this user
+    const [pendingRequests]: any = await pool.execute(
+      `SELECT leave_type_id, SUM(days_requested) as pending_days
+       FROM leave_requests
+       WHERE user_id = ? AND status IN ('submitted', 'pending')
+       GROUP BY leave_type_id`,
+      [userId]
+    );
+
+    const pendingMap = new Map<number, number>();
+    pendingRequests.forEach((row: any) => {
+      pendingMap.set(row.leave_type_id, parseFloat(row.pending_days));
+    });
+
     // Calculate balance for each leave type
     const balances = leaveTypes.map((leaveType) => {
       // Find allocations for this leave type
@@ -137,15 +151,17 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
 
       // Use the most recent allocation (first one since it's ordered by cycle_start_date DESC)
       const allocation = typeAllocations[0];
+      const pendingDays = pendingMap.get(leaveType.id) || 0;
 
       if (allocation) {
-        const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days;
+        const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days - pendingDays;
         return {
           leave_type_id: leaveType.id,
           leave_type_name: leaveType.name,
           allocated_days: allocation.allocated_days,
           used_days: allocation.used_days,
           carried_over_days: allocation.carried_over_days,
+          pending_days: pendingDays,
           remaining_days: remainingDays,
           cycle_start_date: allocation.cycle_start_date,
           cycle_end_date: allocation.cycle_end_date
@@ -157,7 +173,8 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
           allocated_days: 0,
           used_days: 0,
           carried_over_days: 0,
-          remaining_days: 0,
+          pending_days: pendingDays,
+          remaining_days: -pendingDays,
           cycle_start_date: null,
           cycle_end_date: null
         };
@@ -367,7 +384,7 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
 
     // Check if user has sufficient leave balance
     const leaveType = await LeaveTypeModel.findById(leave_type_id);
-    
+
     if (!leaveType) {
       return res.status(404).json({
         success: false,
@@ -388,8 +405,18 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
     // Use the first allocation (most recent based on ordering in the model)
     const allocation = allocations[0];
 
-    // Calculate remaining days for this allocation
-    const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days;
+    // Get pending leave days for this leave type
+    const [pendingRows]: any = await pool.execute(
+      `SELECT COALESCE(SUM(days_requested), 0) as pending_days
+       FROM leave_requests
+       WHERE user_id = ? AND leave_type_id = ? AND status IN ('submitted', 'pending') AND id != ?`,
+      [userId, leave_type_id, -1]
+    );
+
+    const pendingDays = parseFloat(pendingRows[0].pending_days);
+
+    // Calculate remaining days for this allocation (subtract pending requests)
+    const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days - pendingDays;
 
     // Calculate requested days
     const timeDiff = endDateObj.getTime() - startDateObj.getTime();
@@ -399,7 +426,7 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
     if (remainingDays < requestedDays) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient leave balance. Requested: ${requestedDays} days, Available: ${remainingDays} days`
+        message: `Insufficient leave balance. Requested: ${requestedDays} days, Available: ${remainingDays} days (excluding ${pendingDays} days in pending requests)`
       });
     }
 
@@ -414,6 +441,40 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
       attachments: attachments || null,
       status: 'submitted'
     });
+
+    // Send notification to users with leave:approve permission
+    try {
+      const [approverRows]: any = await pool.execute(
+        `SELECT DISTINCT u.id, u.full_name, u.email
+         FROM users u
+         INNER JOIN roles_permissions rp ON u.role_id = rp.role_id
+         WHERE rp.permission = 'leave:approve' AND rp.allow_deny = 'allow' AND u.status = 'active'`
+      );
+
+      if (approverRows.length > 0) {
+        const { NotificationService } = await import('../services/notification.service');
+        const notificationService = new NotificationService();
+
+        for (const approver of approverRows) {
+          await notificationService.queueNotification(
+            approver.id,
+            'leave_request_pending',
+            {
+              approver_name: approver.full_name,
+              staff_name: req.currentUser?.full_name || 'Employee',
+              leave_type: leaveType.name,
+              start_date: startDate,
+              end_date: endDate,
+              days: requestedDays,
+              reason: reason,
+              company_name: process.env.APP_NAME || 'Our Company'
+            }
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error sending leave request notifications:', notificationError);
+    }
 
     return res.status(201).json({
       success: true,
@@ -474,68 +535,115 @@ router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req:
     // Check if status is changing from approved to cancelled/rejected (refund days)
     const isRefunding = existingRequest.status === 'approved' && (status === 'cancelled' || status === 'rejected');
 
-    // Update the leave request
-    const updatedRequest = await LeaveRequestModel.update(leaveRequestId, {
-      status: status as any,
-      notes: reason,
-      reviewed_by: status ? req.currentUser?.id : undefined,
-      reviewed_at: status ? new Date() : undefined
-    });
+    // Get connection for transaction
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
 
-    // If approved, update the allocation's used_days (deduct days)
-    if (isApproving) {
-      // Find the user's allocation for this leave type
-      const allocations = await LeaveAllocationModel.findByUserIdAndTypeId(
-        existingRequest.user_id,
-        existingRequest.leave_type_id
-      );
+      // Update the leave request
+      const updatedRequest = await LeaveRequestModel.update(leaveRequestId, {
+        status: status as any,
+        notes: reason,
+        reviewed_by: status ? req.currentUser?.id : undefined,
+        reviewed_at: status ? new Date() : undefined
+      }, connection);
 
-      // Find active allocation (cycle_end_date is in the future)
-      const activeAllocation = allocations.find(
-        alloc => new Date(alloc.cycle_end_date) >= new Date()
-      );
-
-      if (activeAllocation) {
-        await LeaveAllocationModel.updateUsedDays(activeAllocation.id, existingRequest.days_requested);
-        console.log(
-          `Updated used_days for user ${existingRequest.user_id}, leave type ${existingRequest.leave_type_id} by +${existingRequest.days_requested} days (approved)`
+      // If approved, update the allocation's used_days (deduct days)
+      if (isApproving) {
+        // Find the user's allocation for this leave type
+        const allocations = await LeaveAllocationModel.findByUserIdAndTypeId(
+          existingRequest.user_id,
+          existingRequest.leave_type_id,
+          connection
         );
-      } else {
-        console.warn(
-          `No active allocation found for user ${existingRequest.user_id}, leave type ${existingRequest.leave_type_id}. Cannot deduct days.`
+
+        // Find active allocation (cycle_end_date is in the future)
+        const activeAllocation = allocations.find(
+          alloc => new Date(alloc.cycle_end_date) >= new Date()
         );
+
+        if (activeAllocation) {
+          await LeaveAllocationModel.updateUsedDays(activeAllocation.id, existingRequest.days_requested, connection);
+          
+          // Send approval notification
+          const { NotificationService } = await import('../services/notification.service');
+          const notificationService = new NotificationService();
+          
+          await notificationService.queueNotification(
+            existingRequest.user_id,
+            'leave_request_approved',
+            {
+              staff_name: existingRequest.user_name || 'Employee',
+              leave_type: existingRequest.leave_type_name || 'Leave',
+              start_date: existingRequest.start_date,
+              end_date: existingRequest.end_date,
+              days: existingRequest.days_requested,
+              approver_name: req.currentUser?.full_name || 'Approver',
+              approval_date: new Date().toISOString().split('T')[0],
+              request_id: existingRequest.id,
+              company_name: process.env.APP_NAME || 'Our Company'
+            }
+          );
+        } else {
+          console.warn(
+            `No active allocation found for user ${existingRequest.user_id}, leave type ${existingRequest.leave_type_id}. Cannot deduct days.`
+          );
+        }
       }
-    }
 
-    // If refunding (approved -> cancelled/rejected), refund the days
-    if (isRefunding) {
-      const allocations = await LeaveAllocationModel.findByUserIdAndTypeId(
-        existingRequest.user_id,
-        existingRequest.leave_type_id
-      );
-
-      const activeAllocation = allocations.find(
-        alloc => new Date(alloc.cycle_end_date) >= new Date()
-      );
-
-      if (activeAllocation) {
-        // Subtract the days (negative value to refund)
-        await LeaveAllocationModel.updateUsedDays(activeAllocation.id, -existingRequest.days_requested);
-        console.log(
-          `Updated used_days for user ${existingRequest.user_id}, leave type ${existingRequest.leave_type_id} by -${existingRequest.days_requested} days (refunded)`
+      // If refunding (approved -> cancelled/rejected), refund the days
+      if (isRefunding) {
+        const allocations = await LeaveAllocationModel.findByUserIdAndTypeId(
+          existingRequest.user_id,
+          existingRequest.leave_type_id,
+          connection
         );
-      } else {
-        console.warn(
-          `No active allocation found for user ${existingRequest.user_id}, leave type ${existingRequest.leave_type_id}. Cannot refund days.`
+
+        const activeAllocation = allocations.find(
+          alloc => new Date(alloc.cycle_end_date) >= new Date()
         );
+
+        if (activeAllocation) {
+          await LeaveAllocationModel.updateUsedDays(activeAllocation.id, -existingRequest.days_requested, connection);
+          
+          // Send rejection/cancellation notification
+          const { NotificationService } = await import('../services/notification.service');
+          const notificationService = new NotificationService();
+          
+          const templateName = status === 'rejected' ? 'leave_request_rejected' : 'leave_request_cancelled';
+          await notificationService.queueNotification(
+            existingRequest.user_id,
+            templateName,
+            {
+              staff_name: existingRequest.user_name || 'Employee',
+              leave_type: existingRequest.leave_type_name || 'Leave',
+              start_date: existingRequest.start_date,
+              end_date: existingRequest.end_date,
+              days: existingRequest.days_requested,
+              approver_name: req.currentUser?.full_name || 'Approver',
+              rejection_date: new Date().toISOString().split('T')[0],
+              rejection_reason: reason || 'No reason provided',
+              request_id: existingRequest.id,
+              company_name: process.env.APP_NAME || 'Our Company'
+            }
+          );
+        }
       }
-    }
 
-    return res.json({
-      success: true,
-      message: 'Leave request updated successfully',
-      data: { leaveRequest: updatedRequest }
-    });
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'Leave request updated successfully',
+        data: { leaveRequest: updatedRequest }
+      });
+    } catch (transactionError) {
+      await connection.rollback();
+      throw transactionError;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     console.error('Update leave request error:', error);
     return res.status(500).json({

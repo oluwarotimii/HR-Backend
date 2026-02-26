@@ -1,3 +1,4 @@
+import { Pool } from 'mysql2/promise';
 import { pool } from '../config/database';
 
 export interface LeaveRequest {
@@ -71,9 +72,6 @@ class LeaveRequestModel {
     query += ' ORDER BY lr.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    console.log('Executing query:', query);
-    console.log('With params:', params);
-
     const [rows] = await pool.execute(query, params);
 
     // Get total count
@@ -84,9 +82,6 @@ class LeaveRequestModel {
       countQuery += ' WHERE ' + conditions.join(' AND ');
     }
 
-    console.log('Count query:', countQuery);
-    console.log('Count params:', countParams);
-
     const [countResult]: any = await pool.execute(countQuery, countParams);
 
     return {
@@ -96,8 +91,9 @@ class LeaveRequestModel {
     };
   }
 
-  static async findById(id: number): Promise<LeaveRequest | null> {
-    const [rows] = await pool.execute(
+  static async findById(id: number, connection?: Pool): Promise<LeaveRequest | null> {
+    const db = connection || pool;
+    const [rows] = await db.execute(
       `SELECT lr.*, u.full_name as user_name, lt.name as leave_type_name
        FROM ${this.tableName} lr
        JOIN users u ON lr.user_id = u.id
@@ -116,9 +112,10 @@ class LeaveRequestModel {
     return rows as LeaveRequest[];
   }
 
-  static async create(leaveData: LeaveRequestInput): Promise<LeaveRequest> {
-    const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} 
+  static async create(leaveData: LeaveRequestInput, connection?: Pool): Promise<LeaveRequest> {
+    const db = connection || pool;
+    const [result]: any = await db.execute(
+      `INSERT INTO ${this.tableName}
        (user_id, leave_type_id, start_date, end_date, days_requested, reason, attachments, status, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -135,7 +132,7 @@ class LeaveRequestModel {
     );
 
     const insertedId = result.insertId;
-    const createdItem = await this.findById(insertedId);
+    const createdItem = await this.findById(insertedId, connection);
 
     if (!createdItem) {
       throw new Error('Failed to create leave request');
@@ -144,7 +141,8 @@ class LeaveRequestModel {
     return createdItem;
   }
 
-  static async update(id: number, leaveData: LeaveRequestUpdate): Promise<LeaveRequest | null> {
+  static async update(id: number, leaveData: LeaveRequestUpdate, connection?: Pool): Promise<LeaveRequest | null> {
+    const db = connection || pool;
     const updates: string[] = [];
     const values: any[] = [];
 
@@ -169,17 +167,17 @@ class LeaveRequestModel {
     }
 
     if (updates.length === 0) {
-      return await this.findById(id);
+      return await this.findById(id, connection);
     }
 
     values.push(id);
 
-    await pool.execute(
+    await db.execute(
       `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
 
-    return await this.findById(id);
+    return await this.findById(id, connection);
   }
 
   static async delete(id: number): Promise<boolean> {
