@@ -45,9 +45,11 @@ import applicationSubmissionRoutes from './api/application-submission.route';
 import applicationManagementRoutes from './api/application-management.route';
 import shiftSchedulingRoutes from './api/shift-scheduling.route';
 import reportingAnalyticsRoutes from './api/reporting-analytics.route';
+import branchWorkingDaysRoutes from './api/branch-working-days.route';
 // import apiKeyRoutes from './api/api-key.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
 import { SchedulerService } from './services/scheduler.service';
+import AttendanceProcessorWorker from './workers/attendance-processor.worker';
 
 // Load environment variables
 dotenv.config();
@@ -97,6 +99,9 @@ initializeRedis();
 // Initialize system cache (pre-load static data)
 SystemInitService.initialize();
 
+// Start attendance processor worker (daily automated processing)
+AttendanceProcessorWorker.start();
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
 app.use('/api/roles', roleRoutes);
@@ -131,6 +136,7 @@ app.use('/api/role-management', roleManagementRoutes);
 app.use('/api/system-complete', completeSystemInitRoutes);
 app.use('/api/branches', branchManagementRoutes);
 app.use('/api/departments', departmentManagementRoutes);
+app.use('/api/branch-working-days', branchWorkingDaysRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/job-postings', jobPostingRoutes);
 app.use('/api/job-applications', applicationSubmissionRoutes);

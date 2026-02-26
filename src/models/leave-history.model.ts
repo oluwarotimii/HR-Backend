@@ -52,9 +52,13 @@ class LeaveHistoryModel {
   }
 
   static async findByUserIdAndDateRange(userId: number, startDate: Date, endDate: Date): Promise<LeaveHistory[]> {
+    // Fixed: Find leaves that overlap with the date range
+    // A leave overlaps if: leave.start <= range.end AND leave.end >= range.start
     const [rows] = await pool.execute(
-      `SELECT * FROM ${this.tableName} WHERE user_id = ? AND start_date >= ? AND end_date <= ? ORDER BY start_date DESC`,
-      [userId, startDate, endDate]
+      `SELECT * FROM ${this.tableName} 
+       WHERE user_id = ? AND start_date <= ? AND end_date >= ? 
+       ORDER BY start_date DESC`,
+      [userId, endDate, startDate]
     );
     return rows as LeaveHistory[];
   }

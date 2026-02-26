@@ -11,6 +11,7 @@ import {
   updateEmployeeShiftAssignment,
   bulkAssignShifts,
   bulkAssignRecurringShifts,
+  bulkAssignRecurringShiftsByBranch,
   getRecurringShifts,
   updateRecurringShift,
   deleteRecurringShift
@@ -48,6 +49,7 @@ router.post('/employee-shift-assignments/bulk', authenticateJWT, checkPermission
 // Recurring Shift Assignments Routes (for Resume Late / Close Early use cases)
 router.get('/recurring-shifts', authenticateJWT, checkPermission('employee_shift_assignment:read'), getRecurringShifts);
 router.post('/recurring-shifts/bulk', authenticateJWT, checkPermission('employee_shift_assignment:create'), bulkAssignRecurringShifts);
+router.post('/recurring-shifts/bulk-assign-branch', authenticateJWT, checkPermission('employee_shift_assignment:create'), bulkAssignRecurringShiftsByBranch);
 router.put('/recurring-shifts/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), updateRecurringShift);
 router.delete('/recurring-shifts/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), deleteRecurringShift);
 

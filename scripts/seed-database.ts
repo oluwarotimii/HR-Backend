@@ -407,29 +407,102 @@ async function seedHolidays() {
 }
 
 async function seedShiftTimings() {
-  console.log('⏰ Seeding shift timings...');
-  
+  console.log('⏰ Seeding shift timings (legacy table)...');
+
   const shifts = [
     { name: 'Morning Shift', start: '08:00:00', end: '17:00:00' },
     { name: 'Standard Shift', start: '09:00:00', end: '18:00:00' },
     { name: 'Late Shift', start: '10:00:00', end: '19:00:00' },
     { name: 'Half Day', start: '09:00:00', end: '13:00:00' },
   ];
-  
+
   const [users] = await pool.execute('SELECT id FROM users');
-  
+
   for (const user of users) {
     const shift = randomElement(shifts);
     const effectiveFrom = '2024-07-01';
-    
+
     await pool.execute(
       `INSERT INTO shift_timings (user_id, shift_name, start_time, end_time, effective_from, effective_to)
        VALUES (?, ?, ?, ?, ?, NULL)`,
       [user.id, shift.name, shift.start, shift.end, effectiveFrom]
     );
   }
-  
+
   console.log(`✅ Shift timings seeded (${users.length} records)\n`);
+}
+
+async function seedBranchWorkingDays() {
+  console.log('📅 Seeding branch working days...');
+
+  const [branches] = await pool.execute('SELECT id FROM branches');
+
+  const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  
+  // Default: Mon-Fri 9am-5pm, Sat-Sun off
+  const workingDaysConfig = {
+    monday: { is_working: true, start: '09:00:00', end: '17:00:00', break: 30 },
+    tuesday: { is_working: true, start: '09:00:00', end: '17:00:00', break: 30 },
+    wednesday: { is_working: true, start: '09:00:00', end: '17:00:00', break: 30 },
+    thursday: { is_working: true, start: '09:00:00', end: '17:00:00', break: 30 },
+    friday: { is_working: true, start: '09:00:00', end: '17:00:00', break: 30 },
+    saturday: { is_working: false, start: null, end: null, break: 30 },
+    sunday: { is_working: false, start: null, end: null, break: 30 },
+  };
+
+  for (const branch of branches) {
+    for (const day of daysOfWeek) {
+      const config = workingDaysConfig[day];
+      await pool.execute(
+        `INSERT INTO branch_working_days 
+         (branch_id, day_of_week, is_working_day, start_time, end_time, break_duration_minutes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [branch.id, day, config.is_working, config.start, config.end, config.break]
+      );
+    }
+  }
+
+  console.log(`✅ Branch working days seeded (${branches.length * 7} records)\n`);
+}
+
+async function seedRecurringShiftAssignments() {
+  console.log('🔄 Seeding recurring shift assignments...');
+
+  // Create a standard shift template first
+  const [templateResult]: any = await pool.execute(
+    `INSERT INTO shift_templates 
+     (name, description, start_time, end_time, break_duration_minutes, 
+      effective_from, recurrence_pattern, is_active, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, 1)`,
+    ['Standard Hours', 'Monday to Friday, 9am-5pm', '09:00:00', '17:00:00', 30, '2026-01-01', 'weekly']
+  );
+
+  const shiftTemplateId = templateResult.insertId;
+
+  // Get all active staff
+  const [staff]: any = await pool.execute(
+    `SELECT user_id, branch_id FROM staff WHERE status = 'active'`
+  );
+
+  let assignmentCount = 0;
+
+  // Assign Mon-Fri shifts to all staff
+  const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  
+  for (const employee of staff) {
+    for (const day of weekDays) {
+      await pool.execute(
+        `INSERT INTO employee_shift_assignments
+         (user_id, shift_template_id, effective_from, recurrence_pattern, 
+          recurrence_day_of_week, assignment_type, assigned_by, status)
+         VALUES (?, ?, '2026-01-01', 'weekly', ?, 'permanent', 1, 'active')`,
+        [employee.user_id, shiftTemplateId, day]
+      );
+      assignmentCount++;
+    }
+  }
+
+  console.log(`✅ Recurring shift assignments seeded (${assignmentCount} records for ${staff.length} employees)\n`);
 }
 
 async function seedAttendance() {
@@ -767,6 +840,8 @@ async function seedDatabase() {
     await seedLeaveTypes();
     await seedHolidays();
     await seedShiftTimings();
+    await seedBranchWorkingDays();
+    await seedRecurringShiftAssignments();
     await seedAttendance();
     await seedLeaveTypes$();
     await seedLeaveRequests();

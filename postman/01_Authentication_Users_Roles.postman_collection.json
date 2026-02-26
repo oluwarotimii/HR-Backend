@@ -1,0 +1,698 @@
+{
+  "info": {
+    "name": "01 - Authentication & Users",
+    "description": "Complete authentication flow, user management, roles, and permissions. This module handles login, logout, token refresh, and user CRUD operations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.data.token);",
+                  "    if (jsonData.data.refreshToken) {",
+                  "        pm.environment.set('refresh_token', jsonData.data.refreshToken);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticate user and receive JWT tokens. Tokens are automatically saved to environment variables."
+          },
+          "response": [
+            {
+              "name": "Success - Login",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user\": {\n      \"id\": 1,\n      \"email\": \"admin@company.co.ke\",\n      \"full_name\": \"System Administrator\",\n      \"role_id\": 1,\n      \"role_name\": \"Admin\",\n      \"status\": \"active\",\n      \"must_change_password\": false\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Invalid Credentials",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid email or password\"\n}"
+            },
+            {
+              "name": "Error - Account Inactive",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Account is inactive. Contact administrator.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout user and invalidate token (if using blacklist)"
+          },
+          "response": [
+            {
+              "name": "Success - Logout",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Logout successful\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Get new access token using refresh token"
+          },
+          "response": [
+            {
+              "name": "Success - Token Refreshed",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Token refreshed successfully\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n  }\n}"
+            },
+            {
+              "name": "Error - Invalid Refresh Token",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid or expired refresh token\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Get currently authenticated user's details"
+          },
+          "response": [
+            {
+              "name": "Success - User Details",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User details retrieved successfully\",\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"email\": \"admin@company.co.ke\",\n      \"full_name\": \"System Administrator\",\n      \"phone\": \"+254700000000\",\n      \"role_id\": 1,\n      \"branch_id\": 1,\n      \"status\": \"active\",\n      \"created_at\": \"2026-01-01T00:00:00Z\"\n    },\n    \"permissions\": [\n      \"staff:create\",\n      \"staff:read\",\n      \"staff:update\",\n      \"staff:delete\",\n      \"leave:approve\",\n      \"users:create\"\n    ]\n  }\n}"
+            },
+            {
+              "name": "Error - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized - Invalid or expired token\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{admin_password}}\",\n  \"newPassword\": \"NewPassword123!\",\n  \"confirmPassword\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/change-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "change-password"]
+            },
+            "description": "Change own password. User must provide current password."
+          },
+          "response": [
+            {
+              "name": "Success - Password Changed",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Password changed successfully\"\n}"
+            },
+            {
+              "name": "Error - Wrong Current Password",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Current password is incorrect\"\n}"
+            },
+            {
+              "name": "Error - Passwords Don't Match",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"New password and confirmation do not match\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Request Password Reset",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@company.co.ke\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "forgot-password"]
+            },
+            "description": "Request password reset email"
+          },
+          "response": [
+            {
+              "name": "Success - Reset Email Sent",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Password reset email sent if account exists\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_from_email\",\n  \"newPassword\": \"NewPassword123!\",\n  \"confirmPassword\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "reset-password"]
+            },
+            "description": "Reset password using token from email"
+          },
+          "response": [
+            {
+              "name": "Success - Password Reset",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Password reset successfully\"\n}"
+            },
+            {
+              "name": "Error - Invalid/Expired Token",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid or expired reset token\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👥 Users Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Get all users with pagination and filters"
+          },
+          "response": [
+            {
+              "name": "Success - Users List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Users retrieved successfully\",\n  \"data\": {\n    \"users\": [\n      {\n        \"id\": 1,\n        \"email\": \"admin@company.co.ke\",\n        \"full_name\": \"System Administrator\",\n        \"phone\": \"+254700000000\",\n        \"role_id\": 1,\n        \"role_name\": \"Admin\",\n        \"branch_id\": 1,\n        \"status\": \"active\",\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 2,\n        \"email\": \"john.doe@company.co.ke\",\n        \"full_name\": \"John Doe\",\n        \"phone\": \"+254700000001\",\n        \"role_id\": 2,\n        \"role_name\": \"Employee\",\n        \"branch_id\": 1,\n        \"status\": \"active\",\n        \"created_at\": \"2026-01-02T00:00:00Z\"\n      }\n    ],\n    \"pagination\": {\n      \"currentPage\": 1,\n      \"totalPages\": 3,\n      \"totalItems\": 51,\n      \"itemsPerPage\": 20\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            },
+            "description": "Get single user details by ID"
+          },
+          "response": [
+            {
+              "name": "Success - User Details",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User retrieved successfully\",\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"email\": \"admin@company.co.ke\",\n      \"full_name\": \"System Administrator\",\n      \"phone\": \"+254700000000\",\n      \"role_id\": 1,\n      \"branch_id\": 1,\n      \"status\": \"active\",\n      \"must_change_password\": false,\n      \"created_at\": \"2026-01-01T00:00:00Z\",\n      \"updated_at\": \"2026-01-01T00:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - User Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"success\": false,\n  \"message\": \"User not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@company.co.ke\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"New User\",\n  \"phone\": \"+254700000000\",\n  \"role_id\": 2,\n  \"branch_id\": 1,\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Create new user. Requires users:create permission."
+          },
+          "response": [
+            {
+              "name": "Success - User Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User created successfully\",\n  \"data\": {\n    \"user\": {\n      \"id\": 52,\n      \"email\": \"newuser@company.co.ke\",\n      \"full_name\": \"New User\",\n      \"role_id\": 2,\n      \"branch_id\": 1,\n      \"status\": \"active\",\n      \"created_at\": \"2026-02-26T10:00:00Z\"\n    }\n  }\n}"
+            },
+            {
+              "name": "Error - Email Already Exists",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Email already exists\"\n}"
+            },
+            {
+              "name": "Error - Invalid Role",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid role ID\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"phone\": \"+254711111111\",\n  \"role_id\": 3,\n  \"branch_id\": 2,\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            },
+            "description": "Update user details. Cannot change email."
+          },
+          "response": [
+            {
+              "name": "Success - User Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User updated successfully\",\n  \"data\": {\n    \"user\": {\n      \"id\": 1,\n      \"email\": \"admin@company.co.ke\",\n      \"full_name\": \"Updated Name\",\n      \"phone\": \"+254711111111\",\n      \"role_id\": 3,\n      \"branch_id\": 2,\n      \"status\": \"active\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}"]
+            },
+            "description": "Delete user (soft delete - sets status to inactive)"
+          },
+          "response": [
+            {
+              "name": "Success - User Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User deleted successfully\"\n}"
+            },
+            {
+              "name": "Error - Cannot Delete Self",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Cannot delete your own account\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{user_id}}/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "{{user_id}}", "permissions"]
+            },
+            "description": "Get all permissions for a specific user"
+          },
+          "response": [
+            {
+              "name": "Success - User Permissions",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"User permissions retrieved successfully\",\n  \"data\": {\n    \"user_id\": 1,\n    \"permissions\": [\n      \"staff:create\",\n      \"staff:read\",\n      \"staff:update\",\n      \"staff:delete\",\n      \"leave:create\",\n      \"leave:read\",\n      \"leave:approve\",\n      \"users:create\",\n      \"users:read\"\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🎭 Roles & Permissions",
+      "item": [
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roles"]
+            },
+            "description": "Get all available roles"
+          },
+          "response": [
+            {
+              "name": "Success - Roles List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Roles retrieved successfully\",\n  \"data\": {\n    \"roles\": [\n      {\n        \"id\": 1,\n        \"name\": \"Admin\",\n        \"description\": \"System administrator with full access\",\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Manager\",\n        \"description\": \"Department manager with approval rights\",\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 3,\n        \"name\": \"Employee\",\n        \"description\": \"Regular employee with basic access\",\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      },\n      {\n        \"id\": 4,\n        \"name\": \"HR\",\n        \"description\": \"Human resources with staff management access\",\n        \"created_at\": \"2026-01-01T00:00:00Z\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/roles/{{role_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roles", "{{role_id}}"]
+            },
+            "description": "Get role details with permissions"
+          },
+          "response": [
+            {
+              "name": "Success - Role Details",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Role retrieved successfully\",\n  \"data\": {\n    \"role\": {\n      \"id\": 1,\n      \"name\": \"Admin\",\n      \"description\": \"System administrator with full access\",\n      \"created_at\": \"2026-01-01T00:00:00Z\"\n    },\n    \"permissions\": [\n      \"staff:create\",\n      \"staff:read\",\n      \"staff:update\",\n      \"staff:delete\",\n      \"leave:approve\",\n      \"users:create\"\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Supervisor\",\n  \"description\": \"Team supervisor with limited approval rights\",\n  \"permissions\": [\n    \"staff:read\",\n    \"leave:read\",\n    \"leave:approve\",\n    \"attendance:read\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roles"]
+            },
+            "description": "Create new role with permissions"
+          },
+          "response": [
+            {
+              "name": "Success - Role Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Role created successfully\",\n  \"data\": {\n    \"role\": {\n      \"id\": 6,\n      \"name\": \"Supervisor\",\n      \"description\": \"Team supervisor with limited approval rights\",\n      \"created_at\": \"2026-02-26T10:00:00Z\"\n    },\n    \"permissions\": [\n      \"staff:read\",\n      \"leave:read\",\n      \"leave:approve\",\n      \"attendance:read\"\n    ]\n  }\n}"
+            },
+            {
+              "name": "Error - Role Name Exists",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Role name already exists\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Manager\",\n  \"description\": \"Senior manager with extended rights\",\n  \"permissions\": [\n    \"staff:read\",\n    \"staff:update\",\n    \"leave:approve\",\n    \"users:read\",\n    \"reports:view\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roles/{{role_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roles", "{{role_id}}"]
+            },
+            "description": "Update role and permissions"
+          },
+          "response": [
+            {
+              "name": "Success - Role Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Role updated successfully\",\n  \"data\": {\n    \"role\": {\n      \"id\": 2,\n      \"name\": \"Senior Manager\",\n      \"description\": \"Senior manager with extended rights\",\n      \"updated_at\": \"2026-02-26T10:00:00Z\"\n    },\n    \"permissions\": [\n      \"staff:read\",\n      \"staff:update\",\n      \"leave:approve\",\n      \"users:read\",\n      \"reports:view\"\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/roles/{{role_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roles", "{{role_id}}"]
+            },
+            "description": "Delete role (soft delete)"
+          },
+          "response": [
+            {
+              "name": "Success - Role Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Role deleted successfully\"\n}"
+            },
+            {
+              "name": "Error - Role In Use",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"success\": false,\n  \"message\": \"Cannot delete role assigned to users\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "permissions"]
+            },
+            "description": "Get all available permissions in the system"
+          },
+          "response": [
+            {
+              "name": "Success - Permissions List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"message\": \"Permissions retrieved successfully\",\n  \"data\": {\n    \"permissions\": [\n      \"staff:create\",\n      \"staff:read\",\n      \"staff:update\",\n      \"staff:delete\",\n      \"users:create\",\n      \"users:read\",\n      \"users:update\",\n      \"users:delete\",\n      \"leave:create\",\n      \"leave:read\",\n      \"leave:update\",\n      \"leave:approve\",\n      \"attendance:record\",\n      \"attendance:read\",\n      \"reports:view\"\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
