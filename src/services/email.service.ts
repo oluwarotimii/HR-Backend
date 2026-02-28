@@ -62,7 +62,7 @@ interface StaffInvitationEmailProps {
   to: string;
   fullName: string;
   workEmail: string;
-  temporaryPassword: string;
+  invitationToken: string;
   fromAdmin: string;
 }
 
@@ -70,7 +70,7 @@ export const sendStaffInvitationEmail = async ({
   to,
   fullName,
   workEmail,
-  temporaryPassword,
+  invitationToken,
   fromAdmin
 }: StaffInvitationEmailProps): Promise<void> => {
   try {
@@ -85,12 +85,20 @@ export const sendStaffInvitationEmail = async ({
           <p>You've been invited by ${fromAdmin} to join Tripa HR Management System.</p>
 
           <h2 style="color: #3498db;">Your New Work Identity:</h2>
-          <p><strong>Email:</strong> ${workEmail}</p>
-          <p><strong>Temporary Password:</strong> ${temporaryPassword}</p>
+          <p><strong>Work Email:</strong> ${workEmail}</p>
 
-          <p>Please download our mobile application and log in with these credentials. On your first login, you will be required to set a new password for security.</p>
+          <p>To complete your registration and set up your password, please click the link below:</p>
+          
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-invitation/${invitationToken}" 
+               style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              Accept Invitation & Set Password
+            </a>
+          </p>
+          
+          <p><strong>Important:</strong> This invitation link will expire in 7 days.</p>
 
-          <p>Once logged in, you'll be able to access your dashboard, track your KPIs, request time off, and more.</p>
+          <p>Once you've set your password, you'll be able to log in and access your dashboard, track your KPIs, request time off, and more.</p>
 
           <p>If you have any questions, please contact your administrator.</p>
 

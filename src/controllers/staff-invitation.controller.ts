@@ -147,6 +147,43 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
       }
     }
 
+    // Check if user already exists with this email
+    const [existingUsers]: any = await pool.execute(
+      'SELECT id FROM users WHERE email = ?',
+      [personalEmail]
+    );
+
+    if (existingUsers.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A user account already exists with this email address'
+      });
+    }
+
+    // Check for existing pending invitation
+    const [existingInvitations]: any = await pool.execute(
+      'SELECT id, status, expires_at FROM staff_invitations WHERE email = ? AND status = "pending"',
+      [personalEmail]
+    );
+
+    if (existingInvitations.length > 0) {
+      const invitation = existingInvitations[0];
+      const isExpired = new Date(invitation.expires_at) < new Date();
+      
+      if (!isExpired) {
+        return res.status(400).json({
+          success: false,
+          message: 'An invitation has already been sent to this email address. Please ask the recipient to check their spam folder.',
+          data: {
+            existingInvitation: true,
+            status: invitation.status,
+            expiresAt: invitation.expires_at
+          }
+        });
+      }
+      // If expired, we could allow resending - continue with insertion
+    }
+
     // Generate invitation token
     const token = generateInvitationToken();
     const expiresAt = new Date();
@@ -164,9 +201,9 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
     // Get current user (who is sending invitation)
     const adminId = (req as any).currentUser?.userId;
 
-    // Create invitation record
+    // Create invitation record - ensure no undefined values
     await pool.execute(
-      `INSERT INTO staff_invitations 
+      `INSERT INTO staff_invitations
        (email, token, first_name, last_name, phone, role_id, branch_id, department_id, expires_at, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -174,12 +211,12 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
         token,
         firstName,
         lastName,
-        phone || null,
-        roleId,
-        branchId || null,
-        departmentId || null,
+        phone ?? null,
+        roleId ?? null,
+        branchId ?? null,
+        departmentId ?? null,
         expiresAt,
-        adminId
+        adminId ?? null
       ]
     );
 
@@ -201,9 +238,8 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
         to: personalEmail,
         fullName: `${firstName} ${lastName}`,
         workEmail: workEmail,
-        temporaryPassword: '',
-        fromAdmin: adminName,
-        invitationToken: token
+        invitationToken: token,
+        fromAdmin: adminName
       });
     } catch (emailError) {
       console.error('Error sending invitation email:', emailError);
@@ -421,15 +457,14 @@ export const resendInvitation = async (req: Request, res: Response) => {
 
     // Send invitation email
     const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
-    
+
     try {
       await sendStaffInvitationEmail({
         to: invitation.email,
         fullName: `${invitation.first_name} ${invitation.last_name}`,
         workEmail: workEmail,
-        temporaryPassword: '',
-        fromAdmin: 'HR Team',
-        invitationToken: newToken
+        invitationToken: newToken,
+        fromAdmin: 'HR Team'
       });
     } catch (emailError) {
       console.error('Error sending invitation email:', emailError);
