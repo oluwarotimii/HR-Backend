@@ -454,7 +454,7 @@ async function seedBranchWorkingDays() {
     for (const day of daysOfWeek) {
       const config = workingDaysConfig[day];
       await pool.execute(
-        `INSERT INTO branch_working_days 
+        `INSERT IGNORE INTO branch_working_days
          (branch_id, day_of_week, is_working_day, start_time, end_time, break_duration_minutes)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [branch.id, day, config.is_working, config.start, config.end, config.break]
@@ -488,12 +488,12 @@ async function seedRecurringShiftAssignments() {
 
   // Assign Mon-Fri shifts to all staff
   const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-  
+
   for (const employee of staff) {
     for (const day of weekDays) {
       await pool.execute(
-        `INSERT INTO employee_shift_assignments
-         (user_id, shift_template_id, effective_from, recurrence_pattern, 
+        `INSERT IGNORE INTO employee_shift_assignments
+         (user_id, shift_template_id, effective_from, recurrence_pattern,
           recurrence_day_of_week, assignment_type, assigned_by, status)
          VALUES (?, ?, '2026-01-01', 'weekly', ?, 'permanent', 1, 'active')`,
         [employee.user_id, shiftTemplateId, day]
