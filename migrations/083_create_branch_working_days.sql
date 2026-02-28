@@ -19,19 +19,19 @@ CREATE TABLE IF NOT EXISTS branch_working_days (
 );
 
 -- Insert default working days (Mon-Fri 9am-5pm) for all existing branches
-INSERT INTO branch_working_days (branch_id, day_of_week, is_working_day, start_time, end_time, break_duration_minutes)
-SELECT 
+INSERT IGNORE INTO branch_working_days (branch_id, day_of_week, is_working_day, start_time, end_time, break_duration_minutes)
+SELECT
   b.id,
   day.day_of_week,
-  CASE 
+  CASE
     WHEN day.day_of_week IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday') THEN TRUE
     ELSE FALSE
   END as is_working_day,
-  CASE 
+  CASE
     WHEN day.day_of_week IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday') THEN '09:00:00'
     ELSE NULL
   END as start_time,
-  CASE 
+  CASE
     WHEN day.day_of_week IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday') THEN '17:00:00'
     ELSE NULL
   END as end_time,
@@ -45,8 +45,4 @@ CROSS JOIN (
   SELECT 'friday' UNION ALL
   SELECT 'saturday' UNION ALL
   SELECT 'sunday'
-) day
-ON DUPLICATE KEY UPDATE
-  is_working_day = VALUES(is_working_day),
-  start_time = VALUES(start_time),
-  end_time = VALUES(end_time);
+) day;
