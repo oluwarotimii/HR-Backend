@@ -13,6 +13,7 @@
     "migrate-appraisal": "npx ts-node src/migrate-appraisal.ts",
     "init-system": "tsx src/scripts/setup-initial-admin.ts",
     "start-workers": "tsx src/start-workers.ts",
+    "create-sample-files": "tsx scripts/create-sample-files.ts",
     "lint": "eslint src --ext .ts,.js",
     "lint:fix": "eslint src --ext .ts,.js --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json}\""

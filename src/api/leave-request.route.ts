@@ -1,8 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+import { upload, handleMulterError } from '../middleware/upload.middleware';
 import LeaveRequestModel from '../models/leave-request.model';
 import LeaveTypeModel from '../models/leave-type.model';
 import LeaveAllocationModel from '../models/leave-allocation.model';
+import AttachmentService from '../services/attachment.service';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -342,15 +344,22 @@ router.get('/:id', authenticateJWT, async (req: Request, res: Response, next: Ne
   }
 });
 
-// POST /api/leave - Create new leave request
-router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: Request, res: Response) => {
+// POST /api/leave - Create new leave request (with REQUIRED file attachments)
+// Uses upload.array() to handle multipart/form-data with files
+// ATTACHMENTS ARE MANDATORY - at least 1 file required (PDF, JPG, PNG, DOC, DOCX)
+router.post(
+  '/',
+  authenticateJWT,
+  checkPermission('leave:create'),
+  upload.array('files', 5),
+  handleMulterError,
+  async (req: Request, res: Response) => {
   try {
-    const { 
-      leave_type_id, 
-      start_date, 
-      end_date, 
-      reason, 
-      attachments 
+    const {
+      leave_type_id,
+      start_date,
+      end_date,
+      reason
     } = req.body;
 
     // Validate required fields
@@ -361,18 +370,27 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
       });
     }
 
+    // VALIDATE: At least one attachment is REQUIRED
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Attachment is required. Please upload a supporting document (PDF, JPG, PNG, DOC, or DOCX). Maximum 5 files allowed.'
+      });
+    }
+
     // Validate dates
     const startDateObj = new Date(start_date);
     const endDateObj = new Date(end_date);
     const today = new Date();
-    
+
     if (startDateObj < today) {
       return res.status(400).json({
         success: false,
         message: 'Start date cannot be in the past'
       });
     }
-    
+
     if (endDateObj < startDateObj) {
       return res.status(400).json({
         success: false,
@@ -430,57 +448,77 @@ router.post('/', authenticateJWT, checkPermission('leave:create'), async (req: R
       });
     }
 
-    // Create leave request
-    const leaveRequest = await LeaveRequestModel.create({
-      user_id: userId!,
-      leave_type_id,
-      start_date,
-      end_date,
-      days_requested: requestedDays,
-      reason,
-      attachments: attachments || null,
-      status: 'submitted'
-    });
-
-    // Send notification to users with leave:approve permission
+    // Start a transaction to ensure atomicity of leave request + attachments
+    const connection = await pool.getConnection();
     try {
-      const [approverRows]: any = await pool.execute(
-        `SELECT DISTINCT u.id, u.full_name, u.email
-         FROM users u
-         INNER JOIN roles_permissions rp ON u.role_id = rp.role_id
-         WHERE rp.permission = 'leave:approve' AND rp.allow_deny = 'allow' AND u.status = 'active'`
+      await connection.beginTransaction();
+
+      // Create leave request first
+      const leaveRequest = await LeaveRequestModel.create({
+        user_id: userId!,
+        leave_type_id,
+        start_date,
+        end_date,
+        days_requested: requestedDays,
+        reason,
+        attachments: null, // We're now using the attachments table instead of JSON
+        status: 'submitted'
+      });
+
+      // Handle file attachments (REQUIRED - already validated above)
+      await AttachmentService.saveAttachments(
+        files,
+        { entityType: 'leave_request', entityId: leaveRequest.id }
       );
 
-      if (approverRows.length > 0) {
-        const { NotificationService } = await import('../services/notification.service');
-        const notificationService = new NotificationService();
+      await connection.commit();
 
-        for (const approver of approverRows) {
-          await notificationService.queueNotification(
-            approver.id,
-            'leave_request_pending',
-            {
-              approver_name: approver.full_name,
-              staff_name: req.currentUser?.full_name || 'Employee',
-              leave_type: leaveType.name,
-              start_date: startDate,
-              end_date: endDate,
-              days: requestedDays,
-              reason: reason,
-              company_name: process.env.APP_NAME || 'Our Company'
-            }
-          );
+      // Send notification to users with leave:approve permission
+      try {
+        const [approverRows]: any = await pool.execute(
+          `SELECT DISTINCT u.id, u.full_name, u.email
+           FROM users u
+           INNER JOIN roles_permissions rp ON u.role_id = rp.role_id
+           WHERE rp.permission = 'leave:approve' AND rp.allow_deny = 'allow' AND u.status = 'active'`
+        );
+
+        if (approverRows.length > 0) {
+          const { NotificationService } = await import('../services/notification.service');
+          const notificationService = new NotificationService();
+
+          for (const approver of approverRows) {
+            await notificationService.queueNotification(
+              approver.id,
+              'leave_request_pending',
+              {
+                approver_name: approver.full_name,
+                staff_name: req.currentUser?.full_name || 'Employee',
+                leave_type: leaveType.name,
+                start_date: start_date,
+                end_date: end_date,
+                days: requestedDays,
+                reason: reason,
+                company_name: process.env.APP_NAME || 'Our Company'
+              }
+            );
+          }
         }
+      } catch (notificationError) {
+        console.error('Error sending leave request notifications:', notificationError);
       }
-    } catch (notificationError) {
-      console.error('Error sending leave request notifications:', notificationError);
-    }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Leave request submitted successfully',
-      data: { leaveRequest }
-    });
+      return res.status(201).json({
+        success: true,
+        message: 'Leave request submitted successfully',
+        data: { leaveRequest }
+      });
+    } catch (transactionError) {
+      await connection.rollback();
+      console.error('Transaction error:', transactionError);
+      throw transactionError;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     console.error('Create leave request error:', error);
     return res.status(500).json({
