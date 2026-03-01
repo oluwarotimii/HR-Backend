@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { pool } from '../config/database';
+import AttachmentService from '../services/attachment.service';
 
 export interface UploadedFile {
   file_name: string;
@@ -13,6 +14,8 @@ export interface UploadedFile {
 
 /**
  * Upload files for leave request
+ * Note: This endpoint is now deprecated in favor of uploading with leave request submission
+ * Files uploaded here are not associated with any leave request
  * POST /api/leave/upload
  */
 export const uploadLeaveFiles = async (req: Request, res: Response) => {
@@ -41,7 +44,7 @@ export const uploadLeaveFiles = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Files uploaded successfully',
+      message: 'Files uploaded successfully. Note: These files are not yet attached to any leave request.',
       data: {
         files: uploadedFiles
       }
@@ -61,7 +64,8 @@ export const uploadLeaveFiles = async (req: Request, res: Response) => {
  */
 export const getLeaveRequestFiles = async (req: Request, res: Response) => {
   try {
-    const leaveRequestId = parseInt(req.params.id);
+    const idParam = req.params.id;
+    const leaveRequestId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
 
     if (isNaN(leaveRequestId)) {
       return res.status(400).json({
@@ -72,7 +76,7 @@ export const getLeaveRequestFiles = async (req: Request, res: Response) => {
 
     // Get leave request to check ownership
     const [rows]: any = await pool.execute(
-      'SELECT attachments, user_id FROM leave_requests WHERE id = ?',
+      'SELECT user_id FROM leave_requests WHERE id = ?',
       [leaveRequestId]
     );
 
@@ -95,7 +99,11 @@ export const getLeaveRequestFiles = async (req: Request, res: Response) => {
       });
     }
 
-    const attachments = leaveRequest.attachments ? JSON.parse(leaveRequest.attachments) : [];
+    // Get attachments using the new AttachmentService
+    const attachments = await AttachmentService.getAttachments({
+      entityType: 'leave_request',
+      entityId: leaveRequestId
+    });
 
     return res.json({
       success: true,
@@ -118,8 +126,10 @@ export const getLeaveRequestFiles = async (req: Request, res: Response) => {
  */
 export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
   try {
-    const leaveRequestId = parseInt(req.params.id);
-    const fileIndex = parseInt(req.params.fileIndex);
+    const idParam = req.params.id;
+    const fileIndexParam = req.params.fileIndex;
+    const leaveRequestId = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
+    const fileIndex = parseInt(Array.isArray(fileIndexParam) ? fileIndexParam[0] : fileIndexParam);
 
     if (isNaN(leaveRequestId) || isNaN(fileIndex)) {
       return res.status(400).json({
@@ -130,7 +140,7 @@ export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
 
     // Get leave request
     const [rows]: any = await pool.execute(
-      'SELECT attachments, user_id FROM leave_requests WHERE id = ?',
+      'SELECT user_id, status FROM leave_requests WHERE id = ?',
       [leaveRequestId]
     );
 
@@ -161,7 +171,11 @@ export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
       });
     }
 
-    let attachments = leaveRequest.attachments ? JSON.parse(leaveRequest.attachments) : [];
+    // Get all attachments for this leave request
+    const attachments = await AttachmentService.getAttachments({
+      entityType: 'leave_request',
+      entityId: leaveRequestId
+    });
 
     if (fileIndex < 0 || fileIndex >= attachments.length) {
       return res.status(404).json({
@@ -173,20 +187,15 @@ export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
     // Get the file to delete
     const fileToDelete = attachments[fileIndex];
 
-    // Delete physical file
-    const filePath = path.join(process.cwd(), fileToDelete.file_path);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Delete using AttachmentService (handles both DB record and physical file)
+    const deleted = await AttachmentService.deleteAttachment(fileToDelete.id);
+
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete file'
+      });
     }
-
-    // Remove from array
-    attachments.splice(fileIndex, 1);
-
-    // Update database
-    await pool.execute(
-      'UPDATE leave_requests SET attachments = ? WHERE id = ?',
-      [JSON.stringify(attachments), leaveRequestId]
-    );
 
     return res.json({
       success: true,
@@ -204,14 +213,23 @@ export const deleteLeaveRequestFile = async (req: Request, res: Response) => {
 /**
  * Serve uploaded files
  * GET /uploads/leave-requests/:filename
+ * Also supports: GET /uploads/attachments/:filename
  */
 export const serveLeaveFile = async (req: Request, res: Response) => {
   try {
-    const filename = req.params.filename;
-    const filePath = path.join(process.cwd(), 'uploads', 'leave-requests', filename);
+    const filename = Array.isArray(req.params.filename)
+      ? req.params.filename[0]
+      : req.params.filename;
 
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
+    // Try both possible paths (legacy leave-requests and new attachments)
+    const possiblePaths = [
+      path.join(process.cwd(), 'uploads', 'leave-requests', filename),
+      path.join(process.cwd(), 'uploads', 'attachments', filename)
+    ];
+
+    const filePath = possiblePaths.find(p => fs.existsSync(p));
+
+    if (!filePath) {
       return res.status(404).json({
         success: false,
         message: 'File not found'
@@ -219,10 +237,10 @@ export const serveLeaveFile = async (req: Request, res: Response) => {
     }
 
     // Send file
-    res.sendFile(filePath);
+    return res.sendFile(filePath);
   } catch (error) {
     console.error('Error serving file:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to serve file'
     });
