@@ -27,8 +27,9 @@ const CONFIG = {
   startDate: '2024-01-01', // Start of 2024
   endDate: '2026-02-28',   // Current date
   numBranches: 5,
-  numEmployees: 50,
+  numEmployees: 100,        // Increased to 100 employees
   numDepartments: 6,
+  sundayWorkers: 30,        // Number of employees who work on Sundays
 };
 
 // Kenyan Cities/Regions for branches
@@ -488,41 +489,87 @@ async function seedBranchWorkingDays() {
 async function seedRecurringShiftAssignments() {
   console.log('🔄 Seeding recurring shift assignments...');
 
-  // Create a standard shift template first
-  const [templateResult]: any = await pool.execute(
-    `INSERT INTO shift_templates 
-     (name, description, start_time, end_time, break_duration_minutes, 
+  // Create shift templates for different working hour scenarios
+  console.log('   Creating shift templates...');
+
+  // Template 1: Standard Working Hours (Monday to Saturday, 8:00 AM - 6:30 PM)
+  const [standardTemplateResult]: any = await pool.execute(
+    `INSERT INTO shift_templates
+     (name, description, start_time, end_time, break_duration_minutes,
       effective_from, recurrence_pattern, is_active, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, 1)`,
-    ['Standard Hours', 'Monday to Friday, 9am-5pm', '09:00:00', '17:00:00', 30, '2026-01-01', 'weekly']
+    ['Standard Working Hours', 'Monday to Saturday, 8:00 AM - 6:30 PM', '08:00:00', '18:30:00', 60, '2024-01-01', 'weekly']
   );
+  const standardTemplateId = standardTemplateResult.insertId;
+  console.log('   ✓ Created "Standard Working Hours" template (Mon-Sat, 8:00 AM - 6:30 PM)');
 
-  const shiftTemplateId = templateResult.insertId;
+  // Template 2: Fasting Period Hours (Monday to Saturday, 8:00 AM - 6:00 PM)
+  const [fastingTemplateResult]: any = await pool.execute(
+    `INSERT INTO shift_templates
+     (name, description, start_time, end_time, break_duration_minutes,
+      effective_from, effective_to, recurrence_pattern, is_active, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, 1)`,
+    ['Fasting Period Hours', 'Reduced hours during fasting period, 8:00 AM - 6:00 PM', '08:00:00', '18:00:00', 60, '2024-03-01', '2024-04-30', 'weekly']
+  );
+  const fastingTemplateId = fastingTemplateResult.insertId;
+  console.log('   ✓ Created "Fasting Period Hours" template (Mon-Sat, 8:00 AM - 6:00 PM, Mar-Apr)');
+
+  // Template 3: Sunday Working Hours (12:00 PM - 8:00 PM)
+  const [sundayTemplateResult]: any = await pool.execute(
+    `INSERT INTO shift_templates
+     (name, description, start_time, end_time, break_duration_minutes,
+      effective_from, recurrence_pattern, is_active, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, 1)`,
+    ['Sunday Working Hours', 'Sunday shift, 12:00 PM - 8:00 PM', '12:00:00', '20:00:00', 60, '2024-01-01', 'weekly']
+  );
+  const sundayTemplateId = sundayTemplateResult.insertId;
+  console.log('   ✓ Created "Sunday Working Hours" template (Sun, 12:00 PM - 8:00 PM)');
 
   // Get all active staff
   const [staff]: any = await pool.execute(
-    `SELECT user_id, branch_id FROM staff WHERE status = 'active'`
+    `SELECT user_id, branch_id, employee_id FROM staff WHERE status = 'active' ORDER BY user_id LIMIT ${CONFIG.numEmployees}`
   );
 
+  console.log(`   Found ${staff.length} active employees`);
+
   let assignmentCount = 0;
+  let sundayWorkerCount = 0;
 
-  // Assign Mon-Fri shifts to all staff
-  const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  // Assign shifts to employees
+  for (let i = 0; i < staff.length; i++) {
+    const employee = staff[i];
+    const isSundayWorker = i < CONFIG.sundayWorkers; // First 30 employees work Sundays
 
-  for (const employee of staff) {
+    // Assign Standard Working Hours (Monday to Saturday) to ALL employees
+    const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     for (const day of weekDays) {
       await pool.execute(
         `INSERT IGNORE INTO employee_shift_assignments
          (user_id, shift_template_id, effective_from, recurrence_pattern,
-          recurrence_day_of_week, assignment_type, assigned_by, status)
-         VALUES (?, ?, '2026-01-01', 'weekly', ?, 'permanent', 1, 'active')`,
-        [employee.user_id, shiftTemplateId, day]
+          recurrence_day_of_week, assignment_type, assigned_by, status, notes)
+         VALUES (?, ?, '2024-01-01', 'weekly', ?, 'permanent', 1, 'active', ?)`,
+        [employee.user_id, standardTemplateId, day, 'Standard shift - Monday to Saturday']
       );
       assignmentCount++;
     }
+
+    // Assign Sunday shift ONLY to designated Sunday workers
+    if (isSundayWorker) {
+      await pool.execute(
+        `INSERT IGNORE INTO employee_shift_assignments
+         (user_id, shift_template_id, effective_from, recurrence_pattern,
+          recurrence_day_of_week, assignment_type, assigned_by, status, notes)
+         VALUES (?, ?, '2024-01-01', 'weekly', ?, 'permanent', 1, 'active', ?)`,
+        [employee.user_id, sundayTemplateId, 'sunday', 'Sunday shift worker']
+      );
+      assignmentCount++;
+      sundayWorkerCount++;
+    }
   }
 
-  console.log(`✅ Recurring shift assignments seeded (${assignmentCount} records for ${staff.length} employees)\n`);
+  console.log(`   ✓ Created ${assignmentCount} shift assignments`);
+  console.log(`   ✓ Sunday workers: ${sundayWorkerCount} employees (out of ${staff.length})`);
+  console.log(`✅ Recurring shift assignments seeded\n`);
 }
 
 async function seedAttendance() {
