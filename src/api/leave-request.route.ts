@@ -124,11 +124,15 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
       });
     }
 
+    console.log(`[Leave Balance] Fetching balances for user ${userId}`);
+
     // Get all active leave types
     const leaveTypes = await LeaveTypeModel.findAll();
+    console.log(`[Leave Balance] Found ${leaveTypes.length} leave types`);
 
     // Get all allocations for this user
     const allocations = await LeaveAllocationModel.findByUserId(userId);
+    console.log(`[Leave Balance] Found ${allocations.length} allocations for user ${userId}`);
 
     // Get pending leave requests for this user
     const [pendingRequests]: any = await pool.execute(
@@ -141,34 +145,53 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
 
     const pendingMap = new Map<number, number>();
     pendingRequests.forEach((row: any) => {
-      pendingMap.set(row.leave_type_id, parseFloat(row.pending_days));
+      pendingMap.set(row.leave_type_id, parseFloat(row.pending_days) || 0);
     });
+
+    console.log(`[Leave Balance] Pending requests map:`, Object.fromEntries(pendingMap));
 
     // Calculate balance for each leave type
     const balances = leaveTypes.map((leaveType) => {
-      // Find allocations for this leave type
+      // Find allocations for this leave type that are still active (cycle hasn't ended)
       const typeAllocations = allocations.filter(
         (alloc) => alloc.leave_type_id === leaveType.id && new Date(alloc.cycle_end_date) >= new Date()
       );
+
+      console.log(`[Leave Balance] Leave type "${leaveType.name}": ${typeAllocations.length} active allocations`);
 
       // Use the most recent allocation (first one since it's ordered by cycle_start_date DESC)
       const allocation = typeAllocations[0];
       const pendingDays = pendingMap.get(leaveType.id) || 0;
 
       if (allocation) {
-        const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days - pendingDays;
+        console.log(`[Leave Balance] "${leaveType.name}" allocation:`, {
+          allocated: allocation.allocated_days,
+          used: allocation.used_days,
+          carried: allocation.carried_over_days,
+          pending: pendingDays
+        });
+
+        // Calculate remaining days correctly:
+        // remaining = (allocated + carried_over) - used - pending
+        const totalAvailable = parseFloat(String(allocation.allocated_days)) + parseFloat(String(allocation.carried_over_days));
+        const usedDays = parseFloat(String(allocation.used_days));
+        const remainingDays = totalAvailable - usedDays - pendingDays;
+
+        console.log(`[Leave Balance] "${leaveType.name}" calculation: ${totalAvailable} - ${usedDays} - ${pendingDays} = ${remainingDays}`);
+
         return {
           leave_type_id: leaveType.id,
           leave_type_name: leaveType.name,
-          allocated_days: allocation.allocated_days,
-          used_days: allocation.used_days,
-          carried_over_days: allocation.carried_over_days,
+          allocated_days: parseFloat(String(allocation.allocated_days)),
+          used_days: parseFloat(String(allocation.used_days)),
+          carried_over_days: parseFloat(String(allocation.carried_over_days)),
           pending_days: pendingDays,
-          remaining_days: remainingDays,
+          remaining_days: Math.max(0, remainingDays), // Ensure non-negative
           cycle_start_date: allocation.cycle_start_date,
           cycle_end_date: allocation.cycle_end_date
         };
       } else {
+        console.log(`[Leave Balance] "${leaveType.name}" - No active allocation found`);
         return {
           leave_type_id: leaveType.id,
           leave_type_name: leaveType.name,
@@ -176,12 +199,14 @@ router.get('/balance', authenticateJWT, async (req: Request, res: Response) => {
           used_days: 0,
           carried_over_days: 0,
           pending_days: pendingDays,
-          remaining_days: -pendingDays,
+          remaining_days: 0,
           cycle_start_date: null,
           cycle_end_date: null
         };
       }
     });
+
+    console.log(`[Leave Balance] Final balances:`, balances);
 
     return res.json({
       success: true,

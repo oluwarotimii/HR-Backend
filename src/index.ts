@@ -51,10 +51,13 @@ import branchWorkingDaysRoutes from './api/branch-working-days.route';
 import shiftTimingRoutes from './api/shift-timing.route';
 import attendanceLocationRoutes from './api/attendance-location.route';
 import staffLocationAssignmentRoutes from './api/staff-location-assignment.route';
+import dashboardRoutes from './api/dashboard.route';
 // import apiKeyRoutes from './api/api-key.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
 import { SchedulerService } from './services/scheduler.service';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
+import LeaveCleanupWorker from './workers/leave-cleanup.worker';
+import leaveCleanupRoutes from './api/leave-cleanup.route';
 
 // Load environment variables
 dotenv.config();
@@ -107,6 +110,9 @@ SystemInitService.initialize();
 // Start attendance processor worker (daily automated processing)
 AttendanceProcessorWorker.start();
 
+// Start leave cleanup worker (declines expired pending leaves)
+LeaveCleanupWorker.start();
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
 app.use('/api/roles', roleRoutes);
@@ -153,6 +159,8 @@ app.use('/api/holiday-duty-roster', holidayDutyRosterRoutes);
 app.use('/api/reports', reportingAnalyticsRoutes);
 app.use('/api/attendance-locations', attendanceLocationRoutes);
 app.use('/api/staff-location-assignments', staffLocationAssignmentRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/leave-cleanup', leaveCleanupRoutes);
 // app.use('/api/api-keys', apiKeyRoutes);  // API Keys temporarily disabled
 app.use('/api/health', healthRoutes);
 
