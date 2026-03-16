@@ -28,6 +28,14 @@ import {
   getAllTimeOffBanks,
   createTimeOffBank
 } from '../controllers/schedule-request.controller';
+import {
+  getAllShiftExceptions,
+  getMyShiftExceptions,
+  getShiftExceptionById,
+  createShiftException,
+  updateShiftException,
+  deleteShiftException
+} from '../controllers/shift-exception.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -61,6 +69,14 @@ router.put('/schedule-requests/:id', authenticateJWT, updateScheduleRequest);
 router.put('/schedule-requests/:id/cancel', authenticateJWT, cancelScheduleRequest);
 router.put('/schedule-requests/:id/approve', authenticateJWT, checkPermission('schedule_request:approve'), approveScheduleRequest);
 router.put('/schedule-requests/:id/reject', authenticateJWT, checkPermission('schedule_request:reject'), rejectScheduleRequest);
+
+// Shift Exceptions Routes
+router.get('/exceptions', authenticateJWT, checkPermission('shift_exception:read'), getAllShiftExceptions);
+router.get('/exceptions/my', authenticateJWT, getMyShiftExceptions);
+router.get('/exceptions/:id', authenticateJWT, checkPermission('shift_exception:read'), getShiftExceptionById);
+router.post('/exceptions', authenticateJWT, checkPermission('shift_exception:create'), createShiftException);
+router.put('/exceptions/:id', authenticateJWT, checkPermission('shift_exception:update'), updateShiftException);
+router.delete('/exceptions/:id', authenticateJWT, checkPermission('shift_exception:delete'), deleteShiftException);
 
 // Time Off Banks Routes are now in their own dedicated route file at /api/time-off-banks
 // See /api/time-off-banks for all time off bank functionality
