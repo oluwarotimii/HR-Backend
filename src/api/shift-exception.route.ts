@@ -1,7 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/permission.middleware';
-import ShiftExceptionController from '../controllers/shift-exception.controller';
+import {
+  createShiftException,
+  getAllShiftExceptions,
+  getMyShiftExceptions,
+  getShiftExceptionById,
+  updateShiftException,
+  deleteShiftException
+} from '../controllers/shift-exception.controller';
 
 const router = Router();
 
@@ -10,68 +17,51 @@ const router = Router();
  * Base URL: /api/shift-scheduling/exceptions
  */
 
+// GET /api/shift-scheduling/exceptions/my - Get my shift exceptions
+router.get(
+  '/my',
+  authenticateJWT,
+  getMyShiftExceptions
+);
+
 // POST /api/shift-scheduling/exceptions - Create a shift exception
 router.post(
   '/',
   authenticateJWT,
-  checkPermission('shift-exception:create'),
-  ShiftExceptionController.create
+  checkPermission('shift_exception:create'),
+  createShiftException
 );
 
 // GET /api/shift-scheduling/exceptions - Get all shift exceptions
 router.get(
   '/',
   authenticateJWT,
-  checkPermission('shift-exception:read'),
-  ShiftExceptionController.getAll
-);
-
-// GET /api/shift-scheduling/exceptions/:userId - Get shift exceptions for a user
-router.get(
-  '/:userId',
-  authenticateJWT,
-  checkPermission('shift-exception:read'),
-  ShiftExceptionController.getByUserId
+  checkPermission('shift_exception:read'),
+  getAllShiftExceptions
 );
 
 // GET /api/shift-scheduling/exceptions/:id - Get a specific shift exception
 router.get(
   '/:id',
   authenticateJWT,
-  checkPermission('shift-exception:read'),
-  ShiftExceptionController.getById
+  checkPermission('shift_exception:read'),
+  getShiftExceptionById
 );
 
 // PUT /api/shift-scheduling/exceptions/:id - Update a shift exception
 router.put(
   '/:id',
   authenticateJWT,
-  checkPermission('shift-exception:update'),
-  ShiftExceptionController.update
-);
-
-// POST /api/shift-scheduling/exceptions/:id/approve - Approve a shift exception
-router.post(
-  '/:id/approve',
-  authenticateJWT,
-  checkPermission('shift-exception:approve'),
-  ShiftExceptionController.approve
-);
-
-// POST /api/shift-scheduling/exceptions/:id/reject - Reject a shift exception
-router.post(
-  '/:id/reject',
-  authenticateJWT,
-  checkPermission('shift-exception:approve'),
-  ShiftExceptionController.reject
+  checkPermission('shift_exception:update'),
+  updateShiftException
 );
 
 // DELETE /api/shift-scheduling/exceptions/:id - Delete a shift exception
 router.delete(
   '/:id',
   authenticateJWT,
-  checkPermission('shift-exception:delete'),
-  ShiftExceptionController.delete
+  checkPermission('shift_exception:delete'),
+  deleteShiftException
 );
 
 export default router;

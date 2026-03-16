@@ -967,7 +967,7 @@ async function seedLeaveAllocations() {
       for (const leaveType of leaveTypes) {
         // Calculate pro-rated days for first year
         let allocatedDays = leaveType.days_per_year;
-        let carriedOverDays = 0;
+        let carriedOverDays = 0; // DO NOT add random carried over days - this causes incorrect balances
 
         if (joinDate.getFullYear() === year) {
           // Pro-rate based on months worked
@@ -975,10 +975,8 @@ async function seedLeaveAllocations() {
           allocatedDays = Math.floor((leaveType.days_per_year * monthsWorked) / 12);
         }
 
-        // Add some carried over days for previous year (random 0-5)
-        if (year > 2025 && joinDate.getFullYear() < year) {
-          carriedOverDays = Math.floor(Math.random() * 5);
-        }
+        // Skip adding carried over days - only add if explicitly calculated from previous year's unused balance
+        // carriedOverDays = Math.floor(Math.random() * 5); // ❌ WRONG - causes incorrect balances
 
         // Calculate used days based on approved leave requests
         const [usedRows]: any = await pool.execute(
