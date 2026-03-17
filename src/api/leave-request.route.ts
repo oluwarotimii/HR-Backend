@@ -375,7 +375,8 @@ router.get('/:id', authenticateJWT, async (req: Request, res: Response, next: Ne
 router.post(
   '/',
   authenticateJWT,
-  checkPermission('leave:request'),
+  // Removed permission check - all authenticated users should be able to request leave
+  // checkPermission('leave:request'),
   upload.array('files', 5),
   handleMulterError,
   async (req: Request, res: Response) => {
