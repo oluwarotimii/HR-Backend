@@ -759,8 +759,9 @@ async function seedAutoExceptionsForAllStaff() {
           continue;
         }
 
-        // Randomly select exception type
-        const exceptionTypes = ['late_start', 'early_release', 'medical_appt', 'remote_work'];
+        // Randomly select exception type (only use valid ENUM values)
+        // Valid values: 'early_release', 'late_start', 'day_off', 'special_schedule', 'holiday_work'
+        const exceptionTypes = ['late_start', 'early_release'];
         const selectedType = exceptionTypes[Math.floor(Math.random() * exceptionTypes.length)];
 
         if (!typeMap[selectedType]) {
@@ -775,11 +776,6 @@ async function seedAutoExceptionsForAllStaff() {
           new_start_time = '10:00:00';
         } else if (selectedType === 'early_release') {
           new_end_time = '15:00:00';
-        } else if (selectedType === 'medical_appt') {
-          new_start_time = '09:00:00';
-          new_end_time = '16:00:00';
-        } else if (selectedType === 'remote_work') {
-          // Same hours, just different location
         }
 
         await pool.execute(
