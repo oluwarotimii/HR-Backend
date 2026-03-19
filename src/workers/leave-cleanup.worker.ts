@@ -17,6 +17,11 @@ interface LeaveRequest {
 class LeaveCleanupWorker {
   private static isRunning = false;
   private static intervalId: NodeJS.Timeout | null = null;
+  private static lastRunTime: Date | null = null;
+  private static nextRunTime: Date | null = null;
+  private static totalProcessed = 0;
+  private static totalDeclined = 0;
+  private static totalErrors = 0;
 
   /**
    * Start the leave cleanup worker
@@ -35,13 +40,15 @@ class LeaveCleanupWorker {
     }
 
     const msUntilNextRun = nextRun.getTime() - now.getTime();
+    this.nextRunTime = nextRun;
 
     console.log(`🕐 Leave Cleanup Worker: First run scheduled for ${nextRun.toISOString()}`);
+    console.log(`🕐 Leave Cleanup Worker: Will run in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
 
     // Schedule first run
     setTimeout(() => {
       this.runCleanup();
-      
+
       // Then run every 24 hours
       this.intervalId = setInterval(() => {
         this.runCleanup();
@@ -61,6 +68,35 @@ class LeaveCleanupWorker {
   }
 
   /**
+   * Get the last run time
+   */
+  public static getLastRunTime(): Date | null {
+    return this.lastRunTime;
+  }
+
+  /**
+   * Get the next scheduled run time
+   */
+  public static getNextRunTime(): Date | null {
+    return this.nextRunTime;
+  }
+
+  /**
+   * Get statistics
+   */
+  public static getStats(): {
+    totalProcessed: number;
+    totalDeclined: number;
+    totalErrors: number;
+  } {
+    return {
+      totalProcessed: this.totalProcessed,
+      totalDeclined: this.totalDeclined,
+      totalErrors: this.totalErrors
+    };
+  }
+
+  /**
    * Run the cleanup process
    */
   private static async runCleanup(): Promise<void> {
@@ -71,11 +107,12 @@ class LeaveCleanupWorker {
 
     this.isRunning = true;
     const startTime = Date.now();
+    this.lastRunTime = new Date();
 
     try {
       console.log('🕐 Leave Cleanup Worker: Starting cleanup process...');
 
-      // Get all pending leave requests
+      // Get all pending leave requests (both 'pending' and 'submitted' statuses)
       const [pendingLeaves]: any = await pool.execute(`
         SELECT id, user_id, start_date, end_date, status
         FROM leave_requests
@@ -85,6 +122,9 @@ class LeaveCleanupWorker {
 
       if (pendingLeaves.length === 0) {
         console.log('🕐 Leave Cleanup Worker: No pending leave requests to process');
+        this.totalProcessed = 0;
+        this.totalDeclined = 0;
+        this.totalErrors = 0;
         return;
       }
 
@@ -107,9 +147,9 @@ class LeaveCleanupWorker {
             // Decline the leave request
             await pool.execute(`
               UPDATE leave_requests
-              SET 
+              SET
                 status = 'rejected',
-                reply = 'Automatically declined: Leave dates have passed',
+                notes = 'Automatically declined: Leave dates have passed',
                 reviewed_by = NULL,
                 reviewed_at = NOW()
               WHERE id = ?
@@ -128,6 +168,12 @@ class LeaveCleanupWorker {
       }
 
       const duration = Date.now() - startTime;
+      
+      // Update totals
+      this.totalProcessed = pendingLeaves.length;
+      this.totalDeclined = declinedCount;
+      this.totalErrors = errorCount;
+
       console.log(`🕐 Leave Cleanup Worker: Completed in ${duration}ms`);
       console.log(`  - Total processed: ${pendingLeaves.length}`);
       console.log(`  - Declined: ${declinedCount}`);
@@ -135,6 +181,7 @@ class LeaveCleanupWorker {
 
     } catch (error) {
       console.error('🕐 Leave Cleanup Worker: Error during cleanup:', error);
+      this.totalErrors++;
     } finally {
       this.isRunning = false;
     }
@@ -160,8 +207,10 @@ class LeaveCleanupWorker {
 
     const startTime = Date.now();
     this.isRunning = true;
+    this.lastRunTime = new Date();
 
     try {
+      // Get all pending leave requests (both 'pending' and 'submitted' statuses)
       const [pendingLeaves]: any = await pool.execute(`
         SELECT id, user_id, start_date, end_date, status
         FROM leave_requests
@@ -183,9 +232,9 @@ class LeaveCleanupWorker {
           if (leaveEndDate < today) {
             await pool.execute(`
               UPDATE leave_requests
-              SET 
+              SET
                 status = 'rejected',
-                reply = 'Automatically declined: Leave dates have passed',
+                notes = 'Automatically declined: Leave dates have passed',
                 reviewed_by = NULL,
                 reviewed_at = NOW()
               WHERE id = ?
@@ -198,6 +247,11 @@ class LeaveCleanupWorker {
         }
       }
 
+      // Update totals
+      this.totalProcessed = pendingLeaves.length;
+      this.totalDeclined = declinedCount;
+      this.totalErrors = errorCount;
+
       return {
         success: true,
         message: `Processed ${pendingLeaves.length} pending requests, declined ${declinedCount}`,
@@ -206,6 +260,7 @@ class LeaveCleanupWorker {
       };
 
     } catch (error) {
+      this.totalErrors++;
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error',
