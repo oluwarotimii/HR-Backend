@@ -50,6 +50,15 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
     let attendanceRecord = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
 
     if (attendanceRecord) {
+      // CHECK 1: If attendance is locked, reject check-in
+      if (attendanceRecord.is_locked) {
+        return res.status(403).json({
+          success: false,
+          message: 'Attendance for this date has been locked by your branch. You cannot check in after the auto-mark time has passed.',
+          data: { locked: true, locked_at: attendanceRecord.locked_at }
+        });
+      }
+
       // If attendance exists, check if check-in time is already recorded
       if (attendanceRecord.check_in_time) {
         return res.status(409).json({
@@ -296,12 +305,27 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
         });
       }
 
+      // CHECK 2: Check if branch attendance is locked for today
       const branch = await BranchModel.findById(branchId);
       if (!branch) {
         return res.status(404).json({
           success: false,
           message: 'Branch not found for staff'
         });
+      }
+
+      // Check if today's attendance is locked for this branch
+      if (branch.attendance_lock_date) {
+        const today = new Date().toISOString().split('T')[0];
+        const lockDate = new Date(branch.attendance_lock_date).toISOString().split('T')[0];
+        
+        if (lockDate >= today) {
+          return res.status(403).json({
+            success: false,
+            message: 'Attendance for today has been locked by your branch. You cannot check in after the auto-mark time has passed.',
+            data: { locked: true, lock_date: branch.attendance_lock_date }
+          });
+        }
       }
 
       // Get attendance settings for this branch
@@ -446,6 +470,15 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
       return res.status(404).json({
         success: false,
         message: 'No attendance record found for this date. Please check in first.'
+      });
+    }
+
+    // CHECK: If attendance is locked, reject check-out
+    if (attendanceRecord.is_locked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Attendance for this date has been locked by your branch. You cannot check out after the auto-mark time has passed.',
+        data: { locked: true, locked_at: attendanceRecord.locked_at }
       });
     }
 
