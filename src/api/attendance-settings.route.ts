@@ -59,6 +59,11 @@ router.get('/settings', authenticateJWT, checkPermission('attendance:manage'), a
       notify_supervisors_daily_summary: true, // Default
       enable_weekend_attendance: false, // Default
       enable_holiday_attendance: false, // Default
+      // Auto-mark absent settings
+      auto_mark_absent_enabled: branch.auto_mark_absent_enabled ?? true,
+      auto_mark_absent_time: branch.auto_mark_absent_time ?? '12:00',
+      auto_mark_absent_timezone: branch.auto_mark_absent_timezone ?? 'Africa/Nairobi',
+      attendance_lock_date: branch.attendance_lock_date,
       created_at: branch.created_at,
       updated_at: branch.updated_at
     };
@@ -399,3 +404,294 @@ router.patch('/settings/global', authenticateJWT, checkPermission('attendance:ma
 });
 
 export default router;
+
+// ============================================
+// NEW ENDPOINTS FOR AUTO-MARK SETTINGS
+// ============================================
+
+/**
+ * PATCH /api/attendance/settings/auto-mark
+ * Update auto-mark absent settings for a branch
+ */
+router.patch('/settings/auto-mark', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
+  try {
+    const { branchId, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone } = req.body;
+
+    // If no branchId provided, use user's branch
+    let targetBranchId = req.currentUser?.branch_id;
+    if (branchId) {
+      const branchIdNum = parseInt(branchId as string);
+      if (isNaN(branchIdNum)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid branch ID'
+        });
+      }
+      targetBranchId = branchIdNum;
+    }
+
+    if (!targetBranchId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch ID is required'
+      });
+    }
+
+    // Check if branch exists
+    const branch = await BranchModel.findById(targetBranchId);
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Branch not found'
+      });
+    }
+
+    // Validate time format (HH:MM)
+    if (auto_mark_absent_time && !/^\d{2}:\d{2}$/.test(auto_mark_absent_time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid time format. Use HH:MM (24-hour format)'
+      });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (auto_mark_absent_enabled !== undefined) {
+      updateData.auto_mark_absent_enabled = auto_mark_absent_enabled;
+    }
+    if (auto_mark_absent_time !== undefined) {
+      updateData.auto_mark_absent_time = auto_mark_absent_time;
+    }
+    if (auto_mark_absent_timezone !== undefined) {
+      updateData.auto_mark_absent_timezone = auto_mark_absent_timezone;
+    }
+
+    // Update branch if any fields provided
+    if (Object.keys(updateData).length > 0) {
+      await BranchModel.update(targetBranchId, updateData);
+    }
+
+    // Return updated settings
+    const updatedBranch = await BranchModel.findById(targetBranchId);
+    
+    return res.json({
+      success: true,
+      message: 'Auto-mark settings updated successfully',
+      data: {
+        settings: {
+          branch_id: updatedBranch!.id,
+          branch_name: updatedBranch!.name,
+          auto_mark_absent_enabled: updatedBranch!.auto_mark_absent_enabled,
+          auto_mark_absent_time: updatedBranch!.auto_mark_absent_time,
+          auto_mark_absent_timezone: updatedBranch!.auto_mark_absent_timezone,
+          attendance_lock_date: updatedBranch!.attendance_lock_date
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('Update auto-mark settings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * POST /api/attendance/settings/lock-date
+ * Manually lock attendance for a specific date
+ */
+router.post('/settings/lock-date', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
+  try {
+    const { date, branchId, reason } = req.body;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date is required'
+      });
+    }
+
+    // If no branchId provided, use user's branch
+    let targetBranchId = req.currentUser?.branch_id;
+    if (branchId) {
+      const branchIdNum = parseInt(branchId as string);
+      if (isNaN(branchIdNum)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid branch ID'
+        });
+      }
+      targetBranchId = branchIdNum;
+    }
+
+    if (!targetBranchId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch ID is required'
+      });
+    }
+
+    const lockDate = new Date(date);
+    lockDate.setHours(0, 0, 0, 0);
+
+    // Lock all attendance records for that branch/date
+    const [lockResult]: any = await pool.execute(`
+      UPDATE attendance a
+      JOIN staff s ON a.user_id = s.user_id
+      SET
+        a.is_locked = TRUE,
+        a.locked_at = NOW(),
+        a.locked_by = ?,
+        a.lock_reason = ?
+      WHERE s.branch_id = ?
+        AND a.date = ?
+        AND a.is_locked = FALSE
+    `, [req.currentUser.id, reason || 'Manual lock', targetBranchId, date]);
+
+    // Update branch lock date
+    await pool.execute(`
+      UPDATE branches
+      SET attendance_lock_date = LEAST(IFNULL(attendance_lock_date, ?), ?)
+      WHERE id = ?
+    `, [date, date, targetBranchId]);
+
+    // Log the action
+    await pool.execute(`
+      INSERT INTO attendance_lock_log
+        (branch_id, lock_date, locked_by, reason, attendance_count)
+      VALUES (?, ?, ?, ?, ?)
+    `, [targetBranchId, date, req.currentUser.id, reason || 'Manual lock', lockResult.affectedRows]);
+
+    return res.json({
+      success: true,
+      message: `Locked ${lockResult.affectedRows} attendance records for ${date}`,
+      data: {
+        branch_id: targetBranchId,
+        lock_date: date,
+        locked_count: lockResult.affectedRows
+      }
+    });
+  } catch (error: any) {
+    console.error('Lock date error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /api/attendance/settings/lock-status
+ * Get lock status for a branch
+ */
+router.get('/settings/lock-status', authenticateJWT, async (req: Request, res: Response) => {
+  try {
+    const { branchId } = req.query;
+    
+    // If no branchId provided, use user's branch
+    let targetBranchId = req.currentUser?.branch_id;
+    if (branchId) {
+      const branchIdNum = parseInt(branchId as string);
+      if (isNaN(branchIdNum)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid branch ID'
+        });
+      }
+      targetBranchId = branchIdNum;
+    }
+
+    if (!targetBranchId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch ID is required'
+      });
+    }
+
+    const branch = await BranchModel.findById(targetBranchId);
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Branch not found'
+      });
+    }
+
+    // Get lock log
+    const [lockLog]: any = await pool.execute(`
+      SELECT 
+        l.*,
+        u.name as locked_by_name
+      FROM attendance_lock_log l
+      LEFT JOIN users u ON l.locked_by = u.id
+      WHERE l.branch_id = ?
+      ORDER BY l.locked_at DESC
+      LIMIT 10
+    `, [targetBranchId]);
+
+    return res.json({
+      success: true,
+      data: {
+        branch_id: branch.id,
+        branch_name: branch.name,
+        attendance_lock_date: branch.attendance_lock_date,
+        auto_mark_absent_enabled: branch.auto_mark_absent_enabled,
+        auto_mark_absent_time: branch.auto_mark_absent_time,
+        auto_mark_absent_timezone: branch.auto_mark_absent_timezone,
+        recent_locks: lockLog
+      }
+    });
+  } catch (error: any) {
+    console.error('Get lock status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * PATCH /api/attendance/:id/unlock
+ * Unlock a specific attendance record (admin only)
+ */
+router.patch('/:id/unlock', authenticateJWT, checkPermission('attendance:admin'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const [attendance]: any = await pool.execute(`
+      SELECT * FROM attendance WHERE id = ?
+    `, [id]);
+
+    if (attendance.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attendance record not found'
+      });
+    }
+
+    if (!attendance[0].is_locked) {
+      return res.status(400).json({
+        success: false,
+        message: 'Attendance is not locked'
+      });
+    }
+
+    // Unlock
+    await pool.execute(`
+      UPDATE attendance
+      SET is_locked = FALSE, locked_at = NULL, locked_by = NULL, lock_reason = NULL
+      WHERE id = ?
+    `, [id]);
+
+    return res.json({
+      success: true,
+      message: 'Attendance unlocked successfully'
+    });
+  } catch (error: any) {
+    console.error('Unlock attendance error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+});

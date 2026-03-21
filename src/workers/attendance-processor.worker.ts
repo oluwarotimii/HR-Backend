@@ -3,35 +3,52 @@ import AttendanceModel from '../models/attendance.model';
 import HolidayModel from '../models/holiday.model';
 import LeaveHistoryModel from '../models/leave-history.model';
 import { ShiftSchedulingService } from '../services/shift-scheduling.service';
+import BranchModel from '../models/branch.model';
 
 /**
  * Attendance Processor Worker
  * This worker processes attendance for all staff members for the previous day
- * It should be run daily (e.g., at midnight or early morning)
+ * It runs continuously, checking every minute for branch-specific auto-mark times
  */
 
 class AttendanceProcessorWorker {
+  private static isRunning = false;
+  private static lastCheckTime: Date | null = null;
+  private static processedDates = new Set<string>();
+
   /**
    * Process attendance for all staff members for a specific date
    */
-  static async processAttendanceForDate(date: Date) {
-    console.log(`Starting attendance processing for date: ${date.toISOString().split('T')[0]}`);
+  static async processAttendanceForDate(date: Date, branchId?: number) {
+    const dateStr = date.toISOString().split('T')[0];
+    const logPrefix = branchId ? `[Branch ${branchId}]` : '[All Branches]';
+    
+    console.log(`${logPrefix} Starting attendance processing for date: ${dateStr}`);
 
     try {
-      // Get all active staff members
-      const [staffResults] = await pool.execute(
-        `SELECT s.user_id FROM staff s 
-         JOIN users u ON s.user_id = u.id 
-         WHERE s.status = 'active' AND u.status = 'active'`
-      ) as [any[], any];
+      // Build query based on whether we're processing for a specific branch or all
+      let query = `
+        SELECT s.user_id, s.branch_id 
+        FROM staff s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.status = 'active' AND u.status = 'active'
+      `;
+      const params: any[] = [];
+
+      if (branchId) {
+        query += ' AND s.branch_id = ?';
+        params.push(branchId);
+      }
+
+      const [staffResults] = await pool.execute(query, params) as [any[], any];
 
       const userIds = staffResults.map((staff: any) => staff.user_id);
-      console.log(`Processing attendance for ${userIds.length} active staff members`);
+      console.log(`${logPrefix} Processing attendance for ${userIds.length} active staff members`);
 
       // Check if it's a holiday
       const isHoliday = await HolidayModel.isHoliday(date);
       if (isHoliday) {
-        console.log(`Date ${date.toISOString().split('T')[0]} is a holiday, marking staff as holiday or holiday-working`);
+        console.log(`${logPrefix} Date ${dateStr} is a holiday, marking staff as holiday or holiday-working`);
 
         let holidayProcessedCount = 0;
         let holidayWorkingCount = 0;
@@ -40,7 +57,7 @@ class AttendanceProcessorWorker {
           // Check if attendance already exists
           const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, date);
           if (existingAttendance) {
-            console.log(`Attendance already exists for user ${userId} on ${date.toISOString().split('T')[0]}, skipping`);
+            console.log(`${logPrefix} Attendance already exists for user ${userId} on ${dateStr}, skipping`);
             continue;
           }
 
@@ -67,7 +84,7 @@ class AttendanceProcessorWorker {
 
             await AttendanceModel.create(attendanceData);
             holidayWorkingCount++;
-            console.log(`Holiday-working attendance processed for user ${userId}`);
+            console.log(`${logPrefix} Holiday-working attendance processed for user ${userId}`);
           } else {
             // User is not on duty - mark as holiday
             const attendanceData = {
@@ -87,20 +104,20 @@ class AttendanceProcessorWorker {
           }
         }
 
-        console.log(`Holiday attendance processed: ${holidayProcessedCount} on holiday, ${holidayWorkingCount} on duty`);
-        return;
+        console.log(`${logPrefix} Holiday attendance processed: ${holidayProcessedCount} on holiday, ${holidayWorkingCount} on duty`);
+        return { processed: holidayProcessedCount + holidayWorkingCount, absent: 0, holiday: holidayProcessedCount, holidayWorking: holidayWorkingCount };
       }
 
       // Process attendance for each user individually
       let absentProcessedCount = 0;
       let leaveProcessedCount = 0;
       let skippedCount = 0;
-      
+
       for (const userId of userIds) {
         // Check if attendance already exists
         const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, date);
         if (existingAttendance) {
-          console.log(`Attendance already exists for user ${userId} on ${date.toISOString().split('T')[0]}, skipping`);
+          console.log(`${logPrefix} Attendance already exists for user ${userId} on ${dateStr}, skipping`);
           skippedCount++;
           continue;
         }
@@ -128,7 +145,7 @@ class AttendanceProcessorWorker {
 
             await AttendanceModel.create(attendanceData);
             leaveProcessedCount++;
-            console.log(`Leave attendance processed for user ${userId}`);
+            console.log(`${logPrefix} Leave attendance processed for user ${userId}`);
             continue;
           }
         }
@@ -158,7 +175,7 @@ class AttendanceProcessorWorker {
 
           await AttendanceModel.create(attendanceData);
           leaveProcessedCount++;
-          console.log(`Leave attendance processed for user ${userId} from leave_requests`);
+          console.log(`${logPrefix} Leave attendance processed for user ${userId} from leave_requests`);
           continue;
         }
 
@@ -168,7 +185,7 @@ class AttendanceProcessorWorker {
         // If no schedule is defined for this user on this date, don't mark attendance (they're not scheduled)
         if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
           skippedCount++;
-          console.log(`No shift assigned for user ${userId} on ${date.toISOString().split('T')[0]}, skipping`);
+          console.log(`${logPrefix} No shift assigned for user ${userId} on ${dateStr}, skipping`);
           continue;
         }
 
@@ -187,16 +204,25 @@ class AttendanceProcessorWorker {
 
         await AttendanceModel.create(attendanceData);
         absentProcessedCount++;
-        console.log(`Absent attendance recorded for user ${userId} (scheduled shift but no check-in)`);
+        console.log(`${logPrefix} Absent attendance recorded for user ${userId} (scheduled shift but no check-in)`);
       }
 
-      console.log(`Attendance processing completed for ${date.toISOString().split('T')[0]}`);
-      console.log(`- Absent marked: ${absentProcessedCount}`);
-      console.log(`- Leave marked: ${leaveProcessedCount}`);
-      console.log(`- Skipped (already processed or no shift): ${skippedCount}`);
+      const result = {
+        processed: absentProcessedCount + leaveProcessedCount + skippedCount,
+        absent: absentProcessedCount,
+        leave: leaveProcessedCount,
+        skipped: skippedCount
+      };
+
+      console.log(`${logPrefix} Attendance processing completed for ${dateStr}`);
+      console.log(`${logPrefix} - Absent marked: ${absentProcessedCount}`);
+      console.log(`${logPrefix} - Leave marked: ${leaveProcessedCount}`);
+      console.log(`${logPrefix} - Skipped (already processed or no shift): ${skippedCount}`);
+
+      return result;
 
     } catch (error) {
-      console.error('Error processing attendance:', error);
+      console.error(`${logPrefix} Error processing attendance:`, error);
       throw error;
     }
   }
@@ -207,11 +233,11 @@ class AttendanceProcessorWorker {
   static async processYesterdayAttendance() {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1); // Set to yesterday
-    
+
     // Set time to 00:00:00 to get the start of the day
     yesterday.setHours(0, 0, 0, 0);
-    
-    await this.processAttendanceForDate(yesterday);
+
+    return await this.processAttendanceForDate(yesterday);
   }
 
   /**
@@ -221,18 +247,131 @@ class AttendanceProcessorWorker {
     const today = new Date();
     // Set time to 00:00:00 to get the start of the day
     today.setHours(0, 0, 0, 0);
-    
-    await this.processAttendanceForDate(today);
+
+    return await this.processAttendanceForDate(today);
+  }
+
+  /**
+   * Check and run auto-mark for branches whose scheduled time has arrived
+   * Called every minute by the main loop
+   */
+  static async checkAndRunAutoMark() {
+    if (this.isRunning) {
+      console.log('[Auto-Mark] Already running, skipping this check');
+      return;
+    }
+
+    try {
+      this.isRunning = true;
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const todayStr = now.toISOString().split('T')[0];
+
+      // Skip if we already processed today
+      if (this.processedDates.has(todayStr)) {
+        console.log(`[Auto-Mark] Already processed for ${todayStr}, skipping`);
+        return;
+      }
+
+      console.log(`[Auto-Mark] Checking for branches with auto-mark time: ${currentTime}`);
+
+      // Get all branches with auto-mark enabled for this time
+      const [branches]: any = await pool.execute(`
+        SELECT id, name, code, auto_mark_absent_time, auto_mark_absent_timezone
+        FROM branches
+        WHERE auto_mark_absent_enabled = TRUE
+          AND auto_mark_absent_time = ?
+      `, [currentTime]);
+
+      if (branches.length === 0) {
+        this.isRunning = false;
+        return;
+      }
+
+      console.log(`[Auto-Mark] Found ${branches.length} branch(es) scheduled for auto-mark at ${currentTime}`);
+
+      for (const branch of branches) {
+        try {
+          console.log(`[Auto-Mark] Processing branch: ${branch.name} (${branch.code})`);
+
+          // Process today's attendance for this branch
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const result = await this.processAttendanceForDate(today, branch.id);
+
+          // Lock the attendance immediately after processing
+          await this.lockAttendanceForDate(branch.id, today, 1, 'Auto-mark absent');
+
+          console.log(`[Auto-Mark] Completed for ${branch.name}: ${result.absent} marked absent`);
+        } catch (error) {
+          console.error(`[Auto-Mark] Error processing branch ${branch.name}:`, error);
+        }
+      }
+
+      // Mark today as processed
+      this.processedDates.add(todayStr);
+      this.lastCheckTime = now;
+
+    } catch (error) {
+      console.error('[Auto-Mark] Error:', error);
+    } finally {
+      this.isRunning = false;
+    }
+  }
+
+  /**
+   * Lock attendance for a specific branch and date
+   */
+  static async lockAttendanceForDate(branchId: number, date: Date, lockedBy: number, reason?: string) {
+    const dateStr = date.toISOString().split('T')[0];
+
+    try {
+      // Lock all attendance records for that branch/date
+      const [result]: any = await pool.execute(`
+        UPDATE attendance a
+        JOIN staff s ON a.user_id = s.user_id
+        SET
+          a.is_locked = TRUE,
+          a.locked_at = NOW(),
+          a.locked_by = ?,
+          a.lock_reason = ?
+        WHERE s.branch_id = ?
+          AND a.date = ?
+          AND a.is_locked = FALSE
+      `, [lockedBy, reason || 'Auto-lock', branchId, dateStr]);
+
+      // Update branch lock date
+      await pool.execute(`
+        UPDATE branches
+        SET attendance_lock_date = LEAST(IFNULL(attendance_lock_date, ?), ?)
+        WHERE id = ?
+      `, [dateStr, dateStr, branchId]);
+
+      // Log the action
+      await pool.execute(`
+        INSERT INTO attendance_lock_log
+          (branch_id, lock_date, locked_by, reason, attendance_count)
+        VALUES (?, ?, ?, ?, ?)
+      `, [branchId, dateStr, lockedBy, reason || 'Auto-lock', result.affectedRows]);
+
+      console.log(`[Lock] Locked ${result.affectedRows} attendance records for branch ${branchId} on ${dateStr}`);
+      
+      return { lockedCount: result.affectedRows };
+    } catch (error) {
+      console.error(`[Lock] Error locking attendance for branch ${branchId}:`, error);
+      throw error;
+    }
   }
 
   /**
    * Start the attendance processor worker
-   * This runs continuously, processing attendance at a specific time each day
+   * This runs continuously, checking every minute for branch-specific auto-mark times
    */
   static async start() {
     console.log('Starting Attendance Processor Worker...');
 
-    // Process yesterday's attendance now (in case it wasn't processed)
+    // Process yesterday's attendance immediately on startup
     try {
       await this.processYesterdayAttendance();
       console.log('Initial yesterday attendance processing completed');
@@ -240,34 +379,33 @@ class AttendanceProcessorWorker {
       console.error('Error in initial yesterday attendance processing:', error);
     }
 
-    // Set up interval to process attendance daily
-    // Run at 12:05 AM every day (5 minutes after midnight to ensure we're in the new day)
-    const now = new Date();
-    const nextRun = new Date(now);
-    nextRun.setDate(nextRun.getDate() + 1); // Tomorrow
-    nextRun.setHours(0, 5, 0, 0); // 12:05 AM
+    // Mark today as processed if we're starting mid-day (to avoid immediate processing)
+    const todayStr = new Date().toISOString().split('T')[0];
+    this.processedDates.add(todayStr);
 
-    const msUntilNextRun = nextRun.getTime() - now.getTime();
-    
-    console.log(`Next attendance processing scheduled for: ${nextRun.toISOString()}`);
-    
-    // Run the first time after the calculated delay
-    setTimeout(() => {
-      // Process today's attendance (yesterday from the perspective of the scheduled time)
-      this.processYesterdayAttendance().catch(error => {
-        console.error('Error processing attendance:', error);
-      });
+    // Start the minute-by-minute check for auto-mark times
+    console.log('[Auto-Mark] Starting minute-by-minute check...');
+    setInterval(async () => {
+      try {
+        await this.checkAndRunAutoMark();
+      } catch (error) {
+        console.error('[Auto-Mark] Error in check:', error);
+      }
+    }, 60 * 1000); // Every minute
 
-      // Set up recurring daily processing
-      setInterval(async () => {
-        try {
-          await this.processYesterdayAttendance();
-          console.log('Daily attendance processing completed');
-        } catch (error) {
-          console.error('Error in daily attendance processing:', error);
-        }
-      }, 24 * 60 * 60 * 1000); // Every 24 hours
-    }, msUntilNextRun);
+    console.log('[Auto-Mark] Scheduler started (checks every minute)');
+    console.log('[Auto-Mark] Worker is now running. Configure branch auto-mark times in settings.');
+  }
+
+  /**
+   * Get worker status
+   */
+  static getStatus() {
+    return {
+      isRunning: this.isRunning,
+      lastCheckTime: this.lastCheckTime,
+      processedDates: Array.from(this.processedDates)
+    };
   }
 }
 
