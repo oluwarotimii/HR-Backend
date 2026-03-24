@@ -118,15 +118,30 @@ class LeaveAllocationModel {
       allocationData.leave_type_id,
       connection
     );
+
+    // Convert string dates to Date objects if needed
+    const newCycleStart = allocationData.cycle_start_date instanceof Date 
+      ? allocationData.cycle_start_date 
+      : new Date(allocationData.cycle_start_date);
+    const newCycleEnd = allocationData.cycle_end_date instanceof Date
+      ? allocationData.cycle_end_date
+      : new Date(allocationData.cycle_end_date);
     
-    // Check for overlapping cycle periods
-    const hasOverlappingCycle = existingAllocations.some(allocation => 
-      allocation.cycle_start_date.getTime() === allocationData.cycle_start_date.getTime() &&
-      allocation.cycle_end_date.getTime() === allocationData.cycle_end_date.getTime()
-    );
-    
+    const newCycleYear = newCycleEnd.getFullYear();
+
+    // Check for duplicate allocation in the same cycle YEAR
+    // Each user can only have ONE allocation per leave type per year
+    const hasOverlappingCycle = existingAllocations.some(allocation => {
+      const existingEnd = allocation.cycle_end_date instanceof Date
+        ? allocation.cycle_end_date
+        : new Date(allocation.cycle_end_date);
+      const existingYear = existingEnd.getFullYear();
+      
+      return existingYear === newCycleYear;
+    });
+
     if (hasOverlappingCycle) {
-      throw new Error('Leave allocation already exists for this user, leave type, and cycle period');
+      throw new Error(`Leave allocation already exists for this user and leave type for year ${newCycleYear}. Each leave type can only be allocated once per year.`);
     }
     
     const [result]: any = await db.execute(
