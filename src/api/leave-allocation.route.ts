@@ -184,6 +184,14 @@ router.post('/', authenticateJWT, checkPermission('leave_allocation:create'), as
       carried_over_days = 0
     } = req.body;
 
+    console.log('[Leave Allocation] Creating allocation:', {
+      user_id,
+      leave_type_id,
+      allocated_days,
+      cycle_start_date,
+      cycle_end_date
+    });
+
     // Validate required fields
     if (!user_id || !leave_type_id || allocated_days === undefined || !cycle_start_date || !cycle_end_date) {
       return res.status(400).json({
@@ -207,6 +215,30 @@ router.post('/', authenticateJWT, checkPermission('leave_allocation:create'), as
       return res.status(404).json({
         success: false,
         message: 'Leave type not found'
+      });
+    }
+
+    // Check for existing allocation for this user, leave type, and cycle YEAR
+    // Extract year from cycle_end_date (e.g., 2026-12-30 -> 2026)
+    const cycleYear = new Date(cycle_end_date).getFullYear();
+    const existingAllocations = await LeaveAllocationModel.findByUserId(user_id);
+    
+    // Check if user already has this leave type allocated for the same cycle year
+    const duplicateAllocation = existingAllocations.find((alloc: any) => {
+      const allocCycleYear = new Date(alloc.cycle_end_date).getFullYear();
+      return alloc.leave_type_id === leave_type_id && allocCycleYear === cycleYear;
+    });
+
+    if (duplicateAllocation) {
+      console.log('[Leave Allocation] Duplicate detected for year:', {
+        user_id,
+        leave_type_id,
+        cycleYear,
+        existingAllocation: duplicateAllocation
+      });
+      return res.status(409).json({
+        success: false,
+        message: `User already has ${leaveType.name} allocated for ${cycleYear}. Each leave type can only be allocated once per year.`
       });
     }
 
@@ -234,14 +266,21 @@ router.post('/', authenticateJWT, checkPermission('leave_allocation:create'), as
 
     const newAllocation = await LeaveAllocationModel.create(allocationData);
 
+    console.log('[Leave Allocation] Created successfully:', newAllocation.id);
+
     return res.status(201).json({
       success: true,
       message: 'Leave allocation created successfully',
       data: { leaveAllocation: newAllocation }
     });
   } catch (error: any) {
-    console.error('Create leave allocation error:', error);
-    
+    console.error('[Leave Allocation] Create error:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sql: error.sql
+    });
+
     // Handle duplicate allocation error
     if (error.message === 'Leave allocation already exists for this user, leave type, and cycle period') {
       return res.status(409).json({
@@ -249,7 +288,7 @@ router.post('/', authenticateJWT, checkPermission('leave_allocation:create'), as
         message: error.message
       });
     }
-    
+
     // Handle MySQL unique constraint violation
     if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
       return res.status(409).json({
@@ -257,7 +296,7 @@ router.post('/', authenticateJWT, checkPermission('leave_allocation:create'), as
         message: 'A leave allocation already exists for this user, leave type, and cycle period'
       });
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
