@@ -1,0 +1,11 @@
+import express from 'express';
+import { getAllFormSubmissions, getFormSubmissionById, submitForm, updateFormSubmission, deleteFormSubmission } from '../controllers/form-submission.controller';
+import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+const router = express.Router();
+router.get('/', authenticateJWT, checkPermission('form_submission:read'), getAllFormSubmissions);
+router.get('/:id', authenticateJWT, checkPermission('form_submission:read'), getFormSubmissionById);
+router.post('/', authenticateJWT, checkPermission('form.submission.create'), submitForm);
+router.put('/:id', authenticateJWT, checkPermission('form.submission.update'), updateFormSubmission);
+router.delete('/:id', authenticateJWT, checkPermission('form.submission.delete'), deleteFormSubmission);
+export default router;
+//# sourceMappingURL=form-submission.route.js.map
