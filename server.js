@@ -1,14 +1,24 @@
 /**
  * Production entry point for cPanel
- * Uses tsx to run TypeScript source directly
+ * Runs the built CommonJS backend from dist/
  */
 
 // Set production environment
 process.env.NODE_ENV = 'production';
 
-// Use tsx to run TypeScript directly
-require('tsx/cjs');
+// Load the built Express app
+const app = require('./dist/index.js');
 
-// Import and start the server
-const path = require('path');
-require(path.join(__dirname, 'src', 'index.ts'));
+console.log('✅ Femtech HR API backend loaded');
+console.log('📡 Starting server...');
+
+// The dist/index.js should already call app.listen(),
+// but we ensure it here just in case
+const PORT = process.env.PORT || 3000;
+
+if (app && typeof app.listen === 'function') {
+  app.listen(PORT, () => {
+    console.log(`✅ Femtech HR API running on port ${PORT}`);
+    console.log(`📡 Access at: https://hrapi.tripa.com.ng`);
+  });
+}
