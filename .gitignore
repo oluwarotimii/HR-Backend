@@ -6,8 +6,7 @@ yarn-error.log*
 package-lock.json
 pnpm-lock.yaml
 
-# Build output
-dist/
+# Build output (not needed when running from source)
 build/
 *.local
 
