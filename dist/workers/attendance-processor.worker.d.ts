@@ -42,7 +42,7 @@ declare class AttendanceProcessorWorker {
     static start(): Promise<void>;
     static getStatus(): {
         isRunning: boolean;
-        lastCheckTime: Date | null;
+        lastCheckTime: Date;
         processedDates: string[];
     };
 }

@@ -14,5 +14,5 @@ export declare const uploadStaffDocument: (req: Request, res: Response) => Promi
 export declare const getStaffDocuments: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getStaffDocument: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const deleteStaffDocument: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const serveStaffDocument: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const serveStaffDocument: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 //# sourceMappingURL=staff-document.controller.d.ts.map
