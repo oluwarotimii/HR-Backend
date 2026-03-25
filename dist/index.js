@@ -1,0 +1,181 @@
+import express from 'express';
+import cors from 'cors';
+import * as dotenv from 'dotenv';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import { testConnection, initializeRedis } from './config/database';
+import { SystemInitService } from './services/system-init.service';
+import authRoutes from './api/auth.route';
+import roleRoutes from './api/role.route';
+import userRoutes from './api/user.route';
+import staffRoutes from './api/staff.route';
+import formRoutes from './api/form.route';
+import formSubmissionRoutes from './api/form-submission.route';
+import leaveRoutes from './api/leave.route';
+import attendanceRoutes from './api/attendance.route';
+import holidayRoutes from './api/holiday.route';
+import paymentTypeRoutes from './api/payment-type.route';
+import staffPaymentStructureRoutes from './api/staff-payment-structure.route';
+import payrollRunRoutes from './api/payroll-run.route';
+import payrollRecordRoutes from './api/payroll-record.route';
+import payslipRoutes from './api/payslip.route';
+import branchGlobalAttendanceRoutes from './api/branch-global-attendance.route';
+import kpiRoutes from './api/kpi.route';
+import appraisalTemplateRoutes from './api/appraisal-template.route';
+import metricRoutes from './api/metric.route';
+import targetRoutes from './api/target.route';
+import performanceRoutes from './api/performance.route';
+import appraisalRoutes from './api/appraisal.route';
+import employeePerformanceRoutes from './api/employee-performance.route';
+import rolePermissionRoutes from './api/role-permission.route';
+import kpiAssignmentRoutes from './api/kpi-assignment.route';
+import kpiScoreRoutes from './api/kpi-score.route';
+import staffInvitationRoutes from './api/staff-invitation.route';
+import timeOffBankRoutes from './api/time-off-bank.route';
+import passwordChangeRoutes from './api/password-change.route';
+import systemRoutes from './api/system.route';
+import roleManagementRoutes from './api/role-management.route';
+import completeSystemInitRoutes from './api/complete-system-init.route';
+import branchManagementRoutes from './api/branch-management.route';
+import departmentManagementRoutes from './api/department-management.route';
+import notificationRoutes from './api/notification.route';
+import jobPostingRoutes from './api/job-posting.route';
+import applicationSubmissionRoutes from './api/application-submission.route';
+import applicationManagementRoutes from './api/application-management.route';
+import shiftSchedulingRoutes from './api/shift-scheduling.route';
+import shiftExceptionRoutes from './api/shift-exception.route';
+import shiftExceptionTypeRoutes from './api/shift-exception-type.route';
+import holidayDutyRosterRoutes from './api/holiday-duty-roster.route';
+import reportingAnalyticsRoutes from './api/reporting-analytics.route';
+import branchWorkingDaysRoutes from './api/branch-working-days.route';
+import shiftTimingRoutes from './api/shift-timing.route';
+import attendanceLocationRoutes from './api/attendance-location.route';
+import staffDocumentRoutes from './api/staff-document.route';
+import staffLocationAssignmentRoutes from './api/staff-location-assignment.route';
+import dashboardRoutes from './api/dashboard.route';
+import guarantorRoutes from './api/guarantor.route';
+import healthRoutes from './api/health.route';
+import AttendanceProcessorWorker from './workers/attendance-processor.worker';
+import LeaveCleanupWorker from './workers/leave-cleanup.worker';
+import leaveCleanupRoutes from './api/leave-cleanup.route';
+dotenv.config();
+const app = express();
+const PORT = process.env.PORT || 3000;
+const limiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 100,
+    message: {
+        success: false,
+        message: 'Too many requests from this IP, please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use(limiter);
+const authLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 5,
+    message: {
+        success: false,
+        message: 'Too many login attempts from this IP, please try again later.'
+    },
+    skipSuccessfulRequests: true,
+});
+app.use(helmet());
+app.use(cors());
+app.use(morgan('combined'));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+testConnection();
+initializeRedis();
+SystemInitService.initialize();
+AttendanceProcessorWorker.start();
+LeaveCleanupWorker.start();
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/forms', formRoutes);
+app.use('/api/form-submissions', formSubmissionRoutes);
+app.use('/api/leave', leaveRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/holidays', holidayRoutes);
+app.use('/api/payment-types', paymentTypeRoutes);
+app.use('/api/staff-payment-structure', staffPaymentStructureRoutes);
+app.use('/api/payroll-runs', payrollRunRoutes);
+app.use('/api/payroll-records', payrollRecordRoutes);
+app.use('/api/payslips', payslipRoutes);
+app.use('/api/branches', branchManagementRoutes);
+app.use('/api/attendance-settings', branchGlobalAttendanceRoutes);
+app.use('/api/kpis', kpiRoutes);
+app.use('/api/appraisal-templates', appraisalTemplateRoutes);
+app.use('/api/metrics', metricRoutes);
+app.use('/api/targets', targetRoutes);
+app.use('/api/performance', performanceRoutes);
+app.use('/api/appraisals', appraisalRoutes);
+app.use('/api/employees', employeePerformanceRoutes);
+app.use('/api/permissions', rolePermissionRoutes);
+app.use('/api/kpi-assignments', kpiAssignmentRoutes);
+app.use('/api/kpi-scores', kpiScoreRoutes);
+app.use('/api/staff-invitation', staffInvitationRoutes);
+app.use('/api/time-off-banks', timeOffBankRoutes);
+app.use('/api/password-change', passwordChangeRoutes);
+app.use('/api/system', systemRoutes);
+app.use('/api/role-management', roleManagementRoutes);
+app.use('/api/system-complete', completeSystemInitRoutes);
+app.use('/api/departments', departmentManagementRoutes);
+app.use('/api/branch-working-days', branchWorkingDaysRoutes);
+app.use('/api/shift-timings', shiftTimingRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/job-postings', jobPostingRoutes);
+app.use('/api/job-applications', applicationSubmissionRoutes);
+app.use('/api/job-application-management', applicationManagementRoutes);
+app.use('/api/shift-scheduling', shiftSchedulingRoutes);
+app.use('/api/shift-scheduling/exceptions', shiftExceptionRoutes);
+app.use('/api/shift-exception-types', shiftExceptionTypeRoutes);
+app.use('/api/holiday-duty-roster', holidayDutyRosterRoutes);
+app.use('/api/reports', reportingAnalyticsRoutes);
+app.use('/api/attendance-locations', attendanceLocationRoutes);
+app.use('/api/staff-documents', staffDocumentRoutes);
+app.use('/api/staff-location-assignments', staffLocationAssignmentRoutes);
+app.use('/api/guarantors', guarantorRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/leave-cleanup', leaveCleanupRoutes);
+app.use('/api/health', healthRoutes);
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Welcome to the HR Management System API',
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: 'Route not found',
+        path: req.originalUrl
+    });
+});
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : {}
+    });
+});
+app.listen(PORT, () => {
+    console.log(`HR Management System server is running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('Database connected successfully');
+});
+export default app;
+//# sourceMappingURL=index.js.map

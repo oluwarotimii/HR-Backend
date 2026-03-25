@@ -403,10 +403,13 @@ export const deleteShiftTemplate = async (req: Request, res: Response) => {
  */
 export const getAllEmployeeShiftAssignments = async (req: Request, res: Response) => {
   try {
+    console.log('[ShiftManagement Controller] Fetching all employee shift assignments');
+    console.log('[ShiftManagement Controller] Query params:', req.query);
+    
     const { userId, status, page = 1, limit = 10 } = req.query;
 
     let query = `
-      SELECT esa.*, st.name as template_name, u.full_name as user_name, 
+      SELECT esa.*, st.name as template_name, u.full_name as user_name,
              abr.full_name as assigned_by_name, apr.full_name as approved_by_name
       FROM employee_shift_assignments esa
       LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
@@ -427,6 +430,9 @@ export const getAllEmployeeShiftAssignments = async (req: Request, res: Response
       params.push(status);
     }
 
+    console.log('[ShiftManagement Controller] Final query:', query);
+    console.log('[ShiftManagement Controller] Query params:', params);
+
     query += ' ORDER BY esa.created_at DESC';
 
     // Add pagination
@@ -434,7 +440,10 @@ export const getAllEmployeeShiftAssignments = async (req: Request, res: Response
     query += ' LIMIT ? OFFSET ?';
     params.push(Number(limit), offset);
 
+    console.log('[ShiftManagement Controller] Executing query with params:', params);
+
     const [rows]: any = await pool.execute(query, params);
+    console.log('[ShiftManagement Controller] Retrieved', rows.length, 'assignments');
 
     // Get total count for pagination
     let countQuery = `
@@ -720,6 +729,9 @@ export const assignShiftToEmployee = async (req: Request, res: Response) => {
  */
 export const updateEmployeeShiftAssignment = async (req: Request, res: Response) => {
   try {
+    console.log('[ShiftManagement Controller] Updating assignment', req.params.id);
+    console.log('[ShiftManagement Controller] Request body:', req.body);
+    
     const { id } = req.params;
     const {
       shift_template_id,
@@ -737,12 +749,14 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
     } = req.body;
 
     // Check if shift assignment exists
+    console.log('[ShiftManagement Controller] Checking if assignment', id, 'exists');
     const [existingRows]: any = await pool.execute(
       'SELECT * FROM employee_shift_assignments WHERE id = ?',
       [id]
     );
 
     if (existingRows.length === 0) {
+      console.warn('[ShiftManagement Controller] Assignment not found:', id);
       return res.status(404).json({
         success: false,
         message: 'Employee shift assignment not found'
@@ -750,6 +764,7 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
     }
 
     const existingAssignment = existingRows[0];
+    console.log('[ShiftManagement Controller] Found assignment:', existingAssignment);
 
     // Validate recurrence fields if provided
     if (recurrence_pattern === 'weekly' && !recurrence_days && !recurrence_day_of_week) {
@@ -896,12 +911,16 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
     params.push(id); // For WHERE clause
 
     const query = `UPDATE employee_shift_assignments SET ${updateFields.join(', ')} WHERE id = ?`;
+    
+    console.log('[ShiftManagement Controller] Executing update query:', query);
+    console.log('[ShiftManagement Controller] With params:', params);
 
     await pool.execute(query, params);
+    console.log('[ShiftManagement Controller] Update executed successfully');
 
     // Get the updated shift assignment
     const [updatedRows]: any = await pool.execute(
-      `SELECT esa.*, st.name as template_name, u.full_name as user_name, 
+      `SELECT esa.*, st.name as template_name, u.full_name as user_name,
               abr.full_name as assigned_by_name, apr.full_name as approved_by_name
        FROM employee_shift_assignments esa
        LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
@@ -911,21 +930,27 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
        WHERE esa.id = ?`,
       [id]
     );
+    
+    console.log('[ShiftManagement Controller] Updated assignment:', updatedRows[0]);
 
     // Process attendance for the effective period to update with new schedule
     try {
       const userId = updatedRows[0].user_id;
       const startDate = new Date(updatedRows[0].effective_from);
       const endDate = updatedRows[0].effective_to ? new Date(updatedRows[0].effective_to) : new Date();
-      
+
+      console.log('[ShiftManagement Controller] Processing attendance for user', userId, 'from', startDate, 'to', endDate);
+
       // Process attendance for each day in the effective period
       const date = new Date(startDate);
       while (date <= endDate) {
         await ShiftSchedulingService.processAttendanceForDate(userId, date);
         date.setDate(date.getDate() + 1);
       }
+      console.log('[ShiftManagement Controller] Attendance processing completed');
     } catch (attendanceError) {
-      console.error('Error processing attendance after shift assignment update:', attendanceError);
+      console.error('[ShiftManagement Controller] Error processing attendance after shift assignment update:', attendanceError);
+      console.warn('[ShiftManagement Controller] Continuing despite attendance error - assignment was updated successfully');
       // Don't fail the update if attendance processing fails
     }
 
@@ -937,10 +962,13 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
       }
     });
   } catch (error) {
-    console.error('Error updating employee shift assignment:', error);
+    console.error('[ShiftManagement Controller] Error updating employee shift assignment:', error);
+    console.error('[ShiftManagement Controller] Error details:', error.message);
+    console.error('[ShiftManagement Controller] Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error while updating employee shift assignment'
+      message: 'Internal server error during update',
+      error: error.message
     });
   }
 };
@@ -950,14 +978,23 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
  */
 export const bulkAssignShifts = async (req: Request, res: Response) => {
   try {
-    const { user_ids, shift_template_id, custom_start_time, custom_end_time, 
-            custom_break_duration_minutes, effective_from, effective_to, 
+    console.log('[ShiftManagement Controller] Bulk assign shifts - Request body:', JSON.stringify(req.body, null, 2));
+    
+    const { user_ids, shift_template_id, custom_start_time, custom_end_time,
+            custom_break_duration_minutes, effective_from, effective_to,
             assignment_type, notes } = req.body;
 
     const assignedBy = (req as any).currentUser.id;
+    
+    console.log('[ShiftManagement Controller] User IDs:', user_ids);
+    console.log('[ShiftManagement Controller] Shift template ID:', shift_template_id);
+    console.log('[ShiftManagement Controller] Effective from:', effective_from);
+    console.log('[ShiftManagement Controller] Assignment type:', assignment_type);
+    console.log('[ShiftManagement Controller] Assigned by:', assignedBy);
 
     // Validate required fields
     if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+      console.warn('[ShiftManagement Controller] Validation failed: User IDs array is required');
       return res.status(400).json({
         success: false,
         message: 'User IDs array is required'
@@ -965,6 +1002,7 @@ export const bulkAssignShifts = async (req: Request, res: Response) => {
     }
 
     if (!effective_from) {
+      console.warn('[ShiftManagement Controller] Validation failed: Effective from date is required');
       return res.status(400).json({
         success: false,
         message: 'Effective from date is required'
@@ -1031,19 +1069,24 @@ export const bulkAssignShifts = async (req: Request, res: Response) => {
     let successCount = 0;
     let failureCount = 0;
 
+    console.log('[ShiftManagement Controller] Starting to process', user_ids.length, 'users...');
+
     for (const userId of user_ids) {
       try {
+        console.log('[ShiftManagement Controller] Processing user:', userId);
+        
         // Check if there's already an active assignment for this user
-        await pool.execute(
+        const [expireResult]: any = await pool.execute(
           'UPDATE employee_shift_assignments SET status = ?, updated_at = NOW() WHERE user_id = ? AND status = ?',
           ['expired', userId, 'active']
         );
+        console.log('[ShiftManagement Controller] Expired existing assignments for user', userId, '- Rows affected:', expireResult.affectedRows);
 
         // Create the shift assignment
         const [result]: any = await pool.execute(
-          `INSERT INTO employee_shift_assignments 
+          `INSERT INTO employee_shift_assignments
            (user_id, shift_template_id, custom_start_time, custom_end_time, custom_break_duration_minutes,
-            effective_from, effective_to, assignment_type, assigned_by, status, notes) 
+            effective_from, effective_to, assignment_type, assigned_by, status, notes)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
@@ -1061,6 +1104,7 @@ export const bulkAssignShifts = async (req: Request, res: Response) => {
         );
 
         const assignmentId = result.insertId;
+        console.log('[ShiftManagement Controller] Created assignment', assignmentId, 'for user', userId);
 
         // Get the created shift assignment
         const [assignmentRows]: any = await pool.execute(
@@ -1108,6 +1152,8 @@ export const bulkAssignShifts = async (req: Request, res: Response) => {
       }
     }
 
+    console.log('[ShiftManagement Controller] Bulk assignment completed - Success:', successCount, 'Failed:', failureCount);
+
     return res.status(201).json({
       success: true,
       message: `Bulk shift assignment completed. ${successCount} succeeded, ${failureCount} failed.`,
@@ -1121,7 +1167,7 @@ export const bulkAssignShifts = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error in bulk shift assignment:', error);
+    console.error('[ShiftManagement Controller] Error in bulk shift assignment:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error during bulk shift assignment'

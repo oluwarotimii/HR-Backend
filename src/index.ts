@@ -61,6 +61,7 @@ import guarantorRoutes from './api/guarantor.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
 import { SchedulerService } from './services/scheduler.service';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
+import AutoCheckoutWorker from './workers/auto-checkout.worker';
 import LeaveCleanupWorker from './workers/leave-cleanup.worker';
 import leaveCleanupRoutes from './api/leave-cleanup.route';
 
@@ -114,6 +115,9 @@ SystemInitService.initialize();
 
 // Start attendance processor worker (daily automated processing)
 AttendanceProcessorWorker.start();
+
+// Start auto-checkout worker (automatically checks out staff at end of day)
+AutoCheckoutWorker.start();
 
 // Start leave cleanup worker (declines expired pending leaves)
 LeaveCleanupWorker.start();

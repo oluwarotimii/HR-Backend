@@ -1,0 +1,19 @@
+import { Request, Response } from 'express';
+export declare const createReportTemplate: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllReportTemplates: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getReportTemplateById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const updateReportTemplate: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const deleteReportTemplate: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const createScheduledReport: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllScheduledReports: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getScheduledReportById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const updateScheduledReport: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const deleteScheduledReport: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAttendanceMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getLeaveMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getPayrollMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getPerformanceMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getStaffMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getCalculatedMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const calculateAllMetrics: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+//# sourceMappingURL=reporting-analytics.controller.d.ts.map

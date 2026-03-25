@@ -8,7 +8,6 @@ logs/
 *.log
 npm-debug.log*
 coverage/
-dist/
 build/
 .nyc_output
 .husky

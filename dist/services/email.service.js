@@ -1,0 +1,143 @@
+import { Resend } from 'resend';
+const resend = new Resend(process.env.RESEND_API_KEY);
+export const sendWelcomeEmail = async ({ to, fullName }) => {
+    try {
+        const { error } = await resend.emails.send({
+            from: process.env.FROM_EMAIL || 'onboarding@tripa.com.ng',
+            to: to,
+            subject: 'Welcome to Tripa HR Management System!',
+            html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #2c3e50;">Welcome, ${fullName}!</h1>
+
+          <p>Congratulations on initializing your Tripa HR Management System. You've successfully set up your Super Admin account.</p>
+
+          <h2 style="color: #3498db;">Getting Started:</h2>
+          <ol>
+            <li><strong>Build Your Organization:</strong> Create departments and branches that match your company structure.</li>
+            <li><strong>Set Up Roles:</strong> Define custom roles with specific permissions for your team.</li>
+            <li><strong>Invite Team Members:</strong> Use our automated invitation system to provision professional email addresses for your staff.</li>
+          </ol>
+
+          <h2 style="color: #3498db;">Security Tips:</h2>
+          <ul>
+            <li>Keep your login credentials secure</li>
+            <li>Regularly review user permissions</li>
+            <li>Enable two-factor authentication when available</li>
+          </ul>
+
+          <p>If you have any questions or need assistance, please reach out to our support team.</p>
+
+          <p>Best regards,<br/>
+          The Tripa HR Management Team</p>
+
+          <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
+          <p style="font-size: 12px; color: #7f8c8d;">
+            This email was sent to ${to} because you registered as a Super Admin for Tripa HR Management System.
+          </p>
+        </div>
+      `
+        });
+        if (error) {
+            console.error('Error sending welcome email:', error);
+            throw new Error(`Failed to send welcome email: ${error.message}`);
+        }
+        console.log(`Welcome email sent successfully to ${to}`);
+    }
+    catch (error) {
+        console.error('Unexpected error sending welcome email:', error);
+        throw error;
+    }
+};
+export const sendStaffInvitationEmail = async ({ to, fullName, workEmail, invitationToken, fromAdmin }) => {
+    try {
+        const { error } = await resend.emails.send({
+            from: process.env.FROM_EMAIL || 'invitations@tripa.com.ng',
+            to: to,
+            subject: 'Welcome to Tripa! Your New Work Account Awaits',
+            html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #2c3e50;">Welcome to Tripa, ${fullName}!</h1>
+
+          <p>You've been invited by ${fromAdmin} to join Tripa HR Management System.</p>
+
+          <h2 style="color: #3498db;">Your New Work Identity:</h2>
+          <p><strong>Work Email:</strong> ${workEmail}</p>
+
+          <p>To complete your registration and set up your password, please click the link below:</p>
+          
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-invitation/${invitationToken}" 
+               style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              Accept Invitation & Set Password
+            </a>
+          </p>
+          
+          <p><strong>Important:</strong> This invitation link will expire in 7 days.</p>
+
+          <p>Once you've set your password, you'll be able to log in and access your dashboard, track your KPIs, request time off, and more.</p>
+
+          <p>If you have any questions, please contact your administrator.</p>
+
+          <p>Welcome aboard!<br/>
+          The Tripa HR Management Team</p>
+
+          <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
+          <p style="font-size: 12px; color: #7f8c8d;">
+            This email was sent to ${to} because ${fromAdmin} invited you to join Tripa HR Management System.
+          </p>
+        </div>
+      `
+        });
+        if (error) {
+            console.error('Error sending staff invitation email:', error);
+            throw new Error(`Failed to send staff invitation email: ${error.message}`);
+        }
+        console.log(`Staff invitation email sent successfully to ${to}`);
+    }
+    catch (error) {
+        console.error('Unexpected error sending staff invitation email:', error);
+        throw error;
+    }
+};
+export const sendPayrollReady = async ({ to, month, year }) => {
+    try {
+        const { error } = await resend.emails.send({
+            from: process.env.FROM_EMAIL || 'payroll@tripa.com.ng',
+            to: to,
+            subject: `Your ${month} ${year} Payslip is Ready`,
+            html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #2c3e50;">Your Payslip is Ready</h1>
+
+          <p>Hello,</p>
+
+          <p>Your payslip for ${month} ${year} is now available in the system.</p>
+
+          <p>Please log in to the HR Management System to view and download your payslip.</p>
+
+          <p>If you have any questions about your payslip, please contact your HR department.</p>
+
+          <p>Best regards,<br/>
+          The Tripa HR Management Team</p>
+
+          <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
+          <p style="font-size: 12px; color: #7f8c8d;">
+            This email was sent to ${to} because your ${month} ${year} payslip is ready for viewing.
+          </p>
+        </div>
+      `
+        });
+        if (error) {
+            console.error('Error sending payroll ready email:', error);
+            return { success: false, error: error.message };
+        }
+        console.log(`Payroll ready email sent successfully to ${to}`);
+        return { success: true };
+    }
+    catch (error) {
+        console.error('Unexpected error sending payroll ready email:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+};
+//# sourceMappingURL=email.service.js.map
