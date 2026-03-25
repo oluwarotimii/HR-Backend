@@ -145,7 +145,9 @@ export const runMigrations = async (): Promise<void> => {
       for (const statement of statements) {
         if (statement) {
           try {
-            await pool.execute(statement);
+            // Use raw query to avoid prepared statement limitations with certain SQL constructs
+            // Pass empty array [] to prevent named placeholder parsing
+            await (pool as any).query(statement, []);
           } catch (stmtError: any) {
             // Handle specific errors that might occur during migrations
             if (stmtError.errno === 1060) { // ER_DUP_FIELDNAME - Duplicate column name
@@ -157,6 +159,14 @@ export const runMigrations = async (): Promise<void> => {
             } else if (stmtError.errno === 1050) { // ER_TABLE_EXISTS_ERROR - Table already exists
               console.log(`Table already exists, skipping: ${statement.substring(0, 50)}...`);
               continue;
+            } else if (stmtError.errno === 1295 || stmtError.code === 'ER_UNSUPPORTED_PS') {
+              // Prepared statement not supported - try with execute instead
+              try {
+                await pool.execute(statement);
+              } catch (retryError: any) {
+                console.error(`Error executing statement in ${migrationFile}:`, retryError);
+                throw retryError;
+              }
             } else {
               // Re-throw if it's a different error
               console.error(`Error executing statement in ${migrationFile}:`, stmtError);
