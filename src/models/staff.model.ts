@@ -204,6 +204,9 @@ export interface StaffUpdate {
   location_notes?: string;
   // Branch name from join (not stored in staff table)
   branch_name?: string;
+  // Additional fields
+  state_of_origin?: string;
+  lga?: string;
 }
 
 class StaffModel {
