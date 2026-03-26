@@ -64,8 +64,9 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
     // Get user permissions manifest
     const permissions = await PermissionService.generatePermissionManifest(user.id);
 
-    // Check if user must change password
-    const mustChangePassword = user.must_change_password;
+    // Check if user must change password and if profile is complete
+    const needsPasswordChange = !!user.must_change_password;
+    const needsProfileCompletion = !(user.phone && user.date_of_birth);
 
     // Return success response with tokens and user data
     return res.json({
@@ -79,7 +80,9 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
           roleId: user.role_id,
           branchId: user.branch_id,
           status: user.status,
-          mustChangePassword: mustChangePassword
+          profile_picture: user.profile_picture,
+          needs_password_change: needsPasswordChange,
+          needs_profile_completion: needsProfileCompletion
         },
         permissions,
         tokens: {

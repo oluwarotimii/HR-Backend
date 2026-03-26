@@ -1559,45 +1559,52 @@ async function seedStaffLocationAssignments() {
   let assignmentCount = 0;
   let secondaryCount = 0;
 
-  // Assign each staff member to locations
+  // Assign each staff member to locations (with support for multiple locations)
   for (const employee of staff) {
     // Get main office location for this staff's branch
-    const mainOffice = locations.find((loc: any) => 
+    const mainOffice = locations.find((loc: any) =>
       loc.branch_id === employee.branch_id && loc.location_type === 'branch_office'
     );
 
     if (mainOffice) {
-      // Assign primary location
-      await pool.execute(
-        `UPDATE staff SET assigned_location_id = ? WHERE id = ?`,
-        [mainOffice.id, employee.staff_id]
-      );
-      assignmentCount++;
+      // Build array of location assignments
+      const locationAssignments: number[] = [mainOffice.id];
 
-      // 40% of staff get secondary locations
-      if (Math.random() < 0.4) {
+      // 60% of staff get multiple locations (increased from 40%)
+      if (Math.random() < 0.6) {
         // Get remote sites for this branch
-        const remoteSites = locations.filter((loc: any) => 
+        const remoteSites = locations.filter((loc: any) =>
           loc.branch_id === employee.branch_id && loc.location_type === 'remote_site'
         );
 
         if (remoteSites.length > 0) {
-          // Pick 1 random remote site
-          const selectedSite = remoteSites[Math.floor(Math.random() * remoteSites.length)];
+          // Pick 1-2 random remote sites
+          const numRemotes = Math.min(remoteSites.length, Math.floor(Math.random() * 2) + 1);
+          const shuffled = remoteSites.sort(() => 0.5 - Math.random());
+          const selectedSites = shuffled.slice(0, numRemotes);
           
-          // Insert into staff_secondary_locations
-          await pool.execute(
-            `INSERT IGNORE INTO staff_secondary_locations (staff_id, location_id) VALUES (?, ?)`,
-            [employee.staff_id, selectedSite.id]
-          );
-          secondaryCount++;
+          // Add to location assignments array
+          selectedSites.forEach((site: any) => {
+            locationAssignments.push(site.id);
+          });
         }
       }
+
+      // Update staff with location assignments (JSON array)
+      await pool.execute(
+        `UPDATE staff SET assigned_location_id = ?, location_assignments = ? WHERE id = ?`,
+        [mainOffice.id, JSON.stringify(locationAssignments), employee.staff_id]
+      );
+      
+      if (locationAssignments.length > 1) {
+        secondaryCount++;
+      }
+      assignmentCount++;
     }
   }
 
-  console.log(`   ✓ Assigned primary locations to ${assignmentCount} staff`);
-  console.log(`   ✓ Assigned secondary locations to ${secondaryCount} staff`);
+  console.log(`   ✓ Assigned locations to ${assignmentCount} staff`);
+  console.log(`   ✓ ${secondaryCount} staff have multiple location assignments`);
   console.log(`✅ Staff location assignments seeded\n`);
 }
 

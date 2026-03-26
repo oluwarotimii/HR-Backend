@@ -12,6 +12,7 @@ export interface User {
   branch_id?: number | null;
   status: 'active' | 'inactive' | 'terminated' | 'pending';
   must_change_password: boolean;
+  profile_picture?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -24,6 +25,7 @@ export interface UserInput {
   role_id: number;
   branch_id?: number | null;
   must_change_password?: boolean;
+  profile_picture?: string;
 }
 
 export interface UserUpdate {
@@ -35,6 +37,7 @@ export interface UserUpdate {
   branch_id?: number | null;
   status?: 'active' | 'inactive' | 'terminated';
   must_change_password?: boolean;
+  profile_picture?: string;
 }
 
 class UserModel {
