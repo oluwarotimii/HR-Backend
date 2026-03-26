@@ -380,6 +380,9 @@ export const updateStaff = async (req: Request, res: Response) => {
     if (professional_certifications !== undefined) updateData.professional_certifications = professional_certifications;
     if (certifications_json !== undefined) updateData.certifications_json = certifications_json;
     if (languages_known !== undefined) updateData.languages_known = languages_known;
+    // Additional fields
+    if (state_of_origin !== undefined) updateData.state_of_origin = state_of_origin;
+    if (lga !== undefined) updateData.lga = lga;
     if (notice_period_start_date !== undefined) updateData.notice_period_start_date = new Date(notice_period_start_date);
     if (notice_period_end_date !== undefined) updateData.notice_period_end_date = new Date(notice_period_end_date);
     if (relieving_date !== undefined) updateData.relieving_date = new Date(relieving_date);
@@ -394,7 +397,28 @@ export const updateStaff = async (req: Request, res: Response) => {
     // Get staff before update for audit log
     const beforeUpdate = { ...existingStaff };
 
+    // Update staff table
     const updatedStaff = await StaffModel.update(staffId, updateData);
+
+    // Also update user table if name fields are provided
+    const { first_name, last_name, middle_name } = req.body;
+    if (first_name || last_name || middle_name) {
+      const existingUser = await UserModel.findById(existingStaff.user_id);
+      if (existingUser) {
+        const userUpdateData: any = {};
+        if (first_name !== undefined) userUpdateData.first_name = first_name;
+        if (last_name !== undefined) userUpdateData.last_name = last_name;
+        if (middle_name !== undefined) userUpdateData.middle_name = middle_name;
+        
+        // Rebuild full_name
+        const newFullName = [first_name || existingUser.first_name, middle_name || existingUser.middle_name, last_name || existingUser.last_name]
+          .filter(Boolean)
+          .join(' ');
+        userUpdateData.full_name = newFullName;
+        
+        await UserModel.update(existingStaff.user_id, userUpdateData);
+      }
+    }
 
     // Log the staff update
     if (req.currentUser) {
