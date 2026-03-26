@@ -133,6 +133,7 @@ app.use('/api/leave', leaveRoutes);
 // Serve uploaded files at root level (not under /api/leave)
 app.use('/api/uploads/leave-requests', express.static(path.join(process.cwd(), 'uploads', 'leave-requests')));
 app.use('/api/uploads/attachments', express.static(path.join(process.cwd(), 'uploads', 'attachments')));
+app.use('/api/uploads/profile-photos', express.static(path.join(process.cwd(), 'uploads', 'profile-photos')));
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/payment-types', paymentTypeRoutes);

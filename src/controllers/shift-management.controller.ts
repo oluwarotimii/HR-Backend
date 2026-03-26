@@ -1837,3 +1837,56 @@ export const deleteRecurringShift = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Get current user's shift assignments (no special permission required)
+export const getMyShiftAssignments = async (req: Request, res: Response) => {
+  try {
+    if (!req.currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const userId = req.currentUser.id;
+
+    const [rows]: any = await pool.execute(
+      `SELECT 
+        esa.id,
+        esa.user_id,
+        esa.shift_template_id,
+        esa.effective_from,
+        esa.effective_to,
+        esa.assignment_type,
+        esa.status,
+        esa.notes,
+        esa.created_at,
+        esa.updated_at,
+        st.name as shift_template_name,
+        st.start_time,
+        st.end_time,
+        st.break_duration_minutes,
+        st.recurrence_pattern,
+        st.recurrence_days
+      FROM employee_shift_assignments esa
+      LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
+      WHERE esa.user_id = ?
+      ORDER BY esa.effective_from DESC`,
+      [userId]
+    );
+
+    return res.json({
+      success: true,
+      message: 'My shift assignments retrieved successfully',
+      data: {
+        shiftAssignments: rows
+      }
+    });
+  } catch (error) {
+    console.error('Get my shift assignments error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};

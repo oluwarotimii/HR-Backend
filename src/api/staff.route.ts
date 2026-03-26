@@ -15,6 +15,7 @@ import {
   getStaffDynamicValues,
   setStaffDynamicValues
 } from '../controllers/staff.controller';
+import { uploadProfilePhoto, upload } from '../controllers/staff-photo.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 
 // Extend the Express Request type to include numericId
@@ -95,5 +96,8 @@ router.delete('/dynamic-fields/:id', authenticateJWT, checkPermission('staff.del
 // Staff dynamic values routes
 router.get('/dynamic-values/:staffId', authenticateJWT, checkPermission('staff:read'), validateNumericIdParam('staffId'), getStaffDynamicValues);
 router.post('/dynamic-values/:staffId', authenticateJWT, checkPermission('staff.update'), validateNumericIdParam('staffId'), setStaffDynamicValues);
+
+// Profile photo upload route
+router.post('/:id/upload-photo', authenticateJWT, upload.single('profile_picture'), uploadProfilePhoto);
 
 export default router;
