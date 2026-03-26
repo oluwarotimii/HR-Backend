@@ -14,7 +14,8 @@ import {
   bulkAssignRecurringShiftsByBranch,
   getRecurringShifts,
   updateRecurringShift,
-  deleteRecurringShift
+  deleteRecurringShift,
+  getMyShiftAssignments  // ✅ Add import
 } from '../controllers/shift-management.controller';
 import {
   getAllScheduleRequests,
@@ -49,6 +50,7 @@ router.delete('/shift-templates/:id', authenticateJWT, checkPermission('shift_te
 
 // Employee Shift Assignments Routes
 router.get('/employee-shift-assignments', authenticateJWT, checkPermission('employee_shift_assignment:read'), getAllEmployeeShiftAssignments);
+router.get('/employee-shift-assignments/my', authenticateJWT, getMyShiftAssignments);  // ✅ Add my endpoint
 router.get('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:read'), getEmployeeShiftAssignmentById);
 router.post('/employee-shift-assignments', authenticateJWT, checkPermission('employee_shift_assignment:create'), assignShiftToEmployee);
 router.put('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), updateEmployeeShiftAssignment);

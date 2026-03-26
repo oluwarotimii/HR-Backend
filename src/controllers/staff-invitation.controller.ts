@@ -184,8 +184,9 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
       // If expired, we could allow resending - continue with insertion
     }
 
-    // Generate invitation token
+    // Generate invitation token and temporary password
     const token = generateInvitationToken();
+    const temporaryPassword = generateTemporaryPassword();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
@@ -201,11 +202,51 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
     // Get current user (who is sending invitation)
     const adminId = (req as any).currentUser?.userId;
 
+    // Hash the temporary password for storage
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+
+    // Generate work email
+    const workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@tripa.com.ng`;
+
+    // Create user account immediately with temporary password
+    const [userResult]: any = await pool.execute(
+      `INSERT INTO users
+       (email, password_hash, full_name, phone, role_id, branch_id, status, must_change_password, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', 1, NOW(), NOW())`,
+      [
+        workEmail,
+        passwordHash,
+        `${firstName} ${lastName}`,
+        phone ?? null,
+        roleId ?? null,
+        branchId ?? null
+      ]
+    );
+
+    const userId = userResult.insertId;
+
+    // Create staff record if department exists
+    if (departmentId) {
+      await pool.execute(
+        `INSERT INTO staff
+         (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'full_time', 'pending')`,
+        [
+          userId,
+          `EMP${userId.toString().padStart(4, '0')}`,
+          'Employee',
+          departmentName || 'General',
+          branchId ?? null,
+          new Date().toISOString().split('T')[0]
+        ]
+      );
+    }
+
     // Create invitation record - ensure no undefined values
     await pool.execute(
       `INSERT INTO staff_invitations
-       (email, token, first_name, last_name, phone, role_id, branch_id, department_id, expires_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (email, token, first_name, last_name, phone, role_id, branch_id, department_id, user_id, expires_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         personalEmail,
         token,
@@ -215,13 +256,11 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
         roleId ?? null,
         branchId ?? null,
         departmentId ?? null,
+        userId,
         expiresAt,
         adminId ?? null
       ]
     );
-
-    // Generate work email for display in invitation
-    const workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@tripa.com.ng`;
 
     // Get admin name for email
     let adminName = 'an administrator';
@@ -232,17 +271,27 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
       }
     }
 
-    // Send invitation email
+    // Send invitation email with work email and temporary password
     try {
       await sendStaffInvitationEmail({
         to: personalEmail,
         fullName: `${firstName} ${lastName}`,
         workEmail: workEmail,
+        temporaryPassword: temporaryPassword,
         invitationToken: token,
         fromAdmin: adminName
       });
     } catch (emailError) {
       console.error('Error sending invitation email:', emailError);
+      // Rollback: Delete created user and staff records
+      await pool.execute('DELETE FROM staff WHERE user_id = ?', [userId]);
+      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+      await pool.execute('DELETE FROM staff_invitations WHERE user_id = ?', [userId]);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send invitation email. Please try again.'
+      });
     }
 
     return res.status(201).json({
@@ -445,17 +494,29 @@ export const resendInvitation = async (req: Request, res: Response) => {
       });
     }
 
-    // Generate new token and extend expiry
+    // Generate new token, new temporary password, and extend expiry
     const newToken = generateInvitationToken();
+    const newTemporaryPassword = generateTemporaryPassword();
     const newExpiresAt = new Date();
     newExpiresAt.setDate(newExpiresAt.getDate() + 7);
 
+    // Hash the new temporary password and update user account
+    const userId = invitation.user_id;
+    if (userId) {
+      const newPasswordHash = await bcrypt.hash(newTemporaryPassword, 10);
+      await pool.execute(
+        `UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = NOW() WHERE id = ?`,
+        [newPasswordHash, userId]
+      );
+    }
+
+    // Update invitation with new token
     await pool.execute(
       'UPDATE staff_invitations SET token = ?, expires_at = ? WHERE id = ?',
       [newToken, newExpiresAt, id]
     );
 
-    // Send invitation email
+    // Send invitation email with new credentials
     const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
 
     try {
@@ -463,16 +524,21 @@ export const resendInvitation = async (req: Request, res: Response) => {
         to: invitation.email,
         fullName: `${invitation.first_name} ${invitation.last_name}`,
         workEmail: workEmail,
+        temporaryPassword: newTemporaryPassword,
         invitationToken: newToken,
         fromAdmin: 'HR Team'
       });
     } catch (emailError) {
       console.error('Error sending invitation email:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to resend invitation email'
+      });
     }
 
     return res.json({
       success: true,
-      message: 'Invitation resent successfully',
+      message: 'Invitation resent successfully with new credentials',
       data: {
         email: invitation.email,
         expiresAt: newExpiresAt.toISOString()
@@ -561,71 +627,41 @@ export const acceptInvitation = async (req: Request, res: Response) => {
       });
     }
 
-    // Generate work email
-    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
-
-    // Check if email already exists
-    const [existingUsers]: any = await pool.execute(
-      'SELECT id FROM users WHERE email = ?',
-      [workEmail]
-    );
-
-    if (existingUsers.length > 0) {
-      return res.status(400).json({
+    // Get the user ID from invitation
+    const userId = invitation.user_id;
+    
+    if (!userId) {
+      return res.status(500).json({
         success: false,
-        message: 'User already exists with this email'
+        message: 'Invalid invitation: no user account found'
       });
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Generate work email
+    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
 
-    // Create user and staff records in transaction
+    // Hash the new password
+    const newPasswordHash = await bcrypt.hash(password, 10);
+
+    // Update user account: activate and set new password
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
 
-      // Create user
-      const [userResult]: any = await connection.execute(
-        `INSERT INTO users 
-         (email, password_hash, full_name, phone, role_id, branch_id, status, must_change_password, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', 0, NOW(), NOW())`,
-        [
-          workEmail,
-          passwordHash,
-          `${invitation.first_name} ${invitation.last_name}`,
-          invitation.phone,
-          invitation.role_id,
-          invitation.branch_id
-        ]
+      // Update user status to active and set new password
+      await connection.execute(
+        `UPDATE users 
+         SET status = 'active', password_hash = ?, must_change_password = 0, updated_at = NOW()
+         WHERE id = ?`,
+        [newPasswordHash, userId]
       );
 
-      const userId = userResult.insertId;
-
-      // Create staff record if department exists
-      if (invitation.department_id) {
-        const [deptRows]: any = await connection.execute(
-          'SELECT name FROM departments WHERE id = ?',
-          [invitation.department_id]
-        );
-
-        if (deptRows.length > 0) {
-          await connection.execute(
-            `INSERT INTO staff 
-             (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
-             VALUES (?, ?, ?, ?, ?, ?, 'full_time', 'active')`,
-            [
-              userId,
-              `EMP${userId.toString().padStart(4, '0')}`,
-              'Employee',
-              deptRows[0].name,
-              invitation.branch_id,
-              new Date().toISOString().split('T')[0]
-            ]
-          );
-        }
-      }
+      // Update staff status to active
+      await connection.execute(
+        `UPDATE staff SET status = 'active' WHERE user_id = ?`,
+        [userId]
+      );
 
       // Update invitation status
       await connection.execute(
