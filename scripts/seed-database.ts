@@ -2,11 +2,11 @@
  * HR App Database Seeder
  *
  * Populates the database with realistic test data including:
- * - Branches (5 branches across Kenya)
+ * - Branches (5 branches across Nigeria)
  * - Users & Staff (100+ employees)
  * - Departments
  * - Shift Timings & Recurring Shift Assignments
- * - Holidays (Kenyan public holidays 2025-2026)
+ * - Holidays (Nigerian public holidays 2025-2026)
  * - Attendance Records (2025-01-01 to current date)
  * - Leave History & Requests
  * - Leave Allocations
@@ -22,6 +22,36 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
 
+// Helper function to copy profile images
+async function setupProfileImages() {
+  console.log('🖼️  Setting up profile images...');
+  
+  const imgDir = path.join(process.cwd(), '..', 'DONE', 'img');
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profiles');
+  
+  // Create upload directory if it doesn't exist
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  
+  // Copy profile images
+  let copiedCount = 0;
+  for (const imgFile of PROFILE_IMAGES) {
+    const srcPath = path.join(imgDir, imgFile);
+    const destPath = path.join(uploadDir, imgFile);
+    
+    if (fs.existsSync(srcPath)) {
+      fs.copyFileSync(srcPath, destPath);
+      copiedCount++;
+      console.log(`   ✓ Copied ${imgFile}`);
+    } else {
+      console.log(`   ⚠️  Not found: ${imgFile}`);
+    }
+  }
+  
+  console.log(`✅ Profile images setup (${copiedCount}/${PROFILE_IMAGES.length})\n`);
+}
+
 // Configuration
 const CONFIG = {
   startDate: '2025-01-01', // Start of 2025
@@ -32,38 +62,51 @@ const CONFIG = {
   sundayWorkers: 30,        // Number of employees who work on Sundays
 };
 
-// Kenyan Cities/Regions for branches
-const BRANCH_DATA = [
-  { name: 'Nairobi HQ', code: 'NAI', city: 'Nairobi', coords: { lng: 36.817223, lat: -1.286389 } },
-  { name: 'Mombasa Branch', code: 'MBA', city: 'Mombasa', coords: { lng: 39.6682, lat: -4.0435 } },
-  { name: 'Kisumu Branch', code: 'KIS', city: 'Kisumu', coords: { lng: 34.7519, lat: -0.0917 } },
-  { name: 'Nakuru Branch', code: 'NAK', city: 'Nakuru', coords: { lng: 36.0667, lat: -0.3031 } },
-  { name: 'Eldoret Branch', code: 'ELD', city: 'Eldoret', coords: { lng: 35.2698, lat: 0.5143 } },
+// Profile pictures from DONE/img folder
+const PROFILE_IMAGES = [
+  'pp.jpeg',
+  'ppp.jpg',
+  'yuu.jpeg',
+  'niieeee.jpeg',
+  'edgee.jpeg',
+  'smart.jpeg',
+  'elephant.jpg',
+  'lion.jpg',
+  'realnest.jpeg',
+  'toda.jpg',
 ];
 
-// Kenyan Public Holidays (2025-2026)
-const KENYAN_HOLIDAYS = [
+// Nigerian Cities/Regions for branches
+const BRANCH_DATA = [
+  { name: 'Lagos HQ', code: 'LOS', city: 'Lagos', coords: { lng: 3.3792, lat: 6.5244 } },
+  { name: 'Abuja Branch', code: 'ABV', city: 'Abuja', coords: { lng: 7.4951, lat: 9.0765 } },
+  { name: 'Port Harcourt Branch', code: 'PHC', city: 'Port Harcourt', coords: { lng: 6.9973, lat: 4.8156 } },
+  { name: 'Kano Branch', code: 'KAN', city: 'Kano', coords: { lng: 8.5211, lat: 11.9716 } },
+  { name: 'Ibadan Branch', code: 'IBA', city: 'Ibadan', coords: { lng: 3.9093, lat: 7.4326 } },
+];
+
+// Nigerian Public Holidays (2025-2026)
+const NIGERIAN_HOLIDAYS = [
   // 2025
   { date: '2025-01-01', name: 'New Year\'s Day' },
   { date: '2025-04-18', name: 'Good Friday' },
   { date: '2025-04-21', name: 'Easter Monday' },
-  { date: '2025-05-01', name: 'Labour Day' },
-  { date: '2025-06-01', name: 'Madaraka Day' },
-  { date: '2025-06-08', name: 'Eid al-Adha' },
-  { date: '2025-08-11', name: 'Huduma Day' },
-  { date: '2025-10-10', name: 'Mashujaa Day' },
-  { date: '2025-12-12', name: 'Jamhuri Day' },
+  { date: '2025-05-01', name: 'Workers\' Day' },
+  { date: '2025-05-29', name: 'Democracy Day' },
+  { date: '2025-06-06', name: 'Eid al-Fitr' },
+  { date: '2025-08-13', name: 'Eid al-Adha' },
+  { date: '2025-10-01', name: 'Independence Day' },
   { date: '2025-12-25', name: 'Christmas Day' },
   { date: '2025-12-26', name: 'Boxing Day' },
   // 2026
   { date: '2026-01-01', name: 'New Year\'s Day' },
   { date: '2026-04-03', name: 'Good Friday' },
   { date: '2026-04-06', name: 'Easter Monday' },
-  { date: '2026-05-01', name: 'Labour Day' },
-  { date: '2026-06-01', name: 'Madaraka Day' },
-  { date: '2026-08-11', name: 'Huduma Day' },
-  { date: '2026-10-10', name: 'Mashujaa Day' },
-  { date: '2026-12-12', name: 'Jamhuri Day' },
+  { date: '2026-05-01', name: 'Workers\' Day' },
+  { date: '2026-05-29', name: 'Democracy Day' },
+  { date: '2026-06-26', name: 'Eid al-Fitr' },
+  { date: '2026-08-02', name: 'Eid al-Adha' },
+  { date: '2026-10-01', name: 'Independence Day' },
   { date: '2026-12-25', name: 'Christmas Day' },
   { date: '2026-12-26', name: 'Boxing Day' },
 ];
@@ -324,22 +367,23 @@ async function seedBranches() {
   for (const branch of BRANCH_DATA) {
     // Check if branch already exists
     const [existing] = await pool.execute('SELECT id FROM branches WHERE code = ?', [branch.code]);
-    
+
     if ((existing as any).length > 0) {
       console.log(`   ✓ Branch ${branch.name} already exists, skipping...`);
       continue;
     }
 
     await pool.execute(
-      `INSERT INTO branches (name, code, city, country, phone, email, location_coordinates, location_radius_meters, attendance_mode, status)
-       VALUES (?, ?, ?, 'Kenya', ?, ?, ?, ?, 'branch_based', 'active')`,
+      `INSERT INTO branches (name, code, city, country, phone, email, location_coordinates, location_radius_meters, attendance_mode, status,
+             auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone)
+       VALUES (?, ?, ?, 'Nigeria', ?, ?, ?, ?, 'branch_based', 'active', TRUE, '10:00', 'Africa/Lagos')`,
       [
         branch.name,
         branch.code,
         branch.city,
-        `+254-${Math.floor(Math.random() * 900) + 100}`,
-        `${branch.code.toLowerCase()}@company.co.ke`,
-        `${branch.coords.lat},${branch.coords.lng}`,
+        `+234-${Math.floor(Math.random() * 900) + 100}`,
+        `${branch.code.toLowerCase()}@company.com.ng`,
+        `POINT(${branch.coords.lng} ${branch.coords.lat})`,
         100 + Math.floor(Math.random() * 100),
       ]
     );
@@ -394,6 +438,13 @@ async function seedUsersAndStaff() {
     );
 
     const userId = userResult.insertId;
+
+    // Assign profile picture (cycle through available images)
+    const profileImage = PROFILE_IMAGES[i % PROFILE_IMAGES.length];
+    await pool.execute(
+      `UPDATE users SET profile_picture = ? WHERE id = ?`,
+      [`/uploads/profiles/${profileImage}`, userId]
+    );
 
     const designations = ['Associate', 'Senior Associate', 'Officer', 'Senior Officer', 'Manager'];
     const designation = randomElement(designations);
@@ -474,8 +525,8 @@ async function seedLeaveTypes() {
 
 async function seedHolidays() {
   console.log('🎉 Seeding holidays...');
-  
-  for (const holiday of KENYAN_HOLIDAYS) {
+
+  for (const holiday of NIGERIAN_HOLIDAYS) {
     if (holiday.date >= CONFIG.startDate && holiday.date <= CONFIG.endDate) {
       await pool.execute(
         `INSERT INTO holidays (holiday_name, date, branch_id, is_mandatory, description)
@@ -485,7 +536,7 @@ async function seedHolidays() {
       console.log(`   ✓ Added ${holiday.name} (${holiday.date})`);
     }
   }
-  
+
   console.log('✅ Holidays seeded\n');
 }
 
@@ -1718,6 +1769,10 @@ async function seedGuarantors() {
 async function printSummary() {
   console.log('📈 Database Summary:\n');
 
+  console.log('   Profile Pictures         : 10 images from DONE/img folder');
+  console.log('   Users                    : All staff have profile pictures assigned');
+  console.log('');
+
   const tables = [
     'branches', 'users', 'staff', 'departments', 'roles',
     'holidays', 'attendance', 'leave_types',
@@ -1833,7 +1888,7 @@ async function printSummary() {
   console.log('   Attachments: Form submissions and leave requests (100% coverage)');
   console.log('   Guarantors: 1-2 per staff member with documents');
   console.log('   Shifts: Standard hours (Mon-Sat), Sunday workers, Fasting period');
-  console.log('   Holidays: Kenyan public holidays (2025-2026)');
+  console.log('   Holidays: Nigerian public holidays (2025-2026)');
   console.log('   Migration: Leave request cancellation fields auto-applied\n');
 }
 
@@ -1846,6 +1901,9 @@ async function seedDatabase() {
   console.log('');
 
   try {
+    // Setup profile images from DONE/img
+    await setupProfileImages();
+
     // First: Ensure all required migrations are applied
     await ensureLeaveRequestCancellationFields();
 

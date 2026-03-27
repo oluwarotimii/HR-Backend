@@ -70,7 +70,7 @@ router.get('/', authenticateJWT, async (req: Request, res: Response) => {
       // Auto-mark absent settings
       auto_mark_absent_enabled: branch.auto_mark_absent_enabled ?? true,
       auto_mark_absent_time: branch.auto_mark_absent_time ?? '12:00',
-      auto_mark_absent_timezone: branch.auto_mark_absent_timezone ?? 'Africa/Nairobi',
+      auto_mark_absent_timezone: branch.auto_mark_absent_timezone ?? 'Africa/Lagos',
       attendance_lock_date: branch.attendance_lock_date,
       created_at: branch.created_at,
       updated_at: branch.updated_at
