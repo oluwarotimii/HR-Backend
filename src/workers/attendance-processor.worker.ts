@@ -2,9 +2,11 @@ import { pool } from '../config/database';
 import AttendanceModel from '../models/attendance.model';
 import HolidayModel from '../models/holiday.model';
 import LeaveHistoryModel from '../models/leave-history.model';
+import LeaveRequestModel from '../models/leave-request.model';
 import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import BranchModel from '../models/branch.model';
 import BranchWorkingDaysModel from '../models/branch-working-days.model';
+import StaffModel from '../models/staff.model';
 
 /**
  * Attendance Processor Worker

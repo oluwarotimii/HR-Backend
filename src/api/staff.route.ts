@@ -31,17 +31,27 @@ const router = express.Router();
 
 // Middleware to validate that the id parameter is numeric
 const validateNumericId = (req: Request, res: Response, next: NextFunction) => {
-  const id = req.params.id;
+  // Try multiple parameter names (id, userId, staffId)
+  const id = req.params.id || req.params.userId || req.params.staffId;
   const idString = Array.isArray(id) ? id[0] : id;
   const numericId = parseInt(idString);
 
+  console.log('[Backend Route] validateNumericId called');
+  console.log('[Backend Route] req.params:', req.params);
+  console.log('[Backend Route] Extracted id param:', id);
+  console.log('[Backend Route] idString:', idString);
+  console.log('[Backend Route] Parsed numericId:', numericId);
+  console.log('[Backend Route] isNaN(numericId):', isNaN(numericId));
+
   if (isNaN(numericId)) {
+    console.log('[Backend Route] ❌ Invalid numeric ID');
     return res.status(400).json({
       success: false,
       message: 'Invalid staff ID. Expected a numeric ID.'
     });
   }
 
+  console.log('[Backend Route] ✅ Valid numeric ID, setting req.numericId:', numericId);
   req.numericId = numericId;
   return next();
 };
@@ -80,7 +90,40 @@ router.get('/:id', authenticateJWT, validateNumericId, (req: Request, res: Respo
 }, getStaffById);
 
 router.post('/', authenticateJWT, checkPermission('staff.create'), createStaff);
-router.put('/:id', authenticateJWT, checkPermission('staff.update'), validateNumericId, updateStaff);
+
+// PUT /:userId - Update staff record by user_id
+// Users can update their own staff record, admins can update anyone's
+router.put('/:userId', authenticateJWT, validateNumericId, async (req: Request, res: Response) => {
+  console.log('========================================');
+  console.log('[Backend Route] PUT /staff/:userId handler called');
+  console.log('[Backend Route] req.params.userId:', req.params.userId);
+  console.log('[Backend Route] req.numericId:', req.numericId);
+  console.log('[Backend Route] req.currentUser.id:', req.currentUser?.id);
+  console.log('========================================');
+  
+  const requestedUserId = req.numericId;
+
+  // Check if user is updating their own record OR has admin permission
+  if (req.currentUser?.id !== requestedUserId) {
+    console.log('[Backend Route] User trying to update another user\'s record');
+    console.log('[Backend Route] currentUser.id:', req.currentUser?.id);
+    console.log('[Backend Route] requestedUserId:', requestedUserId);
+    // User is trying to update someone else's record - check permission
+    return checkPermission('staff.update')(req, res, () => {
+      // Admin has permission, call updateStaff
+      import('../controllers/staff.controller').then(({ updateStaff }) => {
+        return updateStaff(req, res);
+      });
+    });
+  }
+
+  console.log('[Backend Route] User updating their own record');
+  // User is updating their own record - allow it
+  import('../controllers/staff.controller').then(({ updateStaff }) => {
+    return updateStaff(req, res);
+  });
+});
+
 router.delete('/:id', authenticateJWT, checkPermission('staff.delete'), validateNumericId, deleteStaff);
 router.patch('/:id/terminate', authenticateJWT, checkPermission('staff.terminate'), validateNumericId, terminateStaff);
 

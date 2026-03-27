@@ -209,10 +209,11 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
     const workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@tripa.com.ng`;
 
     // Create user account immediately with temporary password
+    // Note: Use 'active' status since ENUM doesn't include 'pending'
     const [userResult]: any = await pool.execute(
       `INSERT INTO users
        (email, password_hash, full_name, phone, role_id, branch_id, status, must_change_password, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', 1, NOW(), NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, 'active', 1, NOW(), NOW())`,
       [
         workEmail,
         passwordHash,
@@ -226,11 +227,12 @@ export const inviteStaffMember = async (req: Request, res: Response) => {
     const userId = userResult.insertId;
 
     // Create staff record if department exists
+    // Note: Use 'active' status since ENUM doesn't include 'pending'
     if (departmentId) {
       await pool.execute(
         `INSERT INTO staff
          (user_id, employee_id, designation, department, branch_id, joining_date, employment_type, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'full_time', 'pending')`,
+         VALUES (?, ?, ?, ?, ?, ?, 'full_time', 'active')`,
         [
           userId,
           `EMP${userId.toString().padStart(4, '0')}`,
