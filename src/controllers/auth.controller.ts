@@ -58,8 +58,27 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
       role: user.role_id
     };
 
+    // Check if user wants persistent login (remember me)
+    const { rememberMe } = req.body;
+    const usePersistentLogin = rememberMe === true || rememberMe === 'true';
+    
+    // Generate tokens with appropriate expiration
     const accessToken = JwtUtil.generateAccessToken(payload);
     const refreshToken = JwtUtil.generateRefreshToken(payload);
+    
+    // Set cookie expiration based on remember me
+    const cookieMaxAge = usePersistentLogin 
+      ? 90 * 24 * 60 * 60 * 1000  // 90 days
+      : 7 * 24 * 60 * 60 * 1000;  // 7 days
+
+    // Set refresh token as HTTP-only cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: cookieMaxAge,
+      path: '/'
+    });
 
     // Get user permissions manifest
     const permissions = await PermissionService.generatePermissionManifest(user.id);

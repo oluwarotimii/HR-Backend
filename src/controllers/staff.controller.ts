@@ -65,18 +65,52 @@ export const getStaffById = async (req: Request, res: Response) => {
       }
     }
 
-    const staff = await StaffModel.findById(staffId);
+    console.log('[Backend] getStaffById called with ID:', staffId);
+    console.log('[Backend] Current user ID:', req.currentUser?.id);
+
+    // First try to find by staff.id
+    let staff = await StaffModel.findById(staffId);
+    
+    // If not found and the ID matches current user's ID, try finding by user_id
+    if (!staff && req.currentUser?.id === staffId) {
+      console.log('[Backend] Staff not found by ID, trying to find by user_id:', staffId);
+      staff = await StaffModel.findByUserId(staffId);
+    }
+    
     if (!staff) {
+      console.log('[Backend] Staff not found');
       return res.status(404).json({
         success: false,
         message: 'Staff not found'
       });
     }
 
+    console.log('[Backend] Found staff:', staff.id, 'for user:', staff.user_id);
+
+    // Also fetch user data to include profile_picture
+    const user = await UserModel.findById(staff.user_id);
+    
+    // Fetch addresses
+    const { pool } = await import('../config/database');
+    const [addresses]: any = await pool.execute(
+      'SELECT address_type, street_address FROM staff_addresses WHERE staff_id = ?',
+      [staff.id]
+    );
+    
+    const currentAddr = addresses.find((a: any) => a.address_type === 'current');
+    const permAddr = addresses.find((a: any) => a.address_type === 'permanent');
+    
+    const staffWithProfile = {
+      ...staff,
+      profile_picture: user?.profile_picture || null,
+      current_address: currentAddr?.street_address || '',
+      permanent_address: permAddr?.street_address || ''
+    };
+
     return res.json({
       success: true,
       message: 'Staff retrieved successfully',
-      data: { staff }
+      data: { staff: staffWithProfile }
     });
   } catch (error) {
     console.error('Get staff by ID error:', error);
@@ -94,7 +128,7 @@ export const createStaff = async (req: Request, res: Response) => {
       reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code,
       tax_identification_number, base_salary, pay_grade, pension_insurance_id,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-      date_of_birth, gender, current_address_id, permanent_address_id, company_assets,
+      date_of_birth, gender, current_address, permanent_address, company_assets,
       primary_skills, education_certifications, employee_photo, probation_end_date,
       contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
       provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email,
@@ -268,7 +302,7 @@ export const updateStaff = async (req: Request, res: Response) => {
       reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code,
       tax_identification_number, base_salary, pay_grade, pension_insurance_id,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-      date_of_birth, gender, current_address_id, permanent_address_id, company_assets,
+      date_of_birth, gender, current_address, permanent_address, company_assets,
       primary_skills, education_certifications, employee_photo, probation_end_date,
       contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
       provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email,
@@ -277,9 +311,9 @@ export const updateStaff = async (req: Request, res: Response) => {
       professional_certifications, certifications_json, languages_known, notice_period_start_date,
       notice_period_end_date, relieving_date, experience_years, previous_company,
       resignation_date, last_working_date, reason_for_leaving, reference_check_status,
-      background_verification_status, state_of_origin, lga,
+      background_verification_status, state_of_origin, lga, course_of_study,
       first_name, last_name, middle_name
-    }: StaffUpdate & { state_of_origin?: string; lga?: string } = req.body;
+    }: StaffUpdate & { state_of_origin?: string; lga?: string; course_of_study?: string; first_name?: string; last_name?: string; middle_name?: string } = req.body;
 
     // Prepare update data
     const updateData: StaffUpdate = {};
@@ -318,8 +352,9 @@ export const updateStaff = async (req: Request, res: Response) => {
       }
     }
     if (gender !== undefined) updateData.gender = gender;
-    if (current_address_id !== undefined) updateData.current_address_id = current_address_id;
-    if (permanent_address_id !== undefined) updateData.permanent_address_id = permanent_address_id;
+    // Skip current_address_id and permanent_address_id - we handle addresses via staff_addresses table
+    // if (current_address_id !== undefined) updateData.current_address_id = current_address_id;
+    // if (permanent_address_id !== undefined) updateData.permanent_address_id = permanent_address_id;
     if (company_assets !== undefined) updateData.company_assets = company_assets;
     if (primary_skills !== undefined) updateData.primary_skills = primary_skills;
     if (education_certifications !== undefined) updateData.education_certifications = education_certifications;
@@ -350,6 +385,7 @@ export const updateStaff = async (req: Request, res: Response) => {
     if (highest_qualification !== undefined) updateData.highest_qualification = highest_qualification;
     if (university_school !== undefined) updateData.university_school = university_school;
     if (year_of_graduation !== undefined) updateData.year_of_graduation = year_of_graduation;
+    if (course_of_study !== undefined && course_of_study !== '') updateData.course_of_study = course_of_study;
     if (professional_certifications !== undefined) updateData.professional_certifications = professional_certifications;
     if (certifications_json !== undefined) updateData.certifications_json = certifications_json;
     if (languages_known !== undefined) updateData.languages_known = languages_known;
@@ -381,6 +417,67 @@ export const updateStaff = async (req: Request, res: Response) => {
     const updatedStaff = await StaffModel.update(existingStaff.id, updateData);
     console.log('[Backend] ✅ StaffModel.update() succeeded');
     console.log('[Backend] Updated staff:', JSON.stringify(updatedStaff, null, 2));
+
+    // Handle address creation/update
+    const { pool } = await import('../config/database');
+    
+    // Handle current address
+    if (current_address && current_address.trim() !== '') {
+      try {
+        // Check if current address already exists for this staff
+        const [currentAddresses]: any = await pool.execute(
+          'SELECT id FROM staff_addresses WHERE staff_id = ? AND address_type = "current"',
+          [existingStaff.id]
+        );
+        
+        if (currentAddresses.length > 0) {
+          // Update existing address
+          await pool.execute(
+            'UPDATE staff_addresses SET street_address = ?, is_primary = FALSE WHERE id = ?',
+            [current_address, currentAddresses[0].id]
+          );
+          console.log('[Backend] ✅ Updated current address');
+        } else {
+          // Create new address
+          await pool.execute(
+            'INSERT INTO staff_addresses (staff_id, address_type, street_address, is_primary) VALUES (?, "current", ?, FALSE)',
+            [existingStaff.id, current_address]
+          );
+          console.log('[Backend] ✅ Created current address');
+        }
+      } catch (addrError) {
+        console.error('[Backend] Error handling current address:', addrError);
+      }
+    }
+    
+    // Handle permanent address
+    if (permanent_address && permanent_address.trim() !== '') {
+      try {
+        // Check if permanent address already exists for this staff
+        const [permAddresses]: any = await pool.execute(
+          'SELECT id FROM staff_addresses WHERE staff_id = ? AND address_type = "permanent"',
+          [existingStaff.id]
+        );
+        
+        if (permAddresses.length > 0) {
+          // Update existing address
+          await pool.execute(
+            'UPDATE staff_addresses SET street_address = ?, is_primary = TRUE WHERE id = ?',
+            [permanent_address, permAddresses[0].id]
+          );
+          console.log('[Backend] ✅ Updated permanent address');
+        } else {
+          // Create new address
+          await pool.execute(
+            'INSERT INTO staff_addresses (staff_id, address_type, street_address, is_primary) VALUES (?, "permanent", ?, TRUE)',
+            [existingStaff.id, permanent_address]
+          );
+          console.log('[Backend] ✅ Created permanent address');
+        }
+      } catch (addrError) {
+        console.error('[Backend] Error handling permanent address:', addrError);
+      }
+    }
 
     // Also update user table if name fields are provided
     if (first_name || last_name || middle_name) {

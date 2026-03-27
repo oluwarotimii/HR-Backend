@@ -37,9 +37,17 @@ export const upload = multer({
 
 export const uploadProfilePhoto = async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    console.log('========================================');
+    console.log('[Backend] Upload profile photo request received');
+    console.log('========================================');
+    console.log('[Backend] User ID param:', req.params.id);
+    console.log('[Backend] Current user ID:', req.currentUser?.id);
+    console.log('[Backend] File:', req.file);
     
+    const userId = parseInt(req.params.id);
+
     if (isNaN(userId)) {
+      console.log('[Backend] ❌ Invalid user ID');
       return res.status(400).json({
         success: false,
         message: 'Invalid user ID'
@@ -47,6 +55,7 @@ export const uploadProfilePhoto = async (req: Request, res: Response) => {
     }
 
     if (!req.file) {
+      console.log('[Backend] ❌ No file uploaded');
       return res.status(400).json({
         success: false,
         message: 'No file uploaded'
@@ -55,7 +64,11 @@ export const uploadProfilePhoto = async (req: Request, res: Response) => {
 
     // Update user profile picture
     const photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+    console.log('[Backend] Updating user', userId, 'with photo URL:', photoUrl);
+    
     await UserModel.update(userId, { profile_picture: photoUrl });
+    
+    console.log('[Backend] ✅ Profile photo uploaded successfully');
 
     return res.json({
       success: true,
@@ -65,7 +78,7 @@ export const uploadProfilePhoto = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Upload photo error:', error);
+    console.error('[Backend] Upload photo error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to upload profile photo'
