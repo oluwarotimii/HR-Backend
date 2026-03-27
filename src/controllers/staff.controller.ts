@@ -226,28 +226,42 @@ export const createStaff = async (req: Request, res: Response) => {
 
 export const updateStaff = async (req: Request, res: Response) => {
   try {
+    console.log('========================================');
     console.log('[Backend] Update staff request received');
-    console.log('[Backend] Staff ID:', req.params.id);
+    console.log('========================================');
+    console.log('[Backend] Staff ID param:', req.params.id);
+    console.log('[Backend] Current user ID:', req.currentUser?.id);
+    console.log('[Backend] Request body keys:', Object.keys(req.body));
     console.log('[Backend] Request body:', JSON.stringify(req.body, null, 2));
-    
-    // Use the validated numeric ID from middleware if available, otherwise parse from params
-    let staffId: number;
-    if (req.numericId !== undefined) {
-      staffId = req.numericId;
-    } else {
-      const idParam = req.params.id;
-      const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
-      staffId = parseInt(typeof idStr === 'string' ? idStr : '');
 
-      if (isNaN(staffId)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid staff ID'
-        });
-      }
+    // IMPORTANT: The ID in the URL is the USER_ID, not the staff record ID
+    // This is intentional for security - users can only update their own staff record
+    const userId = req.currentUser?.id;
+
+    if (!userId) {
+      console.log('[Backend] ❌ User not authenticated');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
     }
 
-    console.log('[Backend] Parsed staff ID:', staffId);
+    console.log('[Backend] ✅ User authenticated, userId:', userId);
+
+    // Find staff record by user_id (not by the URL param)
+    console.log('[Backend] Finding staff record by user_id:', userId);
+    const existingStaff = await StaffModel.findByUserId(userId);
+
+    if (!existingStaff) {
+      console.log('[Backend] ❌ Staff record not found for user_id:', userId);
+      return res.status(404).json({
+        success: false,
+        message: 'Staff record not found. Please contact HR to complete your profile setup.'
+      });
+    }
+
+    console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', userId);
+    console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
 
     const {
       employee_id, designation, department, branch_id, joining_date, employment_type, status,
@@ -263,50 +277,9 @@ export const updateStaff = async (req: Request, res: Response) => {
       professional_certifications, certifications_json, languages_known, notice_period_start_date,
       notice_period_end_date, relieving_date, experience_years, previous_company,
       resignation_date, last_working_date, reason_for_leaving, reference_check_status,
-      background_verification_status
-    }: StaffUpdate = req.body;
-
-    // Check if staff exists
-    const existingStaff = await StaffModel.findById(staffId);
-    if (!existingStaff) {
-      console.log('[Backend] Staff not found, creating new staff record...');
-      // If staff doesn't exist, create a new one
-      // This handles the case where user is filling personal details for the first time
-      try {
-        const createData: any = {
-          user_id: staffId,
-          phone_number,
-          personal_email,
-          work_email,
-          date_of_birth: date_of_birth ? new Date(date_of_birth) : undefined,
-          gender,
-          marital_status,
-          blood_group
-        };
-        
-        // Remove undefined fields
-        Object.keys(createData).forEach(key => {
-          if (createData[key] === undefined || createData[key] === null) {
-            delete createData[key];
-          }
-        });
-        
-        console.log('[Backend] Creating staff with data:', createData);
-        
-        // For now, just return success since the actual creation happens via staff invitation flow
-        // The FillPersonalDetailsScreen should use a different endpoint
-        return res.status(404).json({
-          success: false,
-          message: 'Staff record not found. Please contact HR to complete your profile setup.'
-        });
-      } catch (createError) {
-        console.error('[Backend] Error creating staff:', createError);
-        return res.status(500).json({
-          success: false,
-          message: 'Error creating staff record'
-        });
-      }
-    }
+      background_verification_status, state_of_origin, lga,
+      first_name, last_name, middle_name
+    }: StaffUpdate & { state_of_origin?: string; lga?: string } = req.body;
 
     // Prepare update data
     const updateData: StaffUpdate = {};
@@ -386,7 +359,8 @@ export const updateStaff = async (req: Request, res: Response) => {
     if (notice_period_start_date !== undefined) updateData.notice_period_start_date = new Date(notice_period_start_date);
     if (notice_period_end_date !== undefined) updateData.notice_period_end_date = new Date(notice_period_end_date);
     if (relieving_date !== undefined) updateData.relieving_date = new Date(relieving_date);
-    if (experience_years !== undefined) updateData.experience_years = experience_years;
+    // Handle numeric fields - convert empty strings to null
+    if (experience_years !== undefined && experience_years !== '') updateData.experience_years = experience_years;
     if (previous_company !== undefined) updateData.previous_company = previous_company;
     if (resignation_date !== undefined) updateData.resignation_date = new Date(resignation_date);
     if (last_working_date !== undefined) updateData.last_working_date = new Date(last_working_date);
@@ -394,14 +368,21 @@ export const updateStaff = async (req: Request, res: Response) => {
     if (reference_check_status !== undefined) updateData.reference_check_status = reference_check_status;
     if (background_verification_status !== undefined) updateData.background_verification_status = background_verification_status;
 
+    console.log('[Backend] Prepared update data:', JSON.stringify(updateData, null, 2));
+    console.log('[Backend] Update data keys:', Object.keys(updateData));
+
     // Get staff before update for audit log
     const beforeUpdate = { ...existingStaff };
 
-    // Update staff table
-    const updatedStaff = await StaffModel.update(staffId, updateData);
+    // Update staff table using the existing staff record's ID
+    console.log('[Backend] Calling StaffModel.update() with staffId:', existingStaff.id);
+    console.log('[Backend] Update data:', JSON.stringify(updateData, null, 2));
+
+    const updatedStaff = await StaffModel.update(existingStaff.id, updateData);
+    console.log('[Backend] ✅ StaffModel.update() succeeded');
+    console.log('[Backend] Updated staff:', JSON.stringify(updatedStaff, null, 2));
 
     // Also update user table if name fields are provided
-    const { first_name, last_name, middle_name } = req.body;
     if (first_name || last_name || middle_name) {
       const existingUser = await UserModel.findById(existingStaff.user_id);
       if (existingUser) {
@@ -409,13 +390,13 @@ export const updateStaff = async (req: Request, res: Response) => {
         if (first_name !== undefined) userUpdateData.first_name = first_name;
         if (last_name !== undefined) userUpdateData.last_name = last_name;
         if (middle_name !== undefined) userUpdateData.middle_name = middle_name;
-        
+
         // Rebuild full_name
         const newFullName = [first_name || existingUser.first_name, middle_name || existingUser.middle_name, last_name || existingUser.last_name]
           .filter(Boolean)
           .join(' ');
         userUpdateData.full_name = newFullName;
-        
+
         await UserModel.update(existingStaff.user_id, userUpdateData);
       }
     }
@@ -425,7 +406,7 @@ export const updateStaff = async (req: Request, res: Response) => {
       await AuditLogModel.logStaffOperation(
         req.currentUser.id,
         'staff.updated',
-        staffId,
+        existingStaff.id,
         beforeUpdate,
         updatedStaff,
         req.ip,
@@ -433,16 +414,25 @@ export const updateStaff = async (req: Request, res: Response) => {
       );
     }
 
+    console.log('[Backend] ✅ Staff update completed successfully');
+
     return res.json({
       success: true,
       message: 'Staff updated successfully',
       data: { staff: updatedStaff }
     });
-  } catch (error) {
-    console.error('Update staff error:', error);
+  } catch (error: any) {
+    console.error('========================================');
+    console.error('[Backend] ❌ Update staff error:', error);
+    console.error('[Backend] Error message:', error.message);
+    console.error('[Backend] Error stack:', error.stack);
+    console.error('[Backend] Error code:', error.code);
+    console.error('[Backend] Error errno:', error.errno);
+    console.error('[Backend] Error SQL:', error.sql);
+    console.error('========================================');
     return res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error: ' + error.message
     });
   }
 };
