@@ -4,6 +4,7 @@ import HolidayModel from '../models/holiday.model';
 import LeaveHistoryModel from '../models/leave-history.model';
 import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import BranchModel from '../models/branch.model';
+import BranchWorkingDaysModel from '../models/branch-working-days.model';
 
 /**
  * Attendance Processor Worker
@@ -177,6 +178,35 @@ class AttendanceProcessorWorker {
           leaveProcessedCount++;
           console.log(`${logPrefix} Leave attendance processed for user ${userId} from leave_requests`);
           continue;
+        }
+
+        // Check if it's a working day for this user's branch
+        const staffRecord = await StaffModel.findByUserId(userId);
+        if (staffRecord && staffRecord.branch_id) {
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const dayOfWeek = dayNames[date.getDay()];
+          
+          const isWorkingDay = await BranchWorkingDaysModel.isWorkingDay(staffRecord.branch_id, dayOfWeek);
+          
+          if (!isWorkingDay) {
+            // It's a non-working day (weekend/off-day) for this branch
+            const attendanceData = {
+              user_id: userId,
+              date: date,
+              status: 'weekend' as const,
+              check_in_time: null,
+              check_out_time: null,
+              location_coordinates: null,
+              location_verified: false,
+              location_address: null,
+              notes: 'Non-working day for branch'
+            };
+
+            await AttendanceModel.create(attendanceData);
+            skippedCount++;
+            console.log(`${logPrefix} Non-working day for user ${userId} on ${dateStr} (${dayOfWeek}), marking as weekend`);
+            continue;
+          }
         }
 
         // Get user's effective schedule for this date using the new shift scheduling system
