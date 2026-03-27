@@ -15,6 +15,12 @@ export interface Branch {
   location_radius_meters: number | null;
   attendance_mode: 'branch_based' | 'multiple_locations' | null;
   status: 'active' | 'inactive';
+  // Auto-mark absent settings
+  auto_mark_absent_enabled: boolean;
+  auto_mark_absent_time: string;
+  auto_mark_absent_timezone: string;
+  // Attendance lock tracking
+  attendance_lock_date: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -48,6 +54,12 @@ export interface BranchUpdate {
   location_radius_meters?: number;
   attendance_mode?: 'branch_based' | 'multiple_locations';
   status?: 'active' | 'inactive';
+  // Auto-mark absent settings
+  auto_mark_absent_enabled?: boolean;
+  auto_mark_absent_time?: string;
+  auto_mark_absent_timezone?: string;
+  // Attendance lock tracking
+  attendance_lock_date?: string | null;
 }
 
 class BranchModel {

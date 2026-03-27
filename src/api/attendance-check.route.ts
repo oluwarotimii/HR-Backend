@@ -261,12 +261,47 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
 
       // Check if user has approved leave on this date
       const [leaveHistory] = await pool.execute(
-        `SELECT id, start_date, end_date FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date`,
+        `SELECT id, start_date, end_date, status FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date`,
         [userId, new Date(date)]
       ) as [any[], any];
 
-      if (leaveHistory.length > 0) {
+      // Filter for approved leaves only (exclude pending/rejected/cancelled)
+      const approvedLeaves = leaveHistory.filter((l: any) => l.status === 'approved');
+
+      if (approvedLeaves.length > 0) {
         // Mark as on leave attendance
+        const attendanceData = {
+          user_id: userId,
+          date: new Date(date),
+          status: 'leave' as const,
+          check_in_time: null,
+          check_out_time: null,
+          location_coordinates: null,
+          location_verified: false,
+          location_address: null,
+          notes: 'On approved leave'
+        };
+
+        const newAttendance = await AttendanceModel.create(attendanceData);
+
+        return res.status(201).json({
+          success: true,
+          message: 'Leave attendance recorded successfully',
+          data: { attendance: newAttendance }
+        });
+      }
+
+      // Also check leave_requests table for approved but not cancelled leave
+      const [leaveRequests] = await pool.execute(
+        `SELECT id, start_date, end_date, status, cancelled_by, cancelled_at FROM leave_requests
+         WHERE user_id = ?
+           AND ? BETWEEN start_date AND end_date
+           AND status = 'approved'
+           AND (cancelled_by IS NULL OR cancelled_at IS NULL)`,
+        [userId, new Date(date)]
+      ) as [any[], any];
+
+      if (leaveRequests.length > 0) {
         const attendanceData = {
           user_id: userId,
           date: new Date(date),
