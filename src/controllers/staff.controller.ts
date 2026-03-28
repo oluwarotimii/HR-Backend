@@ -418,8 +418,46 @@ export const updateStaff = async (req: Request, res: Response) => {
     console.log('[Backend] ✅ StaffModel.update() succeeded');
     console.log('[Backend] Updated staff:', JSON.stringify(updatedStaff, null, 2));
 
-    // Handle address creation/update
+    // ALSO UPDATE users table with name, email, and phone fields
     const { pool } = await import('../config/database');
+    
+    // Build full_name from parts if any name field was provided
+    if (first_name !== undefined || last_name !== undefined || middle_name !== undefined) {
+      // Get current user data to merge with new values
+      const [userRows]: any = await pool.execute('SELECT full_name FROM users WHERE id = ?', [userId]);
+      const currentUser = userRows[0];
+      
+      if (currentUser) {
+        // Parse existing full_name or use empty string
+        const currentName = currentUser.full_name || '';
+        const nameParts = currentName.split(' ');
+        
+        // Update with new values or keep existing
+        const newFirstName = first_name !== undefined ? first_name : (nameParts[0] || '');
+        const newMiddleName = middle_name !== undefined ? middle_name : (nameParts.slice(1, -1).join(' ') || '');
+        const newLastName = last_name !== undefined ? last_name : (nameParts[nameParts.length - 1] || '');
+        
+        // Build new full_name
+        const newFullName = [newFirstName, newMiddleName, newLastName].filter(Boolean).join(' ').trim();
+        
+        if (newFullName) {
+          await pool.execute('UPDATE users SET full_name = ? WHERE id = ?', [newFullName, userId]);
+          console.log('[Backend] ✅ Updated user full_name to:', newFullName);
+        }
+      }
+    }
+
+    // Update user email if provided
+    if (personal_email !== undefined && personal_email) {
+      await pool.execute('UPDATE users SET email = ? WHERE id = ?', [personal_email, userId]);
+      console.log('[Backend] ✅ Updated user email to:', personal_email);
+    }
+
+    // Update user phone if provided
+    if (phone_number !== undefined && phone_number) {
+      await pool.execute('UPDATE users SET phone = ? WHERE id = ?', [phone_number, userId]);
+      console.log('[Backend] ✅ Updated user phone to:', phone_number);
+    }
     
     // Handle current address
     if (current_address && current_address.trim() !== '') {
@@ -476,25 +514,6 @@ export const updateStaff = async (req: Request, res: Response) => {
         }
       } catch (addrError) {
         console.error('[Backend] Error handling permanent address:', addrError);
-      }
-    }
-
-    // Also update user table if name fields are provided
-    if (first_name || last_name || middle_name) {
-      const existingUser = await UserModel.findById(existingStaff.user_id);
-      if (existingUser) {
-        const userUpdateData: any = {};
-        if (first_name !== undefined) userUpdateData.first_name = first_name;
-        if (last_name !== undefined) userUpdateData.last_name = last_name;
-        if (middle_name !== undefined) userUpdateData.middle_name = middle_name;
-
-        // Rebuild full_name
-        const newFullName = [first_name || existingUser.first_name, middle_name || existingUser.middle_name, last_name || existingUser.last_name]
-          .filter(Boolean)
-          .join(' ');
-        userUpdateData.full_name = newFullName;
-
-        await UserModel.update(existingStaff.user_id, userUpdateData);
       }
     }
 
