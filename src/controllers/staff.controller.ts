@@ -530,12 +530,41 @@ export const updateStaff = async (req: Request, res: Response) => {
       );
     }
 
+    // Fetch the complete updated record from BOTH tables
+    const [completeUpdatedStaff]: any = await pool.execute(`
+      SELECT 
+        s.id,
+        s.user_id,
+        s.employee_id,
+        s.designation,
+        s.department,
+        s.branch_id,
+        s.joining_date,
+        s.employment_type,
+        s.status as staff_status,
+        s.created_at,
+        s.updated_at,
+        u.full_name,
+        u.email,
+        u.phone,
+        b.name as branch_name,
+        r.name as role_name
+      FROM staff s
+      JOIN users u ON s.user_id = u.id
+      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE s.user_id = ?
+    `, [userId]);
+
     console.log('[Backend] ✅ Staff update completed successfully');
+    console.log('[Backend] ✅ Complete updated staff:', completeUpdatedStaff[0]);
 
     return res.json({
       success: true,
       message: 'Staff updated successfully',
-      data: { staff: updatedStaff }
+      data: { 
+        staff: completeUpdatedStaff[0] || updatedStaff 
+      }
     });
   } catch (error: any) {
     console.error('========================================');
