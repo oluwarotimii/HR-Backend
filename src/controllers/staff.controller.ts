@@ -398,6 +398,27 @@ export const updateStaff = async (req: Request, res: Response) => {
     // if (permanent_address_id !== undefined) updateData.permanent_address_id = permanent_address_id;
     if (company_assets !== undefined) updateData.company_assets = company_assets;
     if (primary_skills !== undefined) updateData.primary_skills = primary_skills;
+
+    // SECURITY: EMAIL PROTECTION
+    // staff cannot edit their own emails, only super admins can
+    const requesterRole = (req as any).user?.roleId;
+    const isSuperAdmin = requesterRole === 1;
+
+    if (work_email !== undefined) {
+      if (isSuperAdmin) {
+        updateData.work_email = work_email;
+      } else {
+        console.log('[Backend] ⚠️ work_email update blocked - non-admin attempt');
+      }
+    }
+
+    if (personal_email !== undefined) {
+      if (isSuperAdmin) {
+        updateData.personal_email = personal_email;
+      } else {
+        console.log('[Backend] ⚠️ personal_email update blocked - non-admin attempt');
+      }
+    }
     if (education_certifications !== undefined) updateData.education_certifications = education_certifications;
     if (employee_photo !== undefined) updateData.employee_photo = employee_photo;
     if (probation_end_date !== undefined) {
