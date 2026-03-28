@@ -3,7 +3,8 @@ import { authenticateJWT } from '../middleware/auth.middleware';
 import {
   getMyShifts,
   getMyUpcomingShifts,
-  getTeamShifts
+  getTeamShifts,
+  getMyTodayShift
 } from '../controllers/my-shifts.controller';
 
 const router = Router();
@@ -12,6 +13,13 @@ const router = Router();
  * My Shifts Routes
  * Base URL: /api/my-shifts
  */
+
+// GET /api/my-shifts/today - Get my today's shift (for dashboard)
+router.get(
+  '/today',
+  authenticateJWT,
+  getMyTodayShift
+);
 
 // GET /api/my-shifts - Get my shift assignments
 router.get(
