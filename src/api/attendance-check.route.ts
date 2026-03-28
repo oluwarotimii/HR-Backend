@@ -46,6 +46,46 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       });
     }
 
+    // NEW: Check if it's a working day and handle check-in cutoff
+    const effectiveSchedule = await ShiftSchedulingService.getEffectiveScheduleForDate(userId, new Date(date));
+    
+    if (!effectiveSchedule || !effectiveSchedule.start_time) {
+      // If it's a holiday, let the holiday-specific logic below handle it
+      // Otherwise, block check-in on non-working days
+      if (effectiveSchedule?.schedule_type !== 'holiday') {
+        const leaveCheck = await pool.execute(
+          `SELECT id FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved'`,
+          [userId, new Date(date)]
+        ) as [any[], any];
+
+        if (leaveCheck[0].length === 0) {
+          return res.status(403).json({
+            success: false,
+            message: `Today is a non-working day (${effectiveSchedule?.schedule_note || 'Scheduled Day Off'}). Check-in is not allowed.`,
+            data: { non_working_day: true }
+          });
+        }
+      }
+    } else {
+      // Check for cutoff (4 hours = 240 minutes)
+      const [startHours, startMinutes] = effectiveSchedule.start_time.split(':').map(Number);
+      const scheduledStart = new Date(date);
+      scheduledStart.setHours(startHours, startMinutes, 0, 0);
+      
+      const cutoffTime = new Date(scheduledStart.getTime() + (4 * 60 * 60 * 1000));
+      const serverTime = new Date();
+      
+      // If checking in for today, enforce the 4-hour window from scheduled start
+      const isToday = new Date(date).toISOString().split('T')[0] === serverTime.toISOString().split('T')[0];
+      if (isToday && serverTime > cutoffTime) {
+        return res.status(403).json({
+          success: false,
+          message: `The check-in window for your shift (started at ${effectiveSchedule.start_time}) has closed. Please contact your supervisor.`,
+          data: { cutoff_exceeded: true, scheduled_start: effectiveSchedule.start_time }
+        });
+      }
+    }
+
     // Check if user has already marked attendance for this date
     let attendanceRecord = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
 

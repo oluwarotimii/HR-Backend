@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/database';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 
 /**
  * Get my shifts - for employees to view their own shift assignments
@@ -436,3 +437,31 @@ function checkIfWorkingDay(assignment: any, dayName: string, currentDate: Date):
   
   return currentDate >= effectiveFrom && (!effectiveTo || currentDate <= effectiveTo);
 }
+
+/**
+ * Get my today's shift - for the dashboard to show current schedule and restrictions
+ * GET /api/my-shifts/today
+ */
+export const getMyTodayShift = async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const today = new Date();
+    // Use the scheduling service to get the authoritative effective schedule
+    const schedule = await ShiftSchedulingService.getEffectiveScheduleForDate(userId, today);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        schedule,
+        date: today.toISOString().split('T')[0]
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching today\'s shift:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
