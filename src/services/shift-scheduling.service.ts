@@ -55,14 +55,17 @@ export class ShiftSchedulingService {
       }
 
       // Next, check for any active shift assignments for this user
+      // Support for multiple assignments - we now look for ALL active assignments and find the one that matches the day
       const [assignments]: any = await pool.execute(
         `SELECT esa.custom_start_time, esa.custom_end_time, esa.custom_break_duration_minutes,
-                st.start_time as template_start_time, st.end_time as template_end_time, 
+                st.start_time as template_start_time, st.end_time as template_end_time,
                 st.break_duration_minutes as template_break_duration_minutes,
-                st.recurrence_pattern, st.recurrence_days
+                st.recurrence_pattern, st.recurrence_days, st.name as template_name,
+                esa.id as assignment_id, esa.recurrence_pattern as assignment_recurrence_pattern,
+                esa.recurrence_days as assignment_recurrence_days, esa.recurrence_day_of_week
          FROM employee_shift_assignments esa
          LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
-         WHERE esa.user_id = ? 
+         WHERE esa.user_id = ?
            AND esa.status = 'active'
            AND ? BETWEEN esa.effective_from AND COALESCE(esa.effective_to, '9999-12-31')`,
         [userId, dateStr]
@@ -73,27 +76,58 @@ export class ShiftSchedulingService {
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayName = dayNames[dayOfWeek];
 
-        for (const assignment of assignments) {
-          // Check if this date falls within the recurrence pattern
-          if (assignment.recurrence_pattern) {
-            // If recurrence_days is set, check if this day is included
-            if (assignment.recurrence_days) {
-              const recurrenceDays = JSON.parse(assignment.recurrence_days);
-              if (!recurrenceDays.includes(dayName) && !recurrenceDays.includes(dayOfWeek)) {
-                // This day is not part of this specific assignment's recurring schedule, 
-                // continue to look at other assignments
-                continue;
+        // Helper function to get days from assignment
+        const getDaysFromAssignment = (
+          recurrencePattern: string,
+          recurrenceDays: string | null,
+          recurrenceDayOfWeek: string | null
+        ): string[] => {
+          if (!recurrencePattern || recurrencePattern === 'none' || recurrencePattern === 'daily') {
+            return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+          }
+          if (recurrencePattern === 'weekly') {
+            if (recurrenceDays) {
+              try {
+                const parsed = JSON.parse(recurrenceDays);
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
               }
             }
+            if (recurrenceDayOfWeek) {
+              return [recurrenceDayOfWeek];
+            }
+            return [];
+          }
+          if (recurrencePattern === 'monthly') {
+            if (recurrenceDayOfWeek) {
+              return [recurrenceDayOfWeek];
+            }
+            return [];
+          }
+          return [];
+        };
+
+        // Find the assignment that matches this specific day
+        for (const assignment of assignments) {
+          const recurrencePattern = assignment.assignment_recurrence_pattern || assignment.recurrence_pattern || 'none';
+          const recurrenceDays = assignment.assignment_recurrence_days || assignment.recurrence_days;
+          const recurrenceDayOfWeek = assignment.recurrence_day_of_week;
+
+          const assignedDays = getDaysFromAssignment(recurrencePattern, recurrenceDays, recurrenceDayOfWeek);
+
+          // Check if this assignment includes the current day
+          if (assignedDays.length > 0 && !assignedDays.includes(dayName) && !assignedDays.includes(dayOfWeek.toString())) {
+            continue; // This assignment doesn't cover this day, try next one
           }
 
-          // If we found an assignment that includes this day (or is non-recurring), return its timing
+          // Found a matching assignment for this day
           return {
             start_time: assignment.custom_start_time || assignment.template_start_time,
             end_time: assignment.custom_end_time || assignment.template_end_time,
             break_duration_minutes: assignment.custom_break_duration_minutes || assignment.template_break_duration_minutes || 0,
-            schedule_type: assignment.recurrence_pattern || 'standard',
-            schedule_note: 'Standard schedule'
+            schedule_type: `assignment_${assignment.assignment_id}_${recurrencePattern}`,
+            schedule_note: assignment.template_name || `Shift assignment ${assignment.assignment_id}`
           };
         }
 
@@ -105,6 +139,44 @@ export class ShiftSchedulingService {
           schedule_type: 'non_working_day',
           schedule_note: 'Non-working day based on recurrence patterns'
         };
+      }
+
+      // Next, check for any shift timings assigned to this user (Multi-shift support without migrations)
+      const [shiftTimings]: any = await pool.execute(
+        `SELECT shift_name, start_time, end_time, override_branch_id
+         FROM shift_timings
+         WHERE user_id = ? 
+           AND effective_from <= ? 
+           AND (effective_to IS NULL OR effective_to >= ?)
+         ORDER BY id DESC`,
+        [userId, dateStr, dateStr]
+      );
+
+      if (shiftTimings.length > 0) {
+        const dayOfWeek = date.getDay();
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayNames[dayOfWeek];
+
+        for (const shift of shiftTimings) {
+          // Check if shift_name contains day constraints like "[monday,tuesday]"
+          const dayMatch = shift.shift_name.match(/\[(.*?)\]/);
+          if (dayMatch) {
+            const days = dayMatch[1].split(',').map((d: string) => d.trim().toLowerCase());
+            // Support both full day names and indices if needed
+            if (!days.includes(dayName) && !days.includes(dayOfWeek.toString())) {
+              continue; // Day doesn't match, try next shift timing
+            }
+          }
+
+          // Found a matching shift timing
+          return {
+            start_time: shift.start_time,
+            end_time: shift.end_time,
+            break_duration_minutes: 0, // shift_timings table doesn't have break_duration, default to 0
+            schedule_type: 'multi_shift_timing',
+            schedule_note: shift.shift_name
+          };
+        }
       }
 
       // Finally, fall back to branch working hours if no specific user assignment exists
