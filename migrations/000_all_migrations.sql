@@ -3242,3 +3242,235 @@ WHERE TABLE_SCHEMA = DATABASE()
 ORDER BY ORDINAL_POSITION;
 
 
+-- ============================================================================
+-- Migration: 105_remove_assignment_unique_constraint.sql
+-- ============================================================================
+
+-- Migration: Remove unique constraint on employee_shift_assignments
+-- Description: Allows multiple active shift assignments per employee
+--              Day-based conflict prevention is handled at application level
+-- Author: HR System
+-- Date: 2026-03-29
+
+-- Step 1: Drop the unique constraint that prevents multiple active assignments
+-- This constraint was preventing employees from having multiple shifts
+-- even when they don't conflict on days
+ALTER TABLE employee_shift_assignments
+DROP INDEX unique_active_assignment;
+
+-- Step 2: Add a new composite index for efficient queries (optional but recommended)
+-- This improves performance for user-specific assignment queries
+ALTER TABLE employee_shift_assignments
+ADD INDEX idx_user_status_dates (user_id, status, effective_from, effective_to);
+
+-- Step 3: Add index for day-based queries (optional)
+-- Improves performance when filtering by recurrence pattern
+ALTER TABLE employee_shift_assignments
+ADD INDEX idx_recurrence (recurrence_pattern(10), recurrence_days(50));
+
+-- Verification: Check that the unique constraint was dropped
+SELECT 
+  TABLE_NAME, 
+  INDEX_NAME, 
+  NON_UNIQUE 
+FROM INFORMATION_SCHEMA.STATISTICS 
+WHERE TABLE_SCHEMA = DATABASE() 
+  AND TABLE_NAME = 'employee_shift_assignments'
+  AND INDEX_NAME = 'unique_active_assignment';
+
+-- Should return 0 rows if successful
+
+-- Step 4: Add documentation comment (MySQL 8.0+)
+ALTER TABLE employee_shift_assignments
+MODIFY COLUMN status ENUM('pending', 'approved', 'active', 'expired', 'cancelled') 
+DEFAULT 'pending' 
+COMMENT 'Multiple active assignments per user are now allowed. Day-based conflict prevention is handled at application level.';
+
+-- Rollback (if needed):
+-- ALTER TABLE employee_shift_assignments ADD UNIQUE KEY unique_active_assignment (user_id, status);
+-- ALTER TABLE employee_shift_assignments DROP INDEX idx_user_status_dates;
+-- ALTER TABLE employee_shift_assignments DROP INDEX idx_recurrence;
+-- UPDATE employee_shift_assignments SET status = 'active' WHERE status = 'active_multi';
+-- ============================================================================
+-- Migration: 106_add_branch_to_shift_templates.sql
+-- ============================================================================
+
+-- Migration: Add branch association to shift templates
+-- Description: Enables branch-level shift template management
+--              Templates can be global (NULL branch_id) or branch-specific
+-- Author: HR System
+-- Date: 2026-03-29
+
+-- Step 1: Add branch_id column to shift_templates
+ALTER TABLE shift_templates
+ADD COLUMN branch_id INT NULL
+AFTER created_by;
+
+-- Step 2: Add foreign key constraint
+ALTER TABLE shift_templates
+ADD CONSTRAINT fk_shift_template_branch
+FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL;
+
+-- Step 3: Add index for branch-based queries
+ALTER TABLE shift_templates
+ADD INDEX idx_branch (branch_id);
+
+-- Step 4: Add index for combined branch + active queries
+ALTER TABLE shift_templates
+ADD INDEX idx_branch_active (branch_id, is_active);
+
+-- Step 5: Update existing templates
+-- Set branch_id based on creator's branch for existing templates
+-- This ensures existing templates are associated with the creator's branch
+UPDATE shift_templates st
+INNER JOIN users u ON st.created_by = u.id
+INNER JOIN staff s ON u.id = s.user_id
+SET st.branch_id = s.branch_id
+WHERE st.branch_id IS NULL
+  AND s.branch_id IS NOT NULL;
+
+-- Step 6: Add documentation comment
+ALTER TABLE shift_templates
+MODIFY COLUMN branch_id INT NULL 
+COMMENT 'NULL = global template (all branches), INT = branch-specific template. When NULL, template is visible to all branches.';
+
+-- Verification: Check templates by branch
+SELECT 
+  st.id,
+  st.name,
+  st.branch_id,
+  b.name as branch_name,
+  CASE 
+    WHEN st.branch_id IS NULL THEN 'Global'
+    ELSE 'Branch-specific'
+  END as template_type
+FROM shift_templates st
+LEFT JOIN branches b ON st.branch_id = b.id
+ORDER BY st.branch_id, st.name;
+
+-- Query to find global templates (available to all branches)
+SELECT COUNT(*) as global_templates
+FROM shift_templates
+WHERE branch_id IS NULL;
+
+-- Query to find branch-specific templates
+SELECT 
+  b.name as branch_name,
+  COUNT(st.id) as template_count
+FROM shift_templates st
+INNER JOIN branches b ON st.branch_id = b.id
+GROUP BY b.id, b.name;
+
+-- Rollback (if needed):
+-- ALTER TABLE shift_templates DROP FOREIGN KEY fk_shift_template_branch;
+-- ALTER TABLE shift_templates DROP INDEX idx_branch;
+-- ALTER TABLE shift_templates DROP INDEX idx_branch_active;
+-- ALTER TABLE shift_templates DROP COLUMN branch_id;
+-- Migration: Create daily shift assignments table
+-- Description: Enables creating one-off shifts for specific dates
+-- ============================================================================
+-- Migration: 107_add_daily_shift_support.sql
+-- ============================================================================
+
+-- Migration: Create daily_shift_assignments table
+-- Description: Enables creating one-off shifts for specific dates
+--              Useful for daily monitoring, adjustments, and exceptions
+--              This is OPTIONAL - only run if you need daily shift management
+-- Author: HR System
+-- Date: 2026-03-29
+
+-- Step 1: Create daily_shift_assignments table
+CREATE TABLE IF NOT EXISTS daily_shift_assignments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  branch_id INT NOT NULL,
+  shift_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  break_duration_minutes INT DEFAULT 30,
+  shift_type ENUM('scheduled', 'exception', 'overtime', 'on_call') DEFAULT 'scheduled',
+  notes TEXT,
+  override_shift_template_id INT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  -- Foreign keys
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (override_shift_template_id) REFERENCES shift_templates(id) ON DELETE SET NULL,
+
+  -- Constraints
+  UNIQUE KEY unique_user_date (user_id, shift_date),
+  
+  -- Indexes for efficient queries
+  INDEX idx_user_date (user_id, shift_date),
+  INDEX idx_branch_date (branch_id, shift_date),
+  INDEX idx_date (shift_date),
+  INDEX idx_user_branch (user_id, branch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Step 2: Add documentation comments
+ALTER TABLE daily_shift_assignments
+MODIFY COLUMN shift_type ENUM('scheduled', 'exception', 'overtime', 'on_call') 
+COMMENT 'scheduled=regular shift, exception=override to recurring, overtime=extra hours, on_call=standby';
+
+ALTER TABLE daily_shift_assignments
+MODIFY COLUMN override_shift_template_id INT NULL
+COMMENT 'If set, this daily shift overrides the recurring shift template for this date';
+
+-- Step 3: Create view for easy daily shift monitoring (optional)
+CREATE OR REPLACE VIEW v_daily_shifts_summary AS
+SELECT 
+  dsa.id,
+  dsa.user_id,
+  u.full_name as employee_name,
+  u.email as employee_email,
+  dsa.branch_id,
+  b.name as branch_name,
+  dsa.shift_date,
+  DAYNAME(dsa.shift_date) as day_of_week,
+  dsa.start_time,
+  dsa.end_time,
+  dsa.break_duration_minutes,
+  TIMESTAMPDIFF(MINUTE, dsa.start_time, dsa.end_time) - dsa.break_duration_minutes as net_working_minutes,
+  ROUND((TIMESTAMPDIFF(MINUTE, dsa.start_time, dsa.end_time) - dsa.break_duration_minutes) / 60, 2) as net_working_hours,
+  dsa.shift_type,
+  dsa.notes,
+  dsa.created_by,
+  creator.full_name as created_by_name,
+  dsa.created_at,
+  dsa.updated_at
+FROM daily_shift_assignments dsa
+LEFT JOIN users u ON dsa.user_id = u.id
+LEFT JOIN branches b ON dsa.branch_id = b.id
+LEFT JOIN users creator ON dsa.created_by = creator.id
+ORDER BY dsa.shift_date DESC, dsa.branch_id, u.full_name;
+
+-- Verification: Show table structure
+DESCRIBE daily_shift_assignments;
+
+-- Show indexes
+SHOW INDEX FROM daily_shift_assignments;
+
+-- Sample query: Get daily shifts for today
+SELECT * FROM v_daily_shifts_summary
+WHERE shift_date = CURDATE();
+
+-- Sample query: Get daily shifts for a specific branch this week
+SELECT * FROM v_daily_shifts_summary
+WHERE branch_id = 1
+  AND shift_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY);
+
+-- Sample query: Count shifts by type
+SELECT 
+  shift_type,
+  COUNT(*) as count,
+  SUM(TIMESTAMPDIFF(MINUTE, start_time, end_time) - break_duration_minutes) / 60 as total_hours
+FROM daily_shift_assignments
+GROUP BY shift_type;
+
+-- Rollback (if needed):
+-- DROP VIEW IF EXISTS v_daily_shifts_summary;
+-- DROP TABLE IF EXISTS daily_shift_assignments;
