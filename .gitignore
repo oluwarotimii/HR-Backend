@@ -16,6 +16,12 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.render
+.env.prod
+
+# Render
+render.yaml
+.renderignore
 
 # Logs
 logs/
@@ -47,3 +53,8 @@ server.pid
 # Uploads (keep this folder but don't commit files)
 uploads/*
 !uploads/.gitkeep
+
+# Documentation (optional)
+docs/
+*.md
+!README.md
