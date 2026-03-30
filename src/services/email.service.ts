@@ -12,12 +12,12 @@ export const sendWelcomeEmail = async ({ to, fullName }: WelcomeEmailProps): Pro
     const { error } = await resend.emails.send({
       from: process.env.FROM_EMAIL || 'onboarding@tripa.com.ng',
       to: to,
-      subject: 'Welcome to Tripa HR Management System!',
+      subject: 'Welcome to Femtech HR Management System!',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #2c3e50;">Welcome, ${fullName}!</h1>
 
-          <p>Congratulations on initializing your Tripa HR Management System. You've successfully set up your Super Admin account.</p>
+          <p>Congratulations on initializing your Femtech HR Management System. You've successfully set up your Super Admin account.</p>
 
           <h2 style="color: #3498db;">Getting Started:</h2>
           <ol>
@@ -36,11 +36,11 @@ export const sendWelcomeEmail = async ({ to, fullName }: WelcomeEmailProps): Pro
           <p>If you have any questions or need assistance, please reach out to our support team.</p>
 
           <p>Best regards,<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">
-            This email was sent to ${to} because you registered as a Super Admin for Tripa HR Management System.
+            This email was sent to ${to} because you registered as a Super Admin for Femtech HR Management System.
           </p>
         </div>
       `
@@ -79,12 +79,12 @@ export const sendStaffInvitationEmail = async ({
     const { error } = await resend.emails.send({
       from: process.env.FROM_EMAIL || 'invitations@tripa.com.ng',
       to: to,
-      subject: 'Welcome to Tripa! Your Work Account Credentials',
+      subject: 'Welcome to Femtech! Your Work Account Credentials',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #2c3e50;">Welcome to Tripa, ${fullName}!</h1>
+          <h1 style="color: #2c3e50;">Welcome to Femtech, ${fullName}!</h1>
 
-          <p>You've been invited by ${fromAdmin} to join Tripa HR Management System.</p>
+          <p>You've been invited by ${fromAdmin} to join Femtech HR Management System.</p>
 
           <h2 style="color: #3498db;">Your Work Account Credentials:</h2>
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #3498db; margin: 20px 0;">
@@ -93,7 +93,7 @@ export const sendStaffInvitationEmail = async ({
           </div>
 
           <h2 style="color: #3498db; margin-top: 30px;">Access Your Account:</h2>
-          
+
           <p style="margin: 20px 0;">You can access your account through our Staff Portal:</p>
           <p style="text-align: center; margin: 30px 0;">
             <a href="https://fempwa.vercel.app"
@@ -114,11 +114,11 @@ export const sendStaffInvitationEmail = async ({
           <p>If you have any questions or need assistance, please contact your administrator.</p>
 
           <p>Welcome aboard!<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">
-            This email was sent to ${to} because ${fromAdmin} invited you to join Tripa HR Management System.
+            This email was sent to ${to} because ${fromAdmin} invited you to join Femtech HR Management System.
           </p>
         </div>
       `
@@ -161,7 +161,7 @@ export const sendPayrollReady = async ({ to, month, year }: PayrollReadyEmailPro
           <p>If you have any questions about your payslip, please contact your HR department.</p>
 
           <p>Best regards,<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">
