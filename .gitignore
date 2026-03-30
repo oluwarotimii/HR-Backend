@@ -18,7 +18,9 @@ build/
 .env.production.local
 .env.render
 .env.prod
-.env.example
+
+# Allow .env.example (template with no secrets)
+!.env.example
 
 # Render
 render.yaml
