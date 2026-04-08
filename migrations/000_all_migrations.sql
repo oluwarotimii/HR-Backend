@@ -416,6 +416,8 @@ CREATE TABLE IF NOT EXISTS shift_timings (
   end_time TIME NOT NULL, -- Standard end time (e.g., '17:00:00')
   effective_from DATE NOT NULL,
   effective_to DATE NULL, -- NULL means indefinite
+  recurrence_pattern ENUM('none', 'daily', 'weekly', 'monthly') DEFAULT 'weekly',
+  recurrence_days JSON, -- JSON array of day names (e.g., ["monday", "saturday"])
   override_branch_id INT NULL, -- Specific branch override
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -423,7 +425,8 @@ CREATE TABLE IF NOT EXISTS shift_timings (
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (override_branch_id) REFERENCES branches(id),
   INDEX idx_user_effective (user_id, effective_from, effective_to),
-  INDEX idx_branch (override_branch_id)
+  INDEX idx_branch (override_branch_id),
+  INDEX idx_recurrence (user_id, recurrence_pattern, effective_from, effective_to)
 );
 
 -- ============================================================================
@@ -490,7 +493,7 @@ CREATE TABLE IF NOT EXISTS attendance_locations (
 -- Migration: 024_create_audit_logs_table.sql
 -- ============================================================================
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NULL,
     action VARCHAR(255) NOT NULL,
@@ -3474,3 +3477,31 @@ GROUP BY shift_type;
 -- Rollback (if needed):
 -- DROP VIEW IF EXISTS v_daily_shifts_summary;
 -- DROP TABLE IF EXISTS daily_shift_assignments;
+
+-- ============================================================================
+-- Migration: 108_add_recurrence_to_shift_timings.sql
+-- ============================================================================
+
+-- Migration: Add recurrence fields to shift_timings table
+-- Description: Enables day-of-week constraints on shift_timings records
+--              Required for multi-shift assignments (e.g. Saturday-only shift)
+
+-- Step 1: Add recurrence_pattern column
+ALTER TABLE shift_timings
+ADD COLUMN IF NOT EXISTS recurrence_pattern ENUM('none', 'daily', 'weekly', 'monthly') DEFAULT 'weekly'
+AFTER effective_to;
+
+-- Step 2: Add recurrence_days column (JSON array of day names)
+ALTER TABLE shift_timings
+ADD COLUMN IF NOT EXISTS recurrence_days JSON
+AFTER recurrence_pattern;
+
+-- Step 3: Add index for efficient recurring shift queries
+ALTER TABLE shift_timings
+ADD INDEX IF NOT EXISTS idx_recurrence (user_id, recurrence_pattern, effective_from, effective_to);
+
+-- Step 4: Update existing shift timings to have recurrence_pattern = 'daily'
+-- (existing records without recurrence should apply to all days to maintain behavior)
+UPDATE shift_timings
+SET recurrence_pattern = 'daily'
+WHERE recurrence_pattern IS NULL OR recurrence_pattern = 'weekly';

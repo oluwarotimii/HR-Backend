@@ -50,9 +50,10 @@ const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
   keepAliveInitialDelay: 0,
   namedPlaceholders: true,
   multipleStatements: true,
-  ssl: {
+  // SSL only for production (TiDB Cloud), disabled for local development
+  ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? {
     rejectUnauthorized: true
-  }
+  } : false
 };
 
 // Create a connection pool
