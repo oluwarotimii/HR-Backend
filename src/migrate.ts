@@ -22,6 +22,10 @@ const dbConfig = {
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  // SSL only for production (TiDB Cloud), disabled for local development
+  ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? {
+    rejectUnauthorized: true
+  } : false
 };
 
 // Create a connection pool without database name
@@ -37,6 +41,10 @@ async function createDatabaseIfNotExists(): Promise<void> {
       port: parseInt(process.env.DB_PORT || '3306'),
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
+      // SSL only for production (TiDB Cloud), disabled for local development
+      ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? {
+        rejectUnauthorized: true
+      } : false
     });
 
     const dbName = process.env.DB_NAME || 'hr_management_system';
@@ -88,6 +96,8 @@ async function runMigrations(): Promise<void> {
             // Skip duplicate column errors for ALTER TABLE statements
             if (stmtError.code === 'ER_DUP_FIELDNAME' || stmtError.errno === 1060) {
               console.warn(`Warning: Column already exists in ${file}, skipping:`, stmtError.message);
+            } else if (stmtError.code === 'ER_DUP_ENTRY' || stmtError.errno === 1062) {
+              console.warn(`Warning: Duplicate entry in ${file}, skipping:`, stmtError.message);
             } else {
               console.error(`Error executing statement in ${file}:`, stmtError);
               console.error('Statement:', statement.trim());

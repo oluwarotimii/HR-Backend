@@ -8,6 +8,8 @@ export interface ShiftTiming {
   end_time: string; // Format: "HH:mm:ss"
   effective_from: Date;
   effective_to: Date | null;
+  recurrence_pattern: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_days: string | null; // JSON array of day names
   override_branch_id: number | null;
   created_at: Date;
   updated_at: Date;
@@ -20,6 +22,8 @@ export interface ShiftTimingInput {
   effective_from: Date;
   user_id?: number | null;
   effective_to?: Date | null;
+  recurrence_pattern?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_days?: string[] | null;
   override_branch_id?: number | null;
 }
 
@@ -29,6 +33,8 @@ export interface ShiftTimingUpdate {
   end_time?: string; // Format: "HH:mm:ss"
   effective_from?: Date;
   effective_to?: Date | null;
+  recurrence_pattern?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_days?: string[] | null;
   override_branch_id?: number | null;
 }
 
@@ -82,8 +88,10 @@ class ShiftTimingModel {
 
   static async create(shiftData: ShiftTimingInput): Promise<ShiftTiming> {
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} (user_id, shift_name, start_time, end_time, effective_from, effective_to, override_branch_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.tableName} 
+       (user_id, shift_name, start_time, end_time, effective_from, effective_to, 
+        recurrence_pattern, recurrence_days, override_branch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         shiftData.user_id || null,
         shiftData.shift_name,
@@ -91,6 +99,8 @@ class ShiftTimingModel {
         shiftData.end_time,
         shiftData.effective_from,
         shiftData.effective_to || null,
+        shiftData.recurrence_pattern || 'weekly',
+        shiftData.recurrence_days ? JSON.stringify(shiftData.recurrence_days) : null,
         shiftData.override_branch_id || null
       ]
     );
