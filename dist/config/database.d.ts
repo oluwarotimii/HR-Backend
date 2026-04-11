@@ -28,6 +28,9 @@ declare const dbConfig: {
     keepAliveInitialDelay: number;
     namedPlaceholders: true;
     multipleStatements: true;
+    ssl: boolean | {
+        rejectUnauthorized: true;
+    };
 };
 declare const pool: mysql.Pool;
 export declare function initializeRedis(): Promise<void>;

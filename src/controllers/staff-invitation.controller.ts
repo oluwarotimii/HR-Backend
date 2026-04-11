@@ -519,7 +519,8 @@ export const resendInvitation = async (req: Request, res: Response) => {
     );
 
     // Send invitation email with new credentials
-    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
+    const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
+    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
 
     try {
       await sendStaffInvitationEmail({
@@ -640,7 +641,8 @@ export const acceptInvitation = async (req: Request, res: Response) => {
     }
 
     // Generate work email
-    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
+    const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
+    const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
 
     // Hash the new password
     const newPasswordHash = await bcrypt.hash(password, 10);

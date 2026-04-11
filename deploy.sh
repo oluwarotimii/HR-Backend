@@ -6,7 +6,7 @@
 echo "🚀 Starting Femtech HR Backend Deployment..."
 
 # Navigate to app directory
-cd /home/ptzxhqgs/hrapi.tripa.com.ng || exit 1
+cd /home/ptzxhqgs/hrapi.femtechaccess.com.ng || exit 1
 
 echo "📦 Pulling latest code from Git..."
 git pull origin main
@@ -33,5 +33,5 @@ echo "DB_USER=your_db_user"
 echo "DB_PASS=your_db_password"
 echo "DB_NAME=your_db_name"
 echo "JWT_SECRET=your_secret_key_32_chars_min"
-echo "ALLOWED_ORIGINS=https://hrapp.tripa.com.ng,https://hradmin.tripa.com.ng"
+echo "ALLOWED_ORIGINS=https://hrapp.femtechaccess.com.ng,https://hradmin.femtechaccess.com.ng"
 echo "EOF"

@@ -9,8 +9,9 @@ Object.defineProperty(exports, "sendPayrollReady", { enumerable: true, get: func
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
 const sendGenericEmail = async ({ to, subject, html }) => {
     try {
+        const defaultEmail = process.env.EMAIL_FROM || `noreply@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
         const { error } = await resend.emails.send({
-            from: process.env.FROM_EMAIL || 'noreply@tripa.com.ng',
+            from: defaultEmail,
             to: to,
             subject: subject,
             html: html
