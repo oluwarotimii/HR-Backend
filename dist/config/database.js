@@ -51,6 +51,9 @@ const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
     keepAliveInitialDelay: 0,
     namedPlaceholders: true,
     multipleStatements: true,
+    ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? {
+        rejectUnauthorized: true
+    } : false
 };
 exports.dbConfig = dbConfig;
 const pool = promise_1.default.createPool(dbConfig);

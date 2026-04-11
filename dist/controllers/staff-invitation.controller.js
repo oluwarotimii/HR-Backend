@@ -165,7 +165,7 @@ const inviteStaffMember = async (req, res) => {
         }
         const adminId = req.currentUser?.userId;
         const passwordHash = await bcryptjs_1.default.hash(temporaryPassword, 10);
-        const workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@tripa.com.ng`;
+        const workEmail = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@femtechaccess.com.ng`;
         const [userResult] = await database_1.pool.execute(`INSERT INTO users
        (email, password_hash, full_name, phone, role_id, branch_id, status, must_change_password, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 'active', 1, NOW(), NOW())`, [
@@ -414,7 +414,8 @@ const resendInvitation = async (req, res) => {
             await database_1.pool.execute(`UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = NOW() WHERE id = ?`, [newPasswordHash, userId]);
         }
         await database_1.pool.execute('UPDATE staff_invitations SET token = ?, expires_at = ? WHERE id = ?', [newToken, newExpiresAt, id]);
-        const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
+        const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
+        const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
         try {
             await (0, email_service_1.sendStaffInvitationEmail)({
                 to: invitation.email,
@@ -511,7 +512,8 @@ const acceptInvitation = async (req, res) => {
                 message: 'Invalid invitation: no user account found'
             });
         }
-        const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@tripa.com.ng`;
+        const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
+        const workEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
         const newPasswordHash = await bcryptjs_1.default.hash(password, 10);
         const connection = await database_1.pool.getConnection();
         try {

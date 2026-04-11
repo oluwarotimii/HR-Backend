@@ -9,8 +9,9 @@ interface WelcomeEmailProps {
 
 export const sendWelcomeEmail = async ({ to, fullName }: WelcomeEmailProps): Promise<void> => {
   try {
+    const defaultEmail = process.env.EMAIL_FROM || `onboarding@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
     const { error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || 'onboarding@tripa.com.ng',
+      from: defaultEmail,
       to: to,
       subject: 'Welcome to Femtech HR Management System!',
       html: `
@@ -76,8 +77,9 @@ export const sendStaffInvitationEmail = async ({
   fromAdmin
 }: StaffInvitationEmailProps): Promise<void> => {
   try {
+    const defaultEmail = process.env.EMAIL_FROM || `invitations@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
     const { error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || 'invitations@tripa.com.ng',
+      from: defaultEmail,
       to: to,
       subject: 'Welcome to Femtech! Your Work Account Credentials',
       html: `
@@ -144,8 +146,9 @@ interface PayrollReadyEmailProps {
 
 export const sendPayrollReady = async ({ to, month, year }: PayrollReadyEmailProps): Promise<{success: boolean, error?: string}> => {
   try {
+    const defaultEmail = process.env.EMAIL_FROM || `payroll@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
     const { error } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || 'payroll@tripa.com.ng',
+      from: defaultEmail,
       to: to,
       subject: `Your ${month} ${year} Payslip is Ready`,
       html: `

@@ -32,14 +32,18 @@ class ShiftTimingModel {
         return rows;
     }
     static async create(shiftData) {
-        const [result] = await database_1.pool.execute(`INSERT INTO ${this.tableName} (user_id, shift_name, start_time, end_time, effective_from, effective_to, override_branch_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+        const [result] = await database_1.pool.execute(`INSERT INTO ${this.tableName} 
+       (user_id, shift_name, start_time, end_time, effective_from, effective_to, 
+        recurrence_pattern, recurrence_days, override_branch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             shiftData.user_id || null,
             shiftData.shift_name,
             shiftData.start_time,
             shiftData.end_time,
             shiftData.effective_from,
             shiftData.effective_to || null,
+            shiftData.recurrence_pattern || 'weekly',
+            shiftData.recurrence_days ? JSON.stringify(shiftData.recurrence_days) : null,
             shiftData.override_branch_id || null
         ]);
         const insertedId = result.insertId;

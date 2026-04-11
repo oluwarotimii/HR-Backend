@@ -1415,7 +1415,7 @@ const getMyShiftAssignments = async (req, res) => {
             });
         }
         const userId = req.currentUser.id;
-        const [rows] = await database_1.pool.execute(`SELECT 
+        const [rows] = await database_1.pool.execute(`SELECT
         esa.id,
         esa.user_id,
         esa.shift_template_id,
@@ -1436,11 +1436,29 @@ const getMyShiftAssignments = async (req, res) => {
       LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
       WHERE esa.user_id = ?
       ORDER BY esa.effective_from DESC`, [userId]);
+        const parsedRows = rows.map((row) => {
+            if (row.recurrence_days) {
+                try {
+                    row.recurrence_days = JSON.parse(row.recurrence_days);
+                }
+                catch (e) {
+                }
+            }
+            return {
+                ...row,
+                shift_template: {
+                    name: row.shift_template_name,
+                    start_time: row.start_time,
+                    end_time: row.end_time,
+                    break_duration_minutes: row.break_duration_minutes
+                }
+            };
+        });
         return res.json({
             success: true,
             message: 'My shift assignments retrieved successfully',
             data: {
-                shiftAssignments: rows
+                shiftAssignments: parsedRows
             }
         });
     }

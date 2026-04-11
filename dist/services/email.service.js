@@ -5,15 +5,16 @@ const resend_1 = require("resend");
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
 const sendWelcomeEmail = async ({ to, fullName }) => {
     try {
+        const defaultEmail = process.env.EMAIL_FROM || `onboarding@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
         const { error } = await resend.emails.send({
-            from: process.env.FROM_EMAIL || 'onboarding@tripa.com.ng',
+            from: defaultEmail,
             to: to,
-            subject: 'Welcome to Tripa HR Management System!',
+            subject: 'Welcome to Femtech HR Management System!',
             html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #2c3e50;">Welcome, ${fullName}!</h1>
 
-          <p>Congratulations on initializing your Tripa HR Management System. You've successfully set up your Super Admin account.</p>
+          <p>Congratulations on initializing your Femtech HR Management System. You've successfully set up your Super Admin account.</p>
 
           <h2 style="color: #3498db;">Getting Started:</h2>
           <ol>
@@ -32,11 +33,11 @@ const sendWelcomeEmail = async ({ to, fullName }) => {
           <p>If you have any questions or need assistance, please reach out to our support team.</p>
 
           <p>Best regards,<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">
-            This email was sent to ${to} because you registered as a Super Admin for Tripa HR Management System.
+            This email was sent to ${to} because you registered as a Super Admin for Femtech HR Management System.
           </p>
         </div>
       `
@@ -55,15 +56,16 @@ const sendWelcomeEmail = async ({ to, fullName }) => {
 exports.sendWelcomeEmail = sendWelcomeEmail;
 const sendStaffInvitationEmail = async ({ to, fullName, workEmail, temporaryPassword, invitationToken, fromAdmin }) => {
     try {
+        const defaultEmail = process.env.EMAIL_FROM || `invitations@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
         const { error } = await resend.emails.send({
-            from: process.env.FROM_EMAIL || 'invitations@tripa.com.ng',
+            from: defaultEmail,
             to: to,
-            subject: 'Welcome to Tripa! Your Work Account Credentials',
+            subject: 'Welcome to Femtech! Your Work Account Credentials',
             html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #2c3e50;">Welcome to Tripa, ${fullName}!</h1>
+          <h1 style="color: #2c3e50;">Welcome to Femtech, ${fullName}!</h1>
 
-          <p>You've been invited by ${fromAdmin} to join Tripa HR Management System.</p>
+          <p>You've been invited by ${fromAdmin} to join Femtech HR Management System.</p>
 
           <h2 style="color: #3498db;">Your Work Account Credentials:</h2>
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #3498db; margin: 20px 0;">
@@ -72,7 +74,7 @@ const sendStaffInvitationEmail = async ({ to, fullName, workEmail, temporaryPass
           </div>
 
           <h2 style="color: #3498db; margin-top: 30px;">Access Your Account:</h2>
-          
+
           <p style="margin: 20px 0;">You can access your account through our Staff Portal:</p>
           <p style="text-align: center; margin: 30px 0;">
             <a href="https://fempwa.vercel.app"
@@ -93,11 +95,11 @@ const sendStaffInvitationEmail = async ({ to, fullName, workEmail, temporaryPass
           <p>If you have any questions or need assistance, please contact your administrator.</p>
 
           <p>Welcome aboard!<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">
-            This email was sent to ${to} because ${fromAdmin} invited you to join Tripa HR Management System.
+            This email was sent to ${to} because ${fromAdmin} invited you to join Femtech HR Management System.
           </p>
         </div>
       `
@@ -116,8 +118,9 @@ const sendStaffInvitationEmail = async ({ to, fullName, workEmail, temporaryPass
 exports.sendStaffInvitationEmail = sendStaffInvitationEmail;
 const sendPayrollReady = async ({ to, month, year }) => {
     try {
+        const defaultEmail = process.env.EMAIL_FROM || `payroll@${process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng'}`;
         const { error } = await resend.emails.send({
-            from: process.env.FROM_EMAIL || 'payroll@tripa.com.ng',
+            from: defaultEmail,
             to: to,
             subject: `Your ${month} ${year} Payslip is Ready`,
             html: `
@@ -133,7 +136,7 @@ const sendPayrollReady = async ({ to, month, year }) => {
           <p>If you have any questions about your payslip, please contact your HR department.</p>
 
           <p>Best regards,<br/>
-          The Tripa HR Management Team</p>
+          The Femtech HR Management Team</p>
 
           <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
           <p style="font-size: 12px; color: #7f8c8d;">

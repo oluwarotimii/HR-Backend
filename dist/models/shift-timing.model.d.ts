@@ -6,6 +6,8 @@ export interface ShiftTiming {
     end_time: string;
     effective_from: Date;
     effective_to: Date | null;
+    recurrence_pattern: 'none' | 'daily' | 'weekly' | 'monthly';
+    recurrence_days: string | null;
     override_branch_id: number | null;
     created_at: Date;
     updated_at: Date;
@@ -17,6 +19,8 @@ export interface ShiftTimingInput {
     effective_from: Date;
     user_id?: number | null;
     effective_to?: Date | null;
+    recurrence_pattern?: 'none' | 'daily' | 'weekly' | 'monthly';
+    recurrence_days?: string[] | null;
     override_branch_id?: number | null;
 }
 export interface ShiftTimingUpdate {
@@ -25,6 +29,8 @@ export interface ShiftTimingUpdate {
     end_time?: string;
     effective_from?: Date;
     effective_to?: Date | null;
+    recurrence_pattern?: 'none' | 'daily' | 'weekly' | 'monthly';
+    recurrence_days?: string[] | null;
     override_branch_id?: number | null;
 }
 declare class ShiftTimingModel {

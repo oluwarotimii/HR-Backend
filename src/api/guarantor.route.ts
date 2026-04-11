@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import {
   getGuarantors,
   getGuarantor,
@@ -49,17 +49,18 @@ const upload = multer({
 });
 
 // Serve guarantor documents (public access for viewing)
-router.get('/uploads/:filename', (req, res) => {
+router.get('/uploads/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
   const filePath = path.join(process.cwd(), 'uploads', 'guarantors', filename);
-  
+
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({
       success: false,
       message: 'File not found'
     });
   }
-  
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.sendFile(filePath);
 });
 

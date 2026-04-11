@@ -142,9 +142,17 @@ app.use('/api/staff', staff_route_1.default);
 app.use('/api/forms', form_route_1.default);
 app.use('/api/form-submissions', form_submission_route_1.default);
 app.use('/api/leave', leave_route_1.default);
-app.use('/api/uploads/leave-requests', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests')));
-app.use('/api/uploads/attachments', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments')));
-app.use('/api/uploads/profile-photos', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'profile-photos')));
+// Serve uploaded files with CORS headers for cross-origin access
+const staticFileOptions = {
+    setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+};
+app.use('/api/uploads/leave-requests', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
+app.use('/api/uploads/attachments', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
+app.use('/api/uploads/profile-photos', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'profile-photos'), staticFileOptions));
 app.use('/api/attendance', attendance_route_1.default);
 app.use('/api/holidays', holiday_route_1.default);
 app.use('/api/payment-types', payment_type_route_1.default);

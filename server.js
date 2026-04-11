@@ -18,6 +18,7 @@ const PORT = process.env.PORT || 3000;
 if (app && typeof app.listen === 'function') {
   app.listen(PORT, () => {
     console.log(`✅ Femtech HR API running on port ${PORT}`);
-    console.log(`📡 Access at: https://hrapi.tripa.com.ng`);
+    const appUrl = process.env.APP_URL || `https://hrapi.femtechaccess.com.ng`;
+    console.log(`📡 Access at: ${appUrl}`);
   });
 }
