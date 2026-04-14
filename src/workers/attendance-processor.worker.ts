@@ -136,18 +136,13 @@ class AttendanceProcessorWorker {
 
         // If no schedule is defined for this user on this date, it's a weekend or off day
         if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
-          // Determine status based on schedule type
-          let status: any = 'weekend';
+          // Use 'absent' (valid ENUM value) — note explains it's a non-working day
           let notes = effectiveSchedule?.schedule_note || 'Non-working day';
-
-          if (effectiveSchedule?.schedule_type === 'holiday') {
-            status = 'holiday';
-          }
 
           const attendanceData = {
             user_id: userId,
             date: date,
-            status: status,
+            status: 'absent' as any,
             check_in_time: null,
             check_out_time: null,
             location_coordinates: null,
@@ -157,7 +152,7 @@ class AttendanceProcessorWorker {
           };
           await AttendanceModel.create(attendanceData);
           skippedCount++; // count weekend as skipped for summary
-          console.log(`${logPrefix} Non-working day for user ${userId} on ${dateStr}, marking as ${status}`);
+          console.log(`${logPrefix} Non-working day for user ${userId} on ${dateStr}, marking as absent (non-working day)`);
           continue;
         }
 

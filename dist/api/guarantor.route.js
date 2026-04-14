@@ -50,6 +50,7 @@ router.get('/uploads/:filename', (req, res) => {
             message: 'File not found'
         });
     }
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.sendFile(filePath);
 });
 router.get('/staff/:staffId', auth_middleware_1.authenticateJWT, guarantor_controller_1.getGuarantors);

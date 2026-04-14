@@ -142,11 +142,11 @@ app.use('/api/staff', staff_route_1.default);
 app.use('/api/forms', form_route_1.default);
 app.use('/api/form-submissions', form_submission_route_1.default);
 app.use('/api/leave', leave_route_1.default);
-// Serve uploaded files with CORS headers for cross-origin access
 const staticFileOptions = {
     setHeaders: (res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
         res.setHeader('Cache-Control', 'public, max-age=86400');
     }
 };

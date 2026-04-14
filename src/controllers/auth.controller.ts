@@ -7,6 +7,7 @@ import PermissionService from '../services/permission.service';
 interface LoginRequestBody {
   email: string;
   password: string;
+  rememberMe?: boolean | string;
 }
 
 interface RefreshTokenRequestBody {
@@ -108,7 +109,44 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
 
     // Check if user must change password and if profile is complete
     const needsPasswordChange = !!user.must_change_password;
-    const needsProfileCompletion = !(user.phone && user.date_of_birth);
+    const needsProfileCompletion = !user.phone;
+
+    // Track invitation metrics for users who came from invitations
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    try {
+      // Check if this user has an accepted invitation with no first_login_at
+      const [invRows]: any = await (await import('../config/database')).pool.execute(
+        `SELECT si.id, si.profile_completed
+         FROM staff_invitations si
+         WHERE si.user_id = ? AND si.status = 'accepted' AND si.first_login_at IS NULL
+         LIMIT 1`,
+        [user.id]
+      );
+
+      if (invRows.length > 0) {
+        const invitation = invRows[0];
+        const profileComplete = !!user.phone;
+
+        await (await import('../config/database')).pool.execute(
+          `UPDATE staff_invitations
+           SET first_login_at = NOW(),
+               first_login_ip = ?,
+               profile_completed = ?
+           WHERE id = ?`,
+          [ip, profileComplete ? 1 : 0, invitation.id]
+        );
+      } else if (!needsPasswordChange) {
+        // User already logged in before — update last_activity
+        await (await import('../config/database')).pool.execute(
+          `UPDATE staff_invitations SET last_activity_at = NOW()
+           WHERE user_id = ? AND status = 'accepted'`,
+          [user.id]
+        );
+      }
+    } catch (trackingError) {
+      // Don't fail login if tracking fails
+      console.error('Invitation tracking error (non-critical):', trackingError);
+    }
 
     // Return success response with tokens and user data
     return res.json({
