@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   inviteStaffMember,
+  bulkInviteStaff,
   getAvailableRoles,
   getAvailableBranches,
   getAvailableDepartments,
@@ -8,20 +9,31 @@ import {
   getPendingInvitations,
   resendInvitation,
   cancelInvitation,
-  acceptInvitation
+  acceptInvitation,
+  acceptInvitationLink,
+  declineInvitation,
+  getInvitationStats
 } from '../controllers/staff-invitation.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Public route - no authentication required
-router.post('/accept/:token', acceptInvitation);
+// Public routes - no authentication required
+router.get('/accept/:token', acceptInvitationLink);       // GET — auto-accept via email link
+router.post('/accept/:token', acceptInvitation);           // POST — manual acceptance (App)
+router.post('/decline/:token', declineInvitation);
 
 // Protected routes - require authentication
 router.use(authenticateJWT);
 
 // Invite a new staff member
 router.post('/', checkPermission('staff:create'), inviteStaffMember);
+
+// Bulk invite multiple staff members
+router.post('/bulk', checkPermission('staff:create'), bulkInviteStaff);
+
+// Invitation statistics / analytics
+router.get('/stats', checkPermission('staff:read'), getInvitationStats);
 
 // Get available roles for assignment
 router.get('/roles', getAvailableRoles);

@@ -542,6 +542,19 @@ const updateStaff = async (req, res) => {
     `, [userId]);
         console.log('[Backend] ✅ Staff update completed successfully');
         console.log('[Backend] ✅ Complete updated staff:', completeUpdatedStaff[0]);
+        try {
+            const hasPhone = !!req.body.phone_number || !!completeUpdatedStaff[0]?.phone;
+            const hasDOB = !!req.body.date_of_birth || !!completeUpdatedStaff[0]?.date_of_birth;
+            const profileComplete = hasPhone && hasDOB;
+            if (profileComplete) {
+                const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
+                await pool.execute(`UPDATE staff_invitations SET profile_completed = TRUE
+           WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`, [userId]);
+            }
+        }
+        catch (trackingErr) {
+            console.error('Profile completion tracking error (non-critical):', trackingErr);
+        }
         return res.json({
             success: true,
             message: 'Staff updated successfully',

@@ -3509,3 +3509,60 @@ ADD INDEX IF NOT EXISTS idx_recurrence (user_id, recurrence_pattern, effective_f
 UPDATE shift_timings
 SET recurrence_pattern = 'daily'
 WHERE recurrence_pattern IS NULL OR recurrence_pattern = 'weekly';
+
+-- ============================================================================
+-- Migration: 109_add_invitation_tracking.sql
+-- ============================================================================
+-- Migration: Add invitation tracking columns to staff_invitations
+-- Date: April 14, 2026
+-- Purpose: Track when invitees first login, complete profile, last activity, and declined status
+-- Migration Number: 109
+
+-- Add first_login_at (safe for re-run)
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND COLUMN_NAME = 'first_login_at');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE staff_invitations ADD COLUMN first_login_at TIMESTAMP NULL COMMENT ''Timestamp of invitee first successful login''', 'SELECT ''Column first_login_at already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add first_login_ip
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND COLUMN_NAME = 'first_login_ip');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE staff_invitations ADD COLUMN first_login_ip VARCHAR(45) NULL COMMENT ''IP address of first login''', 'SELECT ''Column first_login_ip already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add profile_completed
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND COLUMN_NAME = 'profile_completed');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE staff_invitations ADD COLUMN profile_completed BOOLEAN DEFAULT FALSE COMMENT ''Whether invitee completed their profile setup''', 'SELECT ''Column profile_completed already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add last_activity_at
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND COLUMN_NAME = 'last_activity_at');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE staff_invitations ADD COLUMN last_activity_at TIMESTAMP NULL COMMENT ''Timestamp of last system activity''', 'SELECT ''Column last_activity_at already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add declined_at
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND COLUMN_NAME = 'declined_at');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE staff_invitations ADD COLUMN declined_at TIMESTAMP NULL COMMENT ''Timestamp when invitation was declined''', 'SELECT ''Column declined_at already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add index for first_login_at (safe)
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND INDEX_NAME = 'idx_first_login');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_first_login ON staff_invitations(first_login_at)', 'SELECT ''Index idx_first_login already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add index for profile_completed (safe)
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations' AND INDEX_NAME = 'idx_profile_completed');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_profile_completed ON staff_invitations(profile_completed)', 'SELECT ''Index idx_profile_completed already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

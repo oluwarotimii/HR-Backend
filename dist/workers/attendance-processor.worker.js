@@ -99,15 +99,11 @@ class AttendanceProcessorWorker {
                     continue;
                 }
                 if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
-                    let status = 'weekend';
                     let notes = effectiveSchedule?.schedule_note || 'Non-working day';
-                    if (effectiveSchedule?.schedule_type === 'holiday') {
-                        status = 'holiday';
-                    }
                     const attendanceData = {
                         user_id: userId,
                         date: date,
-                        status: status,
+                        status: 'absent',
                         check_in_time: null,
                         check_out_time: null,
                         location_coordinates: null,
@@ -117,7 +113,7 @@ class AttendanceProcessorWorker {
                     };
                     await attendance_model_1.default.create(attendanceData);
                     skippedCount++;
-                    console.log(`${logPrefix} Non-working day for user ${userId} on ${dateStr}, marking as ${status}`);
+                    console.log(`${logPrefix} Non-working day for user ${userId} on ${dateStr}, marking as absent (non-working day)`);
                     continue;
                 }
                 const attendanceData = {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 interface LoginRequestBody {
     email: string;
     password: string;
+    rememberMe?: boolean | string;
 }
 interface RefreshTokenRequestBody {
     refreshToken: string;

@@ -219,11 +219,65 @@ export const initializeCompleteSystem = async (req: Request, res: Response) => {
         token
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Complete system initialization error:', error);
+
+    // Extract meaningful error detail based on error type
+    let detailedMessage = 'Failed to initialize system';
+    let errorCode: string | null = null;
+    let errorDetails: string | null = null;
+
+    if (error?.code) {
+      errorCode = error.code;
+
+      // MySQL-specific errors
+      switch (error.code) {
+        case 'ER_DUP_ENTRY':
+          detailedMessage = `Duplicate entry: ${error.sqlMessage || error.message}`;
+          break;
+        case 'ER_NO_SUCH_TABLE':
+          detailedMessage = `Database table missing: ${error.sqlMessage || error.message}`;
+          break;
+        case 'ER_BAD_FIELD_ERROR':
+          detailedMessage = `Unknown column in query: ${error.sqlMessage || error.message}`;
+          break;
+        case 'ECONNREFUSED':
+        case 'ER_ACCESS_DENIED_ERROR':
+        case 'ER_NOT_GRANTED':
+          detailedMessage = `Database connection error: ${error.message}`;
+          break;
+        case 'ER_PARSE_ERROR':
+          detailedMessage = `SQL syntax error during migration: ${error.sqlMessage || error.message}`;
+          errorDetails = error.sql?.substring(0, 300) || null;
+          break;
+        case 'ER_CAN_NOT_CREATE_TABLE':
+        case 'ER_TABLE_EXISTS_ERROR':
+          detailedMessage = `Migration issue: ${error.sqlMessage || error.message}`;
+          break;
+        default:
+          // Generic MySQL error with SQL detail
+          if (error.sqlMessage) {
+            detailedMessage = `Database error: ${error.sqlMessage}`;
+            errorDetails = error.sql?.substring(0, 300) || null;
+          } else if (error.message) {
+            detailedMessage = `Database error: ${error.message}`;
+          }
+      }
+    } else if (error?.message) {
+      if (error.message.includes('migration')) {
+        detailedMessage = `Migration error: ${error.message}`;
+      } else {
+        detailedMessage = error.message;
+      }
+    }
+
     return res.status(500).json({
       success: false,
-      message: 'Internal server error during complete system initialization'
+      message: detailedMessage,
+      ...(errorCode && { code: errorCode }),
+      ...(errorDetails && { details: errorDetails }),
+      // Include full stack trace in development for debugging
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
     });
   }
 };
