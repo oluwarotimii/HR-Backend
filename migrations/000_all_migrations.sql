@@ -2374,16 +2374,11 @@ ON DUPLICATE KEY UPDATE
 -- Migration: 089_fix_leave_requests.sql
 -- ============================================================================
 
--- Fix for leave_requests table
--- Run this if the table exists but doesn't have user_id column
+-- Fix for leave_requests table — safe re-run: only create if missing,
+-- only add cancellation columns if they don't already exist
 
--- First check if table exists
--- If it doesn't exist, run the migration: migrations/077_create_leave_requests_table.sql
-
--- If table exists but wrong structure, recreate it:
-DROP TABLE IF EXISTS leave_requests;
-
-CREATE TABLE leave_requests (
+-- If table doesn't exist yet, create it
+CREATE TABLE IF NOT EXISTS leave_requests (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
   leave_type_id INT NOT NULL,
@@ -2396,24 +2391,38 @@ CREATE TABLE leave_requests (
   reviewed_by INT,
   reviewed_at TIMESTAMP NULL,
   notes TEXT,
-  cancelled_by INT NULL,
-  cancelled_at DATETIME NULL,
-  cancellation_reason TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (leave_type_id) REFERENCES leave_types(id),
   FOREIGN KEY (reviewed_by) REFERENCES users(id),
-  FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_user_id (user_id),
   INDEX idx_leave_type_id (leave_type_id),
   INDEX idx_status (status),
   INDEX idx_dates (start_date, end_date)
 );
 
--- Verify the table structure
-DESCRIBE leave_requests;
+-- Add cancelled_by column if missing (safe for re-run)
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leave_requests' AND COLUMN_NAME = 'cancelled_by');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE leave_requests ADD COLUMN cancelled_by INT NULL AFTER reviewed_by, ADD FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL', 'SELECT ''Column cancelled_by already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add cancelled_at column if missing
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leave_requests' AND COLUMN_NAME = 'cancelled_at');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE leave_requests ADD COLUMN cancelled_at DATETIME NULL AFTER cancelled_by', 'SELECT ''Column cancelled_at already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add cancellation_reason column if missing
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leave_requests' AND COLUMN_NAME = 'cancellation_reason');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE leave_requests ADD COLUMN cancellation_reason TEXT NULL AFTER cancelled_at', 'SELECT ''Column cancellation_reason already exists''');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 
 -- ============================================================================
