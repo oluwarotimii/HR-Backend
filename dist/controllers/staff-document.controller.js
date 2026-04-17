@@ -187,7 +187,7 @@ exports.deleteStaffDocument = deleteStaffDocument;
 const serveStaffDocument = async (req, res) => {
     try {
         const filename = req.params.filename;
-        const filePath = path_1.default.join(process.cwd(), 'uploads', 'staff-documents', filename);
+        const filePath = path_1.default.join(process.cwd(), 'uploads', 'staff-documents', req.params.filename);
         if (!fs_1.default.existsSync(filePath)) {
             return res.status(404).json({
                 success: false,

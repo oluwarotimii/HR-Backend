@@ -56,13 +56,6 @@ const login = async (req, res) => {
                 message: 'Invalid email format'
             });
         }
-        const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN;
-        if (allowedDomain && !email.endsWith(`@${allowedDomain}`)) {
-            return res.status(403).json({
-                success: false,
-                message: `Only ${allowedDomain} email addresses are allowed`
-            });
-        }
         const user = await user_model_1.default.findByEmail(email);
         if (!user) {
             return res.status(401).json({

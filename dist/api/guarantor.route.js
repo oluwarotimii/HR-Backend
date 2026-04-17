@@ -43,7 +43,7 @@ const upload = (0, multer_1.default)({
 });
 router.get('/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
-    const filePath = path_1.default.join(process.cwd(), 'uploads', 'guarantors', filename);
+    const filePath = path_1.default.join(process.cwd(), 'uploads', 'guarantors', req.params.filename);
     if (!fs_1.default.existsSync(filePath)) {
         return res.status(404).json({
             success: false,

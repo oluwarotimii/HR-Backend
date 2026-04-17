@@ -7,7 +7,7 @@ import fs from 'fs';
 // Controller for guarantor management
 export const getGuarantors = async (req: Request, res: Response) => {
   try {
-    let staffId = req.params.staffId ? parseInt(req.params.staffId) : undefined;
+    let staffId = req.params.staffId ? parseInt(req.params.staffId as string) : undefined;
     const isActiveOnly = req.query.isActiveOnly === 'true';
 
     if (!staffId) {
@@ -43,7 +43,7 @@ export const getGuarantors = async (req: Request, res: Response) => {
 
 export const getGuarantor = async (req: Request, res: Response) => {
   try {
-    const guarantorId = parseInt(req.params.id);
+    const guarantorId = parseInt(req.params.id as string);
 
     if (isNaN(guarantorId)) {
       return res.status(400).json({
@@ -188,7 +188,7 @@ export const createGuarantor = async (req: Request, res: Response) => {
 
 export const updateGuarantor = async (req: Request, res: Response) => {
   try {
-    const guarantorId = parseInt(req.params.id);
+    const guarantorId = parseInt(req.params.id as string);
 
     if (isNaN(guarantorId)) {
       return res.status(400).json({
@@ -245,7 +245,7 @@ export const updateGuarantor = async (req: Request, res: Response) => {
 
 export const deleteGuarantor = async (req: Request, res: Response) => {
   try {
-    const guarantorId = parseInt(req.params.id);
+    const guarantorId = parseInt(req.params.id as string);
 
     if (isNaN(guarantorId)) {
       return res.status(400).json({
@@ -294,7 +294,7 @@ export const deleteGuarantor = async (req: Request, res: Response) => {
 
 export const verifyGuarantor = async (req: Request, res: Response) => {
   try {
-    const guarantorId = parseInt(req.params.id);
+    const guarantorId = parseInt(req.params.id as string);
     const { verification_notes } = req.body;
     const verifiedBy = req.currentUser?.id;
 
@@ -338,7 +338,7 @@ export const verifyGuarantor = async (req: Request, res: Response) => {
 
 export const uploadGuarantorDocument = async (req: Request, res: Response) => {
   try {
-    const guarantorId = parseInt(req.params.id);
+    const guarantorId = parseInt(req.params.id as string);
     const documentType = req.params.documentType; // 'form' or 'id'
 
     if (isNaN(guarantorId)) {

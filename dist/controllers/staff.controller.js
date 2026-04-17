@@ -41,7 +41,6 @@ const type_utils_1 = require("../utils/type-utils");
 const staff_model_1 = __importDefault(require("../models/staff.model"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const audit_log_model_1 = __importDefault(require("../models/audit-log.model"));
-const cpanel_email_service_1 = __importDefault(require("../services/cpanel-email.service"));
 const staff_dynamic_field_model_1 = __importDefault(require("../models/staff-dynamic-field.model"));
 const getAllStaff = async (req, res) => {
     try {
@@ -148,7 +147,7 @@ const getStaffById = async (req, res) => {
 exports.getStaffById = getStaffById;
 const createStaff = async (req, res) => {
     try {
-        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
+        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
         if (!user_id) {
             return res.status(400).json({
                 success: false,
@@ -214,7 +213,6 @@ const createStaff = async (req, res) => {
             provident_fund_id,
             gratuity_applicable,
             notice_period_days,
-            work_email,
             personal_email,
             phone_number,
             alternate_phone_number,
@@ -287,7 +285,7 @@ const updateStaff = async (req, res) => {
         }
         console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', userId);
         console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
-        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name } = req.body;
+        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name } = req.body;
         if (employee_id !== undefined) {
             console.log('[Backend] ⚠️ employee_id field ignored - employee_id is auto-generated and cannot be changed');
         }
@@ -352,14 +350,6 @@ const updateStaff = async (req, res) => {
             updateData.primary_skills = primary_skills;
         const requesterRole = req.user?.roleId;
         const isSuperAdmin = requesterRole === 1;
-        if (work_email !== undefined) {
-            if (isSuperAdmin) {
-                updateData.work_email = work_email;
-            }
-            else {
-                console.log('[Backend] ⚠️ work_email update blocked - non-admin attempt');
-            }
-        }
         if (personal_email !== undefined) {
             if (isSuperAdmin) {
                 updateData.personal_email = personal_email;
@@ -394,8 +384,6 @@ const updateStaff = async (req, res) => {
             updateData.gratuity_applicable = !!gratuity_applicable;
         if (notice_period_days !== undefined)
             updateData.notice_period_days = notice_period_days;
-        if (work_email !== undefined)
-            updateData.work_email = work_email;
         if (personal_email !== undefined)
             updateData.personal_email = personal_email;
         if (phone_number !== undefined)
@@ -621,30 +609,9 @@ const deleteStaff = async (req, res) => {
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.deactivated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
         }
-        const emailParts = user.email.split('@');
-        if (emailParts.length === 2) {
-            const domain = emailParts[1];
-            const companyDomain = process.env.CPANEL_DOMAIN || 'example.com';
-            if (domain === companyDomain) {
-                try {
-                    const emailPrefix = emailParts[0];
-                    const cpanelService = new cpanel_email_service_1.default();
-                    const deletionResult = await cpanelService.deleteEmailAccount(emailPrefix);
-                    if (deletionResult.success) {
-                        console.log(`Email account ${user.email} removed from cPanel successfully`);
-                    }
-                    else {
-                        console.error(`Failed to remove email account ${user.email} from cPanel:`, deletionResult.error);
-                    }
-                }
-                catch (emailError) {
-                    console.error('Error removing email account from cPanel:', emailError);
-                }
-            }
-        }
         return res.json({
             success: true,
-            message: 'Staff deactivated successfully and email account removed from cPanel if applicable'
+            message: 'Staff deactivated successfully'
         });
     }
     catch (error) {
@@ -697,30 +664,9 @@ const terminateStaff = async (req, res) => {
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.terminated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
         }
-        const emailParts = user.email.split('@');
-        if (emailParts.length === 2) {
-            const domain = emailParts[1];
-            const companyDomain = process.env.CPANEL_DOMAIN || 'example.com';
-            if (domain === companyDomain) {
-                try {
-                    const emailPrefix = emailParts[0];
-                    const cpanelService = new cpanel_email_service_1.default();
-                    const deletionResult = await cpanelService.deleteEmailAccount(emailPrefix);
-                    if (deletionResult.success) {
-                        console.log(`Email account ${user.email} removed from cPanel successfully`);
-                    }
-                    else {
-                        console.error(`Failed to remove email account ${user.email} from cPanel:`, deletionResult.error);
-                    }
-                }
-                catch (emailError) {
-                    console.error('Error removing email account from cPanel:', emailError);
-                }
-            }
-        }
         return res.json({
             success: true,
-            message: 'Staff terminated successfully and email account removed from cPanel if applicable'
+            message: 'Staff terminated successfully'
         });
     }
     catch (error) {

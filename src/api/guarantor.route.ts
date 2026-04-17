@@ -51,7 +51,7 @@ const upload = multer({
 // Serve guarantor documents (public access for viewing)
 router.get('/uploads/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
-  const filePath = path.join(process.cwd(), 'uploads', 'guarantors', filename);
+  const filePath = path.join(process.cwd(), 'uploads', 'guarantors', req.params.filename as string);
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({

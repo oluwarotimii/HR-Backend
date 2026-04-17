@@ -4,7 +4,7 @@ export class CacheService {
   static async get<T>(key: string): Promise<T | null> {
     const result = await redisService.execute(async (client) => {
       const cached = await client.get(key);
-      return cached ? JSON.parse(cached) : null;
+      return cached ? JSON.parse(cached as string) : null;
     });
 
     return result !== null ? result : null;
