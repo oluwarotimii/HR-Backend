@@ -8,12 +8,13 @@ const staff_document_controller_1 = require("../controllers/staff-document.contr
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const router = (0, express_1.Router)();
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadPath = path_1.default.join(process.cwd(), 'uploads', 'staff-documents');
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
+        if (!fs_1.default.existsSync(uploadPath)) {
+            fs_1.default.mkdirSync(uploadPath, { recursive: true });
         }
         cb(null, uploadPath);
     },

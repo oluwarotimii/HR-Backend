@@ -15,22 +15,6 @@ declare const dbConfig: {
     ssl: {
         rejectUnauthorized: boolean;
     };
-} | {
-    host: string;
-    port: number;
-    user: string;
-    password: string;
-    database: string;
-    waitForConnections: true;
-    connectionLimit: number;
-    queueLimit: number;
-    enableKeepAlive: true;
-    keepAliveInitialDelay: number;
-    namedPlaceholders: true;
-    multipleStatements: true;
-    ssl: boolean | {
-        rejectUnauthorized: true;
-    };
 };
 declare const pool: mysql.Pool;
 export declare function initializeRedis(): Promise<void>;

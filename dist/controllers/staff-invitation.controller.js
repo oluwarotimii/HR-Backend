@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -39,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getInvitationStats = exports.declineInvitation = exports.acceptInvitationLink = exports.acceptInvitation = exports.cancelInvitation = exports.resendInvitation = exports.getPendingInvitations = exports.getAllInvitations = exports.getAvailableDepartments = exports.getAvailableBranches = exports.getAvailableRoles = exports.inviteStaffMember = exports.bulkInviteStaff = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
-const axios_1 = __importDefault(require("axios"));
 const database_1 = require("../config/database");
 const email_service_1 = require("../services/email.service");
 const generateInvitationToken = () => {
@@ -52,41 +18,6 @@ const generateTemporaryPassword = () => {
         password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return password;
-};
-const createCpanelEmail = async (email, password) => {
-    try {
-        if (!process.env.CPANEL_HOST || !process.env.CPANEL_USERNAME || !process.env.CPANEL_PASSWORD) {
-            console.warn('cPanel credentials not configured. Skipping email creation.');
-            return true;
-        }
-        const [username, domain] = email.split('@');
-        const cpanelParams = {
-            cpanel_jsonapi_module: 'Email',
-            cpanel_jsonapi_func: 'add_pop',
-            cpanel_jsonapi_apiversion: 2,
-            domain: domain,
-            email: username,
-            password: password,
-            quota: 1000
-        };
-        const https = await Promise.resolve().then(() => __importStar(require('https')));
-        const response = await axios_1.default.post(`https://${process.env.CPANEL_HOST}:2083/json-api/cpanel`, new URLSearchParams(cpanelParams), {
-            headers: {
-                'Authorization': `Basic ${Buffer.from(`${process.env.CPANEL_USERNAME}:${process.env.CPANEL_PASSWORD}`).toString('base64')}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            httpsAgent: new https.Agent({ rejectUnauthorized: false })
-        });
-        if (response.data && response.data.cpanelresult && response.data.cpanelresult.error) {
-            console.error('cPanel API error:', response.data.cpanelresult.error);
-            return false;
-        }
-        return true;
-    }
-    catch (error) {
-        console.error('Error creating cPanel email:', error);
-        return false;
-    }
 };
 async function createSingleInvitation(firstName, lastName, personalEmail, phone, roleId, branchId, departmentId, adminId) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -168,16 +99,16 @@ async function createSingleInvitation(firstName, lastName, personalEmail, phone,
         await database_1.pool.execute('DELETE FROM staff_invitations WHERE user_id = ?', [userId]);
         return { success: false, message: `Failed to send email to: ${personalEmail}`, code: 'EMAIL_FAILED' };
     }
+    return {
+        success: true,
+        data: {
+            email: loginEmail,
+            firstName,
+            lastName,
+            expiresAt: expiresAt.toISOString()
+        }
+    };
 }
-return {
-    success: true,
-    data: {
-        email: loginEmail,
-        firstName,
-        lastName,
-        expiresAt: expiresAt.toISOString()
-    }
-};
 const bulkInviteStaff = async (req, res) => {
     try {
         const { invitations } = req.body;
@@ -199,25 +130,25 @@ const bulkInviteStaff = async (req, res) => {
         let failureCount = 0;
         for (let i = 0; i < invitations.length; i++) {
             const invite = invitations[i];
-            const { firstName, lastName, loginEmail, phone, roleId, branchId, departmentId } = invite;
+            const { firstName, lastName, personalEmail, phone, roleId, branchId, departmentId } = invite;
             if (!firstName || !lastName || !personalEmail || !roleId) {
                 results.push({
                     index: i,
                     email: personalEmail || 'N/A',
                     success: false,
-                    message: 'firstName, lastName, loginEmail, and roleId are required',
+                    message: 'firstName, lastName, personalEmail, and roleId are required',
                     code: 'MISSING_FIELDS'
                 });
                 failureCount++;
                 continue;
             }
-            const result = await createSingleInvitation(firstName, lastName, loginEmail, phone, roleId, branchId, departmentId, adminId);
+            const result = await createSingleInvitation(firstName, lastName, personalEmail, phone, roleId, branchId, departmentId, adminId);
             if (result.success) {
-                results.push({ index: i, email: loginEmail, success: true, data: result.data });
+                results.push({ index: i, email: personalEmail, success: true, data: result.data });
                 successCount++;
             }
             else {
-                results.push({ index: i, email: loginEmail, success: false, message: result.message, code: result.code });
+                results.push({ index: i, email: personalEmail, success: false, message: result.message, code: result.code });
                 failureCount++;
             }
         }
@@ -243,7 +174,7 @@ const bulkInviteStaff = async (req, res) => {
 exports.bulkInviteStaff = bulkInviteStaff;
 const inviteStaffMember = async (req, res) => {
     try {
-        const { firstName, lastName, loginEmail, phone, roleId, branchId, departmentId } = req.body;
+        const { firstName, lastName, personalEmail, phone, roleId, branchId, departmentId } = req.body;
         if (!firstName || !lastName || !personalEmail || !roleId) {
             return res.status(400).json({
                 success: false,
@@ -251,7 +182,7 @@ const inviteStaffMember = async (req, res) => {
             });
         }
         const adminId = req.currentUser?.userId;
-        const result = await createSingleInvitation(firstName, lastName, loginEmail, phone, roleId, branchId, departmentId, adminId);
+        const result = await createSingleInvitation(firstName, lastName, personalEmail, phone, roleId, branchId, departmentId, adminId);
         if (!result.success) {
             const r = result;
             const statusCode = r.code === 'PENDING_INVITATION' ? 400
@@ -454,13 +385,11 @@ const resendInvitation = async (req, res) => {
             await database_1.pool.execute(`UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = NOW() WHERE id = ?`, [newPasswordHash, userId]);
         }
         await database_1.pool.execute('UPDATE staff_invitations SET token = ?, expires_at = ? WHERE id = ?', [newToken, newExpiresAt, id]);
-        const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
-        const loginEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
         try {
             await (0, email_service_1.sendStaffInvitationEmail)({
                 to: invitation.email,
                 fullName: `${invitation.first_name} ${invitation.last_name}`,
-                loginEmail: loginEmail,
+                loginEmail: invitation.email,
                 temporaryPassword: newTemporaryPassword,
                 invitationToken: newToken,
                 fromAdmin: 'HR Team'
@@ -552,8 +481,6 @@ const acceptInvitation = async (req, res) => {
                 message: 'Invalid invitation: no user account found'
             });
         }
-        const emailDomain = process.env.EMAIL_DOMAIN || process.env.CPANEL_DOMAIN || 'femtechaccess.com.ng';
-        const loginEmail = `${invitation.first_name.toLowerCase()}.${invitation.last_name.toLowerCase()}@${emailDomain}`;
         const newPasswordHash = await bcryptjs_1.default.hash(password, 10);
         const connection = await database_1.pool.getConnection();
         try {

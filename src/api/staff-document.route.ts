@@ -9,6 +9,7 @@ import {
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 

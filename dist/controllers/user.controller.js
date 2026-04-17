@@ -7,7 +7,6 @@ exports.removeUserPermission = exports.addUserPermission = exports.getUserPermis
 const type_utils_1 = require("../utils/type-utils");
 const user_model_1 = __importDefault(require("../models/user.model"));
 const user_permission_model_1 = __importDefault(require("../models/user-permission.model"));
-const cpanel_email_service_1 = __importDefault(require("../services/cpanel-email.service"));
 const getAllUsers = async (req, res) => {
     try {
         const page = (0, type_utils_1.getNumberQueryParam)(req, 'page', 1) || 1;
@@ -249,30 +248,9 @@ const terminateUser = async (req, res) => {
                 message: 'User not found'
             });
         }
-        const emailParts = user.email.split('@');
-        if (emailParts.length === 2) {
-            const domain = emailParts[1];
-            const companyDomain = process.env.CPANEL_DOMAIN || 'example.com';
-            if (domain === companyDomain) {
-                try {
-                    const emailPrefix = emailParts[0];
-                    const cpanelService = new cpanel_email_service_1.default();
-                    const deletionResult = await cpanelService.deleteEmailAccount(emailPrefix);
-                    if (deletionResult.success) {
-                        console.log(`Email account ${user.email} removed from cPanel successfully`);
-                    }
-                    else {
-                        console.error(`Failed to remove email account ${user.email} from cPanel:`, deletionResult.error);
-                    }
-                }
-                catch (emailError) {
-                    console.error('Error removing email account from cPanel:', emailError);
-                }
-            }
-        }
         return res.json({
             success: true,
-            message: 'User terminated successfully and email account removed from cPanel'
+            message: 'User terminated successfully'
         });
     }
     catch (error) {

@@ -22,7 +22,7 @@ export interface UploadedDocument {
  */
 export const uploadStaffDocument = async (req: Request, res: Response) => {
   try {
-    const staffId = parseInt(req.params.id);
+    const staffId = parseInt(req.params.id as string);
     const documentType = req.body.document_type;
     const uploadedBy = req.currentUser?.id;
 
@@ -120,7 +120,7 @@ export const uploadStaffDocument = async (req: Request, res: Response) => {
  */
 export const getStaffDocuments = async (req: Request, res: Response) => {
   try {
-    const staffId = parseInt(req.params.id);
+    const staffId = parseInt(req.params.id as string);
 
     if (!staffId || isNaN(staffId)) {
       return res.status(400).json({
@@ -154,7 +154,7 @@ export const getStaffDocuments = async (req: Request, res: Response) => {
  */
 export const getStaffDocument = async (req: Request, res: Response) => {
   try {
-    const documentId = parseInt(req.params.documentId);
+    const documentId = parseInt(req.params.documentId as string);
 
     if (!documentId || isNaN(documentId)) {
       return res.status(400).json({
@@ -194,7 +194,7 @@ export const getStaffDocument = async (req: Request, res: Response) => {
  */
 export const deleteStaffDocument = async (req: Request, res: Response) => {
   try {
-    const documentId = parseInt(req.params.documentId);
+    const documentId = parseInt(req.params.documentId as string);
 
     if (!documentId || isNaN(documentId)) {
       return res.status(400).json({
@@ -243,7 +243,7 @@ export const serveStaffDocument = async (req: Request, res: Response) => {
     const filename = req.params.filename;
     
     // Try to serve the file
-    const filePath = path.join(process.cwd(), 'uploads', 'staff-documents', filename);
+    const filePath = path.join(process.cwd(), 'uploads', 'staff-documents', req.params.filename as string);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({
