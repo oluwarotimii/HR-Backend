@@ -1938,14 +1938,7 @@ export const getMyShiftAssignments = async (req: Request, res: Response) => {
 
     const userId = req.currentUser.id;
 
-    // Find staff record for this user to handle legacy data where staff_id was stored in user_id column
-    const [staffRows]: any = await pool.execute(
-      'SELECT id FROM staff WHERE user_id = ?',
-      [userId]
-    );
-    const staffId = staffRows.length > 0 ? staffRows[0].id : null;
-
-    console.log(`[ShiftManagement] Fetching assignments for User ID: ${userId}, Staff ID: ${staffId}`);
+    console.log(`[ShiftManagement] Fetching assignments for User ID: ${userId}`);
 
     const [rows]: any = await pool.execute(
       `SELECT
@@ -1969,9 +1962,9 @@ export const getMyShiftAssignments = async (req: Request, res: Response) => {
         esa.recurrence_days
       FROM employee_shift_assignments esa
       LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
-      WHERE esa.user_id = ? ${staffId ? 'OR esa.user_id = ?' : ''}
+      WHERE esa.user_id = ? AND esa.status IN ('active', 'approved')
       ORDER BY esa.effective_from DESC`,
-      staffId ? [userId, staffId] : [userId]
+      [userId]
     );
 
     // Parse recurrence_days from JSON string to array for each assignment
