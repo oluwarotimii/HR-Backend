@@ -19,8 +19,8 @@ export const getMyShifts = async (req: Request, res: Response) => {
 
     const { startDate, endDate, status } = req.query;
 
-    // Find staff record for this user to handle legacy data where staff_id was stored in user_id column
     // Build query to get user's shift assignments with template details
+    // Removed the staffId OR fallback to prevent data leakage
     let query = `
       SELECT
         esa.id,
@@ -52,10 +52,14 @@ export const getMyShifts = async (req: Request, res: Response) => {
 
     const params: any[] = [userId];
 
-    // Filter by status if provided
+    // Filter by status if provided, otherwise default to active/approved for security and clarity
     if (status && status !== 'all') {
       query += ' AND esa.status = ?';
       params.push(status);
+    } else if (!status || status === 'all') {
+      // By default, if 'all' is not explicitly requested, we show relevant ones
+      // Or if they want 'all' but we want to exclude cancelled/expired by default
+      query += " AND esa.status IN ('active', 'approved')";
     }
 
     // Filter by date range if provided
@@ -73,7 +77,7 @@ export const getMyShifts = async (req: Request, res: Response) => {
 
     const [rows]: any = await pool.execute(query, params);
 
-    // Get shift exceptions for the user
+    // Get shift exceptions for the user - removed staffId leakage risk
     const exceptionsQuery = `
       SELECT 
         se.id,
@@ -84,12 +88,12 @@ export const getMyShifts = async (req: Request, res: Response) => {
         se.reason,
         se.status as exception_status
       FROM shift_exceptions se
-      WHERE (se.user_id = ? ${staffId ? 'OR se.user_id = ?' : ''})
+      WHERE se.user_id = ?
       AND se.status IN ('active', 'approved')
       ORDER BY se.exception_date DESC
     `;
 
-    const [exceptions]: any = await pool.execute(exceptionsQuery, staffId ? [userId, staffId] : [userId]);
+    const [exceptions]: any = await pool.execute(exceptionsQuery, [userId]);
 
     // Format assignments for display
     const formattedAssignments = rows.map((assignment: any) => {
@@ -167,14 +171,7 @@ export const getMyUpcomingShifts = async (req: Request, res: Response) => {
     const { days = 30 } = req.query;
     const numDays = parseInt(days as string);
 
-    // Find staff record for this user to handle legacy data
-    const [staffRows]: any = await pool.execute(
-      'SELECT id FROM staff WHERE user_id = ?',
-      [userId]
-    );
-    const staffId = staffRows.length > 0 ? staffRows[0].id : null;
-
-    // Get user's active assignments
+    // Get user's active assignments - removed staffId leakage risk
     const assignmentsQuery = `
       SELECT 
         esa.id,
@@ -190,15 +187,15 @@ export const getMyUpcomingShifts = async (req: Request, res: Response) => {
         st.break_duration_minutes
       FROM employee_shift_assignments esa
       LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
-      WHERE (esa.user_id = ? ${staffId ? 'OR esa.user_id = ?' : ''}) 
+      WHERE esa.user_id = ? 
       AND esa.status = 'active'
       AND esa.effective_from <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
       AND (esa.effective_to IS NULL OR esa.effective_to >= CURDATE())
     `;
 
-    const [assignments]: any = await pool.execute(assignmentsQuery, staffId ? [userId, staffId, numDays] : [userId, numDays]);
+    const [assignments]: any = await pool.execute(assignmentsQuery, [userId, numDays]);
 
-    // Get user's exceptions for the period
+    // Get user's exceptions for the period - removed staffId leakage risk
     const exceptionsQuery = `
       SELECT 
         exception_date,
@@ -206,17 +203,19 @@ export const getMyUpcomingShifts = async (req: Request, res: Response) => {
         new_start_time,
         new_end_time
       FROM shift_exceptions
-      WHERE (user_id = ? ${staffId ? 'OR user_id = ?' : ''})
+      WHERE user_id = ?
       AND exception_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
       AND status IN ('active', 'approved')
     `;
 
-    const [exceptions]: any = await pool.execute(exceptionsQuery, staffId ? [userId, staffId, numDays] : [userId, numDays]);
+    const [exceptions]: any = await pool.execute(exceptionsQuery, [userId, numDays]);
 
     // Create a map of exception dates for quick lookup
     const exceptionMap = new Map();
     exceptions.forEach((ex: any) => {
-      const dateKey = ex.exception_date.toISOString().split('T')[0];
+      const dateKey = ex.exception_date instanceof Date 
+        ? ex.exception_date.toISOString().split('T')[0]
+        : new Date(ex.exception_date).toISOString().split('T')[0];
       exceptionMap.set(dateKey, ex);
     });
 
@@ -285,7 +284,7 @@ export const getMyUpcomingShifts = async (req: Request, res: Response) => {
 
 /**
  * Get team shifts - for managers to view their team's shifts
- * GET /api/team-shifts
+ * GET /api/my-shifts/team
  */
 export const getTeamShifts = async (req: Request, res: Response) => {
   try {
@@ -322,8 +321,8 @@ export const getTeamShifts = async (req: Request, res: Response) => {
     let teamFilter = 'WHERE 1=1';
     const params: any[] = [];
 
-    // If user is manager, show their department
-    if (user.role_id >= 3) { // Manager or above
+    // If user is manager (role_id >= 3), show their department
+    if (user.role_id >= 3) {
       if (department) {
         teamFilter += ' AND s.department = ?';
         params.push(department);
@@ -369,11 +368,12 @@ export const getTeamShifts = async (req: Request, res: Response) => {
     // Format by department
     const shiftsByDepartment: any = {};
     rows.forEach((row: any) => {
-      if (!shiftsByDepartment[row.department]) {
-        shiftsByDepartment[row.department] = [];
+      const deptName = row.department || 'Unassigned';
+      if (!shiftsByDepartment[deptName]) {
+        shiftsByDepartment[deptName] = [];
       }
       
-      shiftsByDepartment[row.department].push({
+      shiftsByDepartment[deptName].push({
         id: row.id,
         userId: row.user_id,
         userName: row.user_name,
@@ -412,7 +412,6 @@ function getShiftTypeFromTimes(startTime: string, endTime: string): string {
   if (!startTime || !endTime) return 'Custom';
   
   const startHour = parseInt(startTime.split(':')[0]);
-  const endHour = parseInt(endTime.split(':')[0]);
   
   if (startHour >= 5 && startHour < 12) return 'Morning';
   if (startHour >= 12 && startHour < 17) return 'Afternoon';
@@ -436,7 +435,9 @@ function checkIfWorkingDay(assignment: any, dayName: string, currentDate: Date):
     
     if (assignment.recurrence_days) {
       try {
-        recurrenceDays = JSON.parse(assignment.recurrence_days);
+        recurrenceDays = typeof assignment.recurrence_days === 'string' 
+          ? JSON.parse(assignment.recurrence_days) 
+          : assignment.recurrence_days;
       } catch (e) {
         recurrenceDays = assignment.recurrence_day_of_week ? [assignment.recurrence_day_of_week] : [];
       }
@@ -444,7 +445,7 @@ function checkIfWorkingDay(assignment: any, dayName: string, currentDate: Date):
       recurrenceDays = [assignment.recurrence_day_of_week];
     }
     
-    return recurrenceDays.includes(dayName.toLowerCase());
+    return Array.isArray(recurrenceDays) && recurrenceDays.includes(dayName.toLowerCase());
   }
   
   // For other patterns, assume working day if within date range
