@@ -11,6 +11,92 @@ import { pool } from '../config/database';
 
 const router = Router();
 
+type LocationCoordinatesInput =
+  | {
+      latitude?: number | string;
+      longitude?: number | string;
+      lat?: number | string;
+      lng?: number | string;
+      x?: number | string;
+      y?: number | string;
+    }
+  | string
+  | null
+  | undefined;
+
+const parseLocationCoordinates = (location: LocationCoordinatesInput): { latitude: number; longitude: number } | null => {
+  if (!location) {
+    return null;
+  }
+
+  if (typeof location === 'string') {
+    const pointMatch = location.match(/POINT\(([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\)/i);
+    if (!pointMatch) {
+      return null;
+    }
+
+    const longitude = Number(pointMatch[1]);
+    const latitude = Number(pointMatch[2]);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return { latitude, longitude };
+    }
+
+    return null;
+  }
+
+  const rawLatitude = location.latitude ?? location.lat ?? location.y;
+  const rawLongitude = location.longitude ?? location.lng ?? location.x;
+  const latitude = Number(rawLatitude);
+  const longitude = Number(rawLongitude);
+
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    return { latitude, longitude };
+  }
+
+  return null;
+};
+
+const parseSecondaryLocations = (value: unknown): number[] => {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item));
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return parseSecondaryLocations(JSON.parse(value));
+    } catch (error) {
+      console.error('Failed to parse secondary_locations:', error);
+      return [];
+    }
+  }
+
+  if (typeof value === 'object' && value !== null && 'secondary_locations' in value) {
+    return parseSecondaryLocations((value as any).secondary_locations);
+  }
+
+  return [];
+};
+
+const getAssignedLocationIds = (staffRecord: any): number[] => {
+  const assignedLocationIds = new Set<number>();
+
+  if (staffRecord?.assigned_location_id) {
+    assignedLocationIds.add(Number(staffRecord.assigned_location_id));
+  }
+
+  for (const locationId of parseSecondaryLocations(staffRecord?.location_assignments)) {
+    assignedLocationIds.add(locationId);
+  }
+
+  return [...assignedLocationIds].filter((locationId) => Number.isFinite(locationId));
+};
+
 /**
  * Simplified Location Verification Logic
  * 
@@ -123,46 +209,25 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       }
 
       // NEW: If staff has location assignments and provided GPS, determine branch from location
-      if (location_coordinates && typeof location_coordinates === 'object') {
-        const userLng = parseFloat(location_coordinates.longitude);
-        const userLat = parseFloat(location_coordinates.latitude);
+      const userCoords = parseLocationCoordinates(location_coordinates);
+      if (userCoords) {
+        const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+          userCoords.latitude, userCoords.longitude, 1000 // Search within 1km
+        );
 
-        if (!isNaN(userLng) && !isNaN(userLat)) {
-          // Find which attendance location the user is at
-          const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-            userLat, userLng, 1000 // Search within 1km
+        const assignedLocationIds = getAssignedLocationIds(staffRecord);
+
+        // If user is at one of their assigned locations, use that location's branch
+        if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
+          const atAssignedLocation = nearbyLocations.some(loc =>
+            assignedLocationIds.includes(loc.id) && loc.branch_id
           );
 
-          // Get staff's assigned location IDs
-          let assignedLocationIds: number[] = [];
-
-          if (staffRecord.assigned_location_id) {
-            assignedLocationIds.push(staffRecord.assigned_location_id);
-          }
-
-          if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-            try {
-              const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-              if (Array.isArray(secondary)) {
-                assignedLocationIds = [...assignedLocationIds, ...secondary];
-              }
-            } catch (e) {
-              console.error('Failed to parse secondary_locations:', e);
-            }
-          }
-
-          // If user is at one of their assigned locations, use that location's branch
-          if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
-            const atAssignedLocation = nearbyLocations.some(loc =>
-              assignedLocationIds.includes(loc.id) && loc.branch_id
-            );
-
-            if (atAssignedLocation) {
-              const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
-              if (locationBranch) {
-                branchId = locationBranch;
-                console.log(`✅ Using location's branch ${branchId} for attendance verification`);
-              }
+          if (atAssignedLocation) {
+            const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
+            if (locationBranch) {
+              branchId = locationBranch;
+              console.log(`✅ Using location's branch ${branchId} for attendance verification`);
             }
           }
         }
@@ -193,84 +258,75 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
         console.log('Using default attendance settings');
       }
 
-      if (location_coordinates && typeof location_coordinates === 'object') {
-        const userLng = parseFloat(location_coordinates.longitude);
-        const userLat = parseFloat(location_coordinates.latitude);
+      if (userCoords) {
+        const { latitude: userLat, longitude: userLng } = userCoords;
 
-        if (!isNaN(userLng) && !isNaN(userLat)) {
-          // NEW: Check if strict mode is enabled AND staff has assigned location(s)
-          const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
-          
-          // Only enforce assigned locations if:
-          // 1. Strict mode is enabled in settings
-          // 2. Staff has assigned location(s)
-          if (settings.strict_location_mode && hasAssignedLocation) {
-            // Staff has assigned location(s) - STRICT MODE
-            let assignedLocationIds: number[] = [];
-            
-            // Get primary location
-            if (staffRecord.assigned_location_id) {
-              assignedLocationIds.push(staffRecord.assigned_location_id);
-            }
-            
-            // Get secondary locations from JSON
-            if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-              const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-              if (Array.isArray(secondary)) {
-                assignedLocationIds = [...assignedLocationIds, ...secondary];
-              }
-            }
-            
-            console.log('📍 Staff assigned locations:', assignedLocationIds);
-            
-            // Check if user is within ANY of their assigned locations
-            const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-              userLat, userLng, 1000 // Search within 1km
-            );
-            
-            const isWithinAssignedLocation = nearbyLocations.some(loc => 
-              assignedLocationIds.includes(loc.id)
-            );
-            
-            if (isWithinAssignedLocation) {
-              locationVerified = true;
-              console.log('✅ Staff checked in at assigned location');
-            } else {
-              locationVerified = false;
-              console.log('❌ Staff NOT at assigned location');
-            }
+        // NEW: Check if strict mode is enabled AND staff has assigned location(s)
+        const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
+
+        // Only enforce assigned locations if:
+        // 1. Strict mode is enabled in settings
+        // 2. Staff has assigned location(s)
+        if (settings.strict_location_mode && hasAssignedLocation) {
+          // Staff has assigned location(s) - STRICT MODE
+          const assignedLocationIds = getAssignedLocationIds(staffRecord);
+
+          console.log('📍 Staff assigned locations:', assignedLocationIds);
+
+          // Check if user is within ANY of their assigned locations
+          const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+            userLat, userLng, 1000 // Search within 1km
+          );
+
+          const isWithinAssignedLocation = nearbyLocations.some(loc =>
+            assignedLocationIds.includes(loc.id)
+          );
+
+          if (isWithinAssignedLocation) {
+            locationVerified = true;
+            console.log('✅ Staff checked in at assigned location');
           } else {
-            // NO assigned location - use branch-based logic (legacy mode)
-            // Handle location verification based on attendance mode
-            if (branch.attendance_mode === 'branch_based') {
-              if (branch.location_coordinates) {
-                const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-                if (branchCoords) {
-                  const branchLng = parseFloat(branchCoords[1]);
-                  const branchLat = parseFloat(branchCoords[2]);
-                  const latDiff = (userLat - branchLat) * 111320;
-                  const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                  const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
-                  const radius = branch.location_radius_meters || 100;
-                  if (distance <= radius) locationVerified = true;
-                }
+            locationVerified = false;
+            console.log('❌ Staff NOT at assigned location');
+          }
+        } else {
+          // NO assigned location - use branch-based logic (legacy mode)
+          // Handle location verification based on attendance mode
+          if (branch.attendance_mode === 'branch_based') {
+            if (branch.location_coordinates) {
+              const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
+              if (branchCoords) {
+                const branchLng = parseFloat(branchCoords[1]);
+                const branchLat = parseFloat(branchCoords[2]);
+                const latDiff = (userLat - branchLat) * 111320;
+                const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
+                const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
+                const radius = branch.location_radius_meters || 100;
+                if (distance <= radius) locationVerified = true;
               }
-            } else if (branch.attendance_mode === 'multiple_locations') {
-              const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-                userLat, userLng, branch.location_radius_meters || 100
-              );
-              if (nearbyLocations.length > 0) locationVerified = true;
             }
+          } else if (branch.attendance_mode === 'multiple_locations') {
+            const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+              userLat, userLng, branch.location_radius_meters || 100
+            );
+            if (nearbyLocations.length > 0) locationVerified = true;
           }
         }
       }
 
       // Strict enforcement
       if (settings.enable_location_verification && !locationVerified) {
+        const locationRequiredMessage = userCoords
+          ? 'Location verification failed. You must be within the allowed radius of the branch to check in.'
+          : 'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
+
         return res.status(403).json({
           success: false,
-          message: 'Location verification failed. You must be within the allowed radius of the branch to check in.',
-          data: { distance_check_failed: true }
+          message: locationRequiredMessage,
+          data: {
+            distance_check_failed: !!userCoords,
+            location_permission_required: !userCoords
+          }
         });
       }
 
@@ -603,46 +659,25 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
     }
 
     // NEW: If staff has location assignments and provided GPS, determine branch from location
-    if (location_coordinates && typeof location_coordinates === 'object') {
-      const userLng = parseFloat(location_coordinates.longitude);
-      const userLat = parseFloat(location_coordinates.latitude);
+    const userCoords = parseLocationCoordinates(location_coordinates);
+    if (userCoords) {
+      const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+        userCoords.latitude, userCoords.longitude, 1000 // Search within 1km
+      );
 
-      if (!isNaN(userLng) && !isNaN(userLat)) {
-        // Find which attendance location the user is at
-        const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-          userLat, userLng, 1000 // Search within 1km
+      const assignedLocationIds = getAssignedLocationIds(staffRecord);
+
+      // If user is at one of their assigned locations, use that location's branch
+      if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
+        const atAssignedLocation = nearbyLocations.some(loc =>
+          assignedLocationIds.includes(loc.id) && loc.branch_id
         );
 
-        // Get staff's assigned location IDs
-        let assignedLocationIds: number[] = [];
-
-        if (staffRecord.assigned_location_id) {
-          assignedLocationIds.push(staffRecord.assigned_location_id);
-        }
-
-        if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-          try {
-            const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-            if (Array.isArray(secondary)) {
-              assignedLocationIds = [...assignedLocationIds, ...secondary];
-            }
-          } catch (e) {
-            console.error('Failed to parse secondary_locations:', e);
-          }
-        }
-
-        // If user is at one of their assigned locations, use that location's branch
-        if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
-          const atAssignedLocation = nearbyLocations.some(loc =>
-            assignedLocationIds.includes(loc.id) && loc.branch_id
-          );
-
-          if (atAssignedLocation) {
-            const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
-            if (locationBranch) {
-              branchId = locationBranch;
-              console.log(`✅ Using location's branch ${branchId} for check-out verification`);
-            }
+        if (atAssignedLocation) {
+          const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
+          if (locationBranch) {
+            branchId = locationBranch;
+            console.log(`✅ Using location's branch ${branchId} for check-out verification`);
           }
         }
       }
@@ -689,94 +724,85 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
 
     // Verify location if provided
     let locationVerified = attendanceRecord.location_verified; // Keep the original verification status
-    if (location_coordinates && typeof location_coordinates === 'object') {
-      const userLng = parseFloat(location_coordinates.longitude);
-      const userLat = parseFloat(location_coordinates.latitude);
+    if (userCoords) {
+      const { latitude: userLat, longitude: userLng } = userCoords;
 
-      if (!isNaN(userLng) && !isNaN(userLat)) {
-        // NEW: Check if strict mode is enabled AND staff has assigned location(s)
-        const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
+      // NEW: Check if strict mode is enabled AND staff has assigned location(s)
+      const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
+      
+      // Only enforce assigned locations if:
+      // 1. Strict mode is enabled in settings
+      // 2. Staff has assigned location(s)
+      if (settings.strict_location_mode && hasAssignedLocation) {
+        // Staff has assigned location(s) - STRICT MODE
+        const assignedLocationIds = getAssignedLocationIds(staffRecord);
         
-        // Only enforce assigned locations if:
-        // 1. Strict mode is enabled in settings
-        // 2. Staff has assigned location(s)
-        if (settings.strict_location_mode && hasAssignedLocation) {
-          // Staff has assigned location(s) - STRICT MODE
-          let assignedLocationIds: number[] = [];
-          
-          // Get primary location
-          if (staffRecord.assigned_location_id) {
-            assignedLocationIds.push(staffRecord.assigned_location_id);
-          }
-          
-          // Get secondary locations from JSON
-          if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-            const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-            if (Array.isArray(secondary)) {
-              assignedLocationIds = [...assignedLocationIds, ...secondary];
-            }
-          }
-          
-          // Check if user is within ANY of their assigned locations
-          const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-            userLat, userLng, 1000 // Search within 1km
-          );
-          
-          const isWithinAssignedLocation = nearbyLocations.some(loc => 
-            assignedLocationIds.includes(loc.id)
-          );
-          
-          if (isWithinAssignedLocation) {
-            locationVerified = true;
-            console.log('✅ Staff checked out at assigned location');
-          } else {
-            locationVerified = false;
-            console.log('❌ Staff NOT at assigned location for check-out');
-          }
+        // Check if user is within ANY of their assigned locations
+        const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+          userLat, userLng, 1000 // Search within 1km
+        );
+        
+        const isWithinAssignedLocation = nearbyLocations.some(loc => 
+          assignedLocationIds.includes(loc.id)
+        );
+        
+        if (isWithinAssignedLocation) {
+          locationVerified = true;
+          console.log('✅ Staff checked out at assigned location');
         } else {
-          // NO assigned location - use branch-based logic (legacy mode)
-          // Handle location verification based on attendance mode
-          if (branch.attendance_mode === 'branch_based') {
-            // Verify user is at their assigned branch
-            if (branch.location_coordinates) {
-              const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-              if (branchCoords) {
-                const branchLng = parseFloat(branchCoords[1]);
-                const branchLat = parseFloat(branchCoords[2]);
+          locationVerified = false;
+          console.log('❌ Staff NOT at assigned location for check-out');
+        }
+      } else {
+        // NO assigned location - use branch-based logic (legacy mode)
+        // Handle location verification based on attendance mode
+        if (branch.attendance_mode === 'branch_based') {
+          // Verify user is at their assigned branch
+          if (branch.location_coordinates) {
+            const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
+            if (branchCoords) {
+              const branchLng = parseFloat(branchCoords[1]);
+              const branchLat = parseFloat(branchCoords[2]);
 
-                // Calculate distance between user and branch (simplified but consistent)
-                const latDiff = (userLat - branchLat) * 111320;
-                const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
+              // Calculate distance between user and branch (simplified but consistent)
+              const latDiff = (userLat - branchLat) * 111320;
+              const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
+              const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
 
-                const radius = branch.location_radius_meters || 100;
+              const radius = branch.location_radius_meters || 100;
 
-                if (distance <= radius) {
-                  locationVerified = true;
-                }
+              if (distance <= radius) {
+                locationVerified = true;
               }
             }
-          } else if (branch.attendance_mode === 'multiple_locations') {
-            // Verify user is at one of the approved locations
-            const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
-              userLat,
-              userLng,
-              branch.location_radius_meters || 100
-            );
+          }
+        } else if (branch.attendance_mode === 'multiple_locations') {
+          // Verify user is at one of the approved locations
+          const nearbyLocations = await AttendanceLocationModel.getLocationsNearby(
+            userLat,
+            userLng,
+            branch.location_radius_meters || 100
+          );
 
-            if (nearbyLocations.length > 0) {
-              locationVerified = true;
-            }
+          if (nearbyLocations.length > 0) {
+            locationVerified = true;
           }
         }
       }
 
       // Strict enforcement: if location verification is required and failed, reject the check-out
       if (settings.enable_location_verification && !locationVerified) {
+        const locationRequiredMessage = userCoords
+          ? 'Location verification failed. You must be within the allowed radius of the branch to check out.'
+          : 'Location permission is required to check out. Please allow location access in your browser or app settings and try again.';
+
         return res.status(403).json({
           success: false,
-          message: 'Location verification failed. You must be within the allowed radius of the branch to check out.',
-          data: { distance_check_failed: true }
+          message: locationRequiredMessage,
+          data: {
+            distance_check_failed: !!userCoords,
+            location_permission_required: !userCoords
+          }
         });
       }
     }

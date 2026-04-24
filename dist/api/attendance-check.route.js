@@ -46,6 +46,64 @@ const staff_model_1 = __importDefault(require("../models/staff.model"));
 const attendance_location_model_1 = __importDefault(require("../models/attendance-location.model"));
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
+const parseLocationCoordinates = (location) => {
+    if (!location) {
+        return null;
+    }
+    if (typeof location === 'string') {
+        const pointMatch = location.match(/POINT\(([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)\)/i);
+        if (!pointMatch) {
+            return null;
+        }
+        const longitude = Number(pointMatch[1]);
+        const latitude = Number(pointMatch[2]);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            return { latitude, longitude };
+        }
+        return null;
+    }
+    const rawLatitude = location.latitude ?? location.lat ?? location.y;
+    const rawLongitude = location.longitude ?? location.lng ?? location.x;
+    const latitude = Number(rawLatitude);
+    const longitude = Number(rawLongitude);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+    }
+    return null;
+};
+const parseSecondaryLocations = (value) => {
+    if (!value) {
+        return [];
+    }
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => Number(item))
+            .filter((item) => Number.isFinite(item));
+    }
+    if (typeof value === 'string') {
+        try {
+            return parseSecondaryLocations(JSON.parse(value));
+        }
+        catch (error) {
+            console.error('Failed to parse secondary_locations:', error);
+            return [];
+        }
+    }
+    if (typeof value === 'object' && value !== null && 'secondary_locations' in value) {
+        return parseSecondaryLocations(value.secondary_locations);
+    }
+    return [];
+};
+const getAssignedLocationIds = (staffRecord) => {
+    const assignedLocationIds = new Set();
+    if (staffRecord?.assigned_location_id) {
+        assignedLocationIds.add(Number(staffRecord.assigned_location_id));
+    }
+    for (const locationId of parseSecondaryLocations(staffRecord?.location_assignments)) {
+        assignedLocationIds.add(locationId);
+    }
+    return [...assignedLocationIds].filter((locationId) => Number.isFinite(locationId));
+};
 router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
         const { date, check_in_time, location_coordinates, location_address, status: providedStatus } = req.body;
@@ -114,34 +172,17 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             if (!branchId) {
                 return res.status(400).json({ success: false, message: 'No branch assigned' });
             }
-            if (location_coordinates && typeof location_coordinates === 'object') {
-                const userLng = parseFloat(location_coordinates.longitude);
-                const userLat = parseFloat(location_coordinates.latitude);
-                if (!isNaN(userLng) && !isNaN(userLat)) {
-                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                    let assignedLocationIds = [];
-                    if (staffRecord.assigned_location_id) {
-                        assignedLocationIds.push(staffRecord.assigned_location_id);
-                    }
-                    if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-                        try {
-                            const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-                            if (Array.isArray(secondary)) {
-                                assignedLocationIds = [...assignedLocationIds, ...secondary];
-                            }
-                        }
-                        catch (e) {
-                            console.error('Failed to parse secondary_locations:', e);
-                        }
-                    }
-                    if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
-                        const atAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id) && loc.branch_id);
-                        if (atAssignedLocation) {
-                            const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
-                            if (locationBranch) {
-                                branchId = locationBranch;
-                                console.log(`✅ Using location's branch ${branchId} for attendance verification`);
-                            }
+            const userCoords = parseLocationCoordinates(location_coordinates);
+            if (userCoords) {
+                const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userCoords.latitude, userCoords.longitude, 1000);
+                const assignedLocationIds = getAssignedLocationIds(staffRecord);
+                if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
+                    const atAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id) && loc.branch_id);
+                    if (atAssignedLocation) {
+                        const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
+                        if (locationBranch) {
+                            branchId = locationBranch;
+                            console.log(`✅ Using location's branch ${branchId} for attendance verification`);
                         }
                     }
                 }
@@ -166,63 +207,57 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             catch (error) {
                 console.log('Using default attendance settings');
             }
-            if (location_coordinates && typeof location_coordinates === 'object') {
-                const userLng = parseFloat(location_coordinates.longitude);
-                const userLat = parseFloat(location_coordinates.latitude);
-                if (!isNaN(userLng) && !isNaN(userLat)) {
-                    const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
-                    if (settings.strict_location_mode && hasAssignedLocation) {
-                        let assignedLocationIds = [];
-                        if (staffRecord.assigned_location_id) {
-                            assignedLocationIds.push(staffRecord.assigned_location_id);
-                        }
-                        if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-                            const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-                            if (Array.isArray(secondary)) {
-                                assignedLocationIds = [...assignedLocationIds, ...secondary];
-                            }
-                        }
-                        console.log('📍 Staff assigned locations:', assignedLocationIds);
-                        const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                        const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
-                        if (isWithinAssignedLocation) {
-                            locationVerified = true;
-                            console.log('✅ Staff checked in at assigned location');
-                        }
-                        else {
-                            locationVerified = false;
-                            console.log('❌ Staff NOT at assigned location');
-                        }
+            if (userCoords) {
+                const { latitude: userLat, longitude: userLng } = userCoords;
+                const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
+                if (settings.strict_location_mode && hasAssignedLocation) {
+                    const assignedLocationIds = getAssignedLocationIds(staffRecord);
+                    console.log('📍 Staff assigned locations:', assignedLocationIds);
+                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
+                    const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
+                    if (isWithinAssignedLocation) {
+                        locationVerified = true;
+                        console.log('✅ Staff checked in at assigned location');
                     }
                     else {
-                        if (branch.attendance_mode === 'branch_based') {
-                            if (branch.location_coordinates) {
-                                const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-                                if (branchCoords) {
-                                    const branchLng = parseFloat(branchCoords[1]);
-                                    const branchLat = parseFloat(branchCoords[2]);
-                                    const latDiff = (userLat - branchLat) * 111320;
-                                    const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                                    const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
-                                    const radius = branch.location_radius_meters || 100;
-                                    if (distance <= radius)
-                                        locationVerified = true;
-                                }
+                        locationVerified = false;
+                        console.log('❌ Staff NOT at assigned location');
+                    }
+                }
+                else {
+                    if (branch.attendance_mode === 'branch_based') {
+                        if (branch.location_coordinates) {
+                            const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
+                            if (branchCoords) {
+                                const branchLng = parseFloat(branchCoords[1]);
+                                const branchLat = parseFloat(branchCoords[2]);
+                                const latDiff = (userLat - branchLat) * 111320;
+                                const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
+                                const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
+                                const radius = branch.location_radius_meters || 100;
+                                if (distance <= radius)
+                                    locationVerified = true;
                             }
                         }
-                        else if (branch.attendance_mode === 'multiple_locations') {
-                            const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
-                            if (nearbyLocations.length > 0)
-                                locationVerified = true;
-                        }
+                    }
+                    else if (branch.attendance_mode === 'multiple_locations') {
+                        const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
+                        if (nearbyLocations.length > 0)
+                            locationVerified = true;
                     }
                 }
             }
             if (settings.enable_location_verification && !locationVerified) {
+                const locationRequiredMessage = userCoords
+                    ? 'Location verification failed. You must be within the allowed radius of the branch to check in.'
+                    : 'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
                 return res.status(403).json({
                     success: false,
-                    message: 'Location verification failed. You must be within the allowed radius of the branch to check in.',
-                    data: { distance_check_failed: true }
+                    message: locationRequiredMessage,
+                    data: {
+                        distance_check_failed: !!userCoords,
+                        location_permission_required: !userCoords
+                    }
                 });
             }
             const updateData = {
@@ -469,34 +504,17 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
                 message: 'Staff record does not have a branch assigned'
             });
         }
-        if (location_coordinates && typeof location_coordinates === 'object') {
-            const userLng = parseFloat(location_coordinates.longitude);
-            const userLat = parseFloat(location_coordinates.latitude);
-            if (!isNaN(userLng) && !isNaN(userLat)) {
-                const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                let assignedLocationIds = [];
-                if (staffRecord.assigned_location_id) {
-                    assignedLocationIds.push(staffRecord.assigned_location_id);
-                }
-                if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-                    try {
-                        const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-                        if (Array.isArray(secondary)) {
-                            assignedLocationIds = [...assignedLocationIds, ...secondary];
-                        }
-                    }
-                    catch (e) {
-                        console.error('Failed to parse secondary_locations:', e);
-                    }
-                }
-                if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
-                    const atAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id) && loc.branch_id);
-                    if (atAssignedLocation) {
-                        const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
-                        if (locationBranch) {
-                            branchId = locationBranch;
-                            console.log(`✅ Using location's branch ${branchId} for check-out verification`);
-                        }
+        const userCoords = parseLocationCoordinates(location_coordinates);
+        if (userCoords) {
+            const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userCoords.latitude, userCoords.longitude, 1000);
+            const assignedLocationIds = getAssignedLocationIds(staffRecord);
+            if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
+                const atAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id) && loc.branch_id);
+                if (atAssignedLocation) {
+                    const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
+                    if (locationBranch) {
+                        branchId = locationBranch;
+                        console.log(`✅ Using location's branch ${branchId} for check-out verification`);
                     }
                 }
             }
@@ -531,63 +549,57 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
             });
         }
         let locationVerified = attendanceRecord.location_verified;
-        if (location_coordinates && typeof location_coordinates === 'object') {
-            const userLng = parseFloat(location_coordinates.longitude);
-            const userLat = parseFloat(location_coordinates.latitude);
-            if (!isNaN(userLng) && !isNaN(userLat)) {
-                const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
-                if (settings.strict_location_mode && hasAssignedLocation) {
-                    let assignedLocationIds = [];
-                    if (staffRecord.assigned_location_id) {
-                        assignedLocationIds.push(staffRecord.assigned_location_id);
-                    }
-                    if (staffRecord.location_assignments && staffRecord.location_assignments.secondary_locations) {
-                        const secondary = JSON.parse(staffRecord.location_assignments.secondary_locations);
-                        if (Array.isArray(secondary)) {
-                            assignedLocationIds = [...assignedLocationIds, ...secondary];
-                        }
-                    }
-                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                    const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
-                    if (isWithinAssignedLocation) {
-                        locationVerified = true;
-                        console.log('✅ Staff checked out at assigned location');
-                    }
-                    else {
-                        locationVerified = false;
-                        console.log('❌ Staff NOT at assigned location for check-out');
-                    }
+        if (userCoords) {
+            const { latitude: userLat, longitude: userLng } = userCoords;
+            const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
+            if (settings.strict_location_mode && hasAssignedLocation) {
+                const assignedLocationIds = getAssignedLocationIds(staffRecord);
+                const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
+                const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
+                if (isWithinAssignedLocation) {
+                    locationVerified = true;
+                    console.log('✅ Staff checked out at assigned location');
                 }
                 else {
-                    if (branch.attendance_mode === 'branch_based') {
-                        if (branch.location_coordinates) {
-                            const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-                            if (branchCoords) {
-                                const branchLng = parseFloat(branchCoords[1]);
-                                const branchLat = parseFloat(branchCoords[2]);
-                                const latDiff = (userLat - branchLat) * 111320;
-                                const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                                const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
-                                const radius = branch.location_radius_meters || 100;
-                                if (distance <= radius) {
-                                    locationVerified = true;
-                                }
+                    locationVerified = false;
+                    console.log('❌ Staff NOT at assigned location for check-out');
+                }
+            }
+            else {
+                if (branch.attendance_mode === 'branch_based') {
+                    if (branch.location_coordinates) {
+                        const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
+                        if (branchCoords) {
+                            const branchLng = parseFloat(branchCoords[1]);
+                            const branchLat = parseFloat(branchCoords[2]);
+                            const latDiff = (userLat - branchLat) * 111320;
+                            const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
+                            const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
+                            const radius = branch.location_radius_meters || 100;
+                            if (distance <= radius) {
+                                locationVerified = true;
                             }
                         }
                     }
-                    else if (branch.attendance_mode === 'multiple_locations') {
-                        const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
-                        if (nearbyLocations.length > 0) {
-                            locationVerified = true;
-                        }
+                }
+                else if (branch.attendance_mode === 'multiple_locations') {
+                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
+                    if (nearbyLocations.length > 0) {
+                        locationVerified = true;
                     }
                 }
             }
             if (settings.enable_location_verification && !locationVerified) {
+                const locationRequiredMessage = userCoords
+                    ? 'Location verification failed. You must be within the allowed radius of the branch to check out.'
+                    : 'Location permission is required to check out. Please allow location access in your browser or app settings and try again.';
                 return res.status(403).json({
                     success: false,
-                    message: 'Location verification failed. You must be within the allowed radius of the branch to check out.',
-                    data: { distance_check_failed: true }
+                    message: locationRequiredMessage,
+                    data: {
+                        distance_check_failed: !!userCoords,
+                        location_permission_required: !userCoords
+                    }
                 });
             }
         }

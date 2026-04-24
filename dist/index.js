@@ -103,6 +103,49 @@ const leave_cleanup_route_1 = __importDefault(require("./api/leave-cleanup.route
 dotenv.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
+let server = null;
+const shutdown = (reason, error) => {
+    console.error(`[Server] ${reason}`);
+    if (error) {
+        console.error(error);
+    }
+    if (server) {
+        server.close(() => {
+            console.log('[Server] HTTP server closed');
+            process.exit(1);
+        });
+        setTimeout(() => {
+            console.error('[Server] Forced shutdown after timeout');
+            process.exit(1);
+        }, 5000).unref();
+        return;
+    }
+    process.exit(1);
+};
+process.on('uncaughtException', (error) => {
+    shutdown('Uncaught exception', error);
+});
+process.on('unhandledRejection', (reason) => {
+    shutdown('Unhandled promise rejection', reason);
+});
+process.on('SIGTERM', () => {
+    console.log('[Server] SIGTERM received, shutting down gracefully');
+    if (server) {
+        server.close(() => process.exit(0));
+    }
+    else {
+        process.exit(0);
+    }
+});
+process.on('SIGINT', () => {
+    console.log('[Server] SIGINT received, shutting down gracefully');
+    if (server) {
+        server.close(() => process.exit(0));
+    }
+    else {
+        process.exit(0);
+    }
+});
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 1 * 60 * 1000,
     max: 100,
@@ -128,108 +171,145 @@ app.use((0, cors_1.default)());
 app.use((0, morgan_1.default)('combined'));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
-(0, database_1.testConnection)();
-(0, database_1.initializeRedis)();
-system_init_service_1.SystemInitService.initialize();
-attendance_processor_worker_1.default.start();
-auto_checkout_worker_1.default.start();
-leave_cleanup_worker_1.default.start();
-app.use('/api/auth', authLimiter, auth_route_1.default);
-app.use('/api/roles', role_route_1.default);
-app.use('/api/users', user_route_1.default);
-app.use('/api/staff', staff_route_1.default);
-app.use('/api/forms', form_route_1.default);
-app.use('/api/form-submissions', form_submission_route_1.default);
-app.use('/api/leave', leave_route_1.default);
-const staticFileOptions = {
-    setHeaders: (res) => {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET');
-        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+const bootstrap = async () => {
+    try {
+        await (0, database_1.testConnection)();
     }
+    catch (error) {
+        console.error('[Server] Database test failed:', error);
+    }
+    try {
+        await (0, database_1.initializeRedis)();
+    }
+    catch (error) {
+        console.error('[Server] Redis initialization failed:', error);
+    }
+    try {
+        await system_init_service_1.SystemInitService.initialize();
+    }
+    catch (error) {
+        console.error('[Server] System initialization failed:', error);
+    }
+    try {
+        await attendance_processor_worker_1.default.start();
+    }
+    catch (error) {
+        console.error('[Server] Attendance processor failed to start:', error);
+    }
+    try {
+        await auto_checkout_worker_1.default.start();
+    }
+    catch (error) {
+        console.error('[Server] Auto-checkout worker failed to start:', error);
+    }
+    try {
+        leave_cleanup_worker_1.default.start();
+    }
+    catch (error) {
+        console.error('[Server] Leave cleanup worker failed to start:', error);
+    }
+    app.use('/api/auth', authLimiter, auth_route_1.default);
+    app.use('/api/roles', role_route_1.default);
+    app.use('/api/users', user_route_1.default);
+    app.use('/api/staff', staff_route_1.default);
+    app.use('/api/forms', form_route_1.default);
+    app.use('/api/form-submissions', form_submission_route_1.default);
+    app.use('/api/leave', leave_route_1.default);
+    const staticFileOptions = {
+        setHeaders: (res) => {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+        }
+    };
+    app.use('/api/uploads/leave-requests', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
+    app.use('/api/uploads/attachments', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
+    app.use('/api/uploads/profile-photos', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'profile-photos'), staticFileOptions));
+    app.use('/api/attendance', attendance_route_1.default);
+    app.use('/api/holidays', holiday_route_1.default);
+    app.use('/api/payment-types', payment_type_route_1.default);
+    app.use('/api/staff-payment-structure', staff_payment_structure_route_1.default);
+    app.use('/api/payroll-runs', payroll_run_route_1.default);
+    app.use('/api/payroll-records', payroll_record_route_1.default);
+    app.use('/api/payslips', payslip_route_1.default);
+    app.use('/api/branches', branch_management_route_1.default);
+    app.use('/api/attendance-settings', branch_global_attendance_route_1.default);
+    app.use('/api/kpis', kpi_route_1.default);
+    app.use('/api/appraisal-templates', appraisal_template_route_1.default);
+    app.use('/api/metrics', metric_route_1.default);
+    app.use('/api/targets', target_route_1.default);
+    app.use('/api/performance', performance_route_1.default);
+    app.use('/api/appraisals', appraisal_route_1.default);
+    app.use('/api/employees', employee_performance_route_1.default);
+    app.use('/api/permissions', role_permission_route_1.default);
+    app.use('/api/kpi-assignments', kpi_assignment_route_1.default);
+    app.use('/api/kpi-scores', kpi_score_route_1.default);
+    app.use('/api/staff-invitation', staff_invitation_route_1.default);
+    app.use('/api/time-off-banks', time_off_bank_route_1.default);
+    app.use('/api/password-change', password_change_route_1.default);
+    app.use('/api/system', system_route_1.default);
+    app.use('/api/role-management', role_management_route_1.default);
+    app.use('/api/system-complete', complete_system_init_route_1.default);
+    app.use('/api/departments', department_management_route_1.default);
+    app.use('/api/branch-working-days', branch_working_days_route_1.default);
+    app.use('/api/shift-timings', shift_timing_route_1.default);
+    app.use('/api/notifications', notification_route_1.default);
+    app.use('/api/job-postings', job_posting_route_1.default);
+    app.use('/api/job-applications', application_submission_route_1.default);
+    app.use('/api/job-application-management', application_management_route_1.default);
+    app.use('/api/shift-scheduling', shift_scheduling_route_1.default);
+    app.use('/api/shift-exceptions', shift_exception_bulk_route_1.default);
+    app.use('/api/shift-exception-types', shift_exception_type_route_1.default);
+    app.use('/api/my-shifts', my_shifts_route_1.default);
+    app.use('/api/holiday-duty-roster', holiday_duty_roster_route_1.default);
+    app.use('/api/reports', reporting_analytics_route_1.default);
+    app.use('/api/attendance-locations', attendance_location_route_1.default);
+    app.use('/api/staff-documents', staff_document_route_1.default);
+    app.use('/api/staff-location-assignments', staff_location_assignment_route_1.default);
+    app.use('/api/guarantors', guarantor_route_1.default);
+    app.use('/api/dashboard', dashboard_route_1.default);
+    app.use('/api/leave-cleanup', leave_cleanup_route_1.default);
+    app.use('/api/health', health_route_1.default);
+    app.get('/', (req, res) => {
+        res.json({
+            message: 'Welcome to the HR Management System API',
+            version: '1.0.0',
+            timestamp: new Date().toISOString()
+        });
+    });
+    app.get('/health', (req, res) => {
+        res.status(200).json({
+            status: 'OK',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime()
+        });
+    });
+    app.use((req, res) => {
+        res.status(404).json({
+            success: false,
+            message: 'Route not found',
+            path: req.originalUrl
+        });
+    });
+    app.use((err, req, res, next) => {
+        console.error(err.stack);
+        res.status(500).json({
+            success: false,
+            message: 'Something went wrong!',
+            error: process.env.NODE_ENV === 'development' ? err.message : {}
+        });
+    });
+    server = app.listen(PORT, () => {
+        console.log(`HR Management System server is running on port ${PORT}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+    server.on('error', (error) => {
+        shutdown('HTTP server error', error);
+    });
 };
-app.use('/api/uploads/leave-requests', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
-app.use('/api/uploads/attachments', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
-app.use('/api/uploads/profile-photos', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'profile-photos'), staticFileOptions));
-app.use('/api/attendance', attendance_route_1.default);
-app.use('/api/holidays', holiday_route_1.default);
-app.use('/api/payment-types', payment_type_route_1.default);
-app.use('/api/staff-payment-structure', staff_payment_structure_route_1.default);
-app.use('/api/payroll-runs', payroll_run_route_1.default);
-app.use('/api/payroll-records', payroll_record_route_1.default);
-app.use('/api/payslips', payslip_route_1.default);
-app.use('/api/branches', branch_management_route_1.default);
-app.use('/api/attendance-settings', branch_global_attendance_route_1.default);
-app.use('/api/kpis', kpi_route_1.default);
-app.use('/api/appraisal-templates', appraisal_template_route_1.default);
-app.use('/api/metrics', metric_route_1.default);
-app.use('/api/targets', target_route_1.default);
-app.use('/api/performance', performance_route_1.default);
-app.use('/api/appraisals', appraisal_route_1.default);
-app.use('/api/employees', employee_performance_route_1.default);
-app.use('/api/permissions', role_permission_route_1.default);
-app.use('/api/kpi-assignments', kpi_assignment_route_1.default);
-app.use('/api/kpi-scores', kpi_score_route_1.default);
-app.use('/api/staff-invitation', staff_invitation_route_1.default);
-app.use('/api/time-off-banks', time_off_bank_route_1.default);
-app.use('/api/password-change', password_change_route_1.default);
-app.use('/api/system', system_route_1.default);
-app.use('/api/role-management', role_management_route_1.default);
-app.use('/api/system-complete', complete_system_init_route_1.default);
-app.use('/api/departments', department_management_route_1.default);
-app.use('/api/branch-working-days', branch_working_days_route_1.default);
-app.use('/api/shift-timings', shift_timing_route_1.default);
-app.use('/api/notifications', notification_route_1.default);
-app.use('/api/job-postings', job_posting_route_1.default);
-app.use('/api/job-applications', application_submission_route_1.default);
-app.use('/api/job-application-management', application_management_route_1.default);
-app.use('/api/shift-scheduling', shift_scheduling_route_1.default);
-app.use('/api/shift-exceptions', shift_exception_bulk_route_1.default);
-app.use('/api/shift-exception-types', shift_exception_type_route_1.default);
-app.use('/api/my-shifts', my_shifts_route_1.default);
-app.use('/api/holiday-duty-roster', holiday_duty_roster_route_1.default);
-app.use('/api/reports', reporting_analytics_route_1.default);
-app.use('/api/attendance-locations', attendance_location_route_1.default);
-app.use('/api/staff-documents', staff_document_route_1.default);
-app.use('/api/staff-location-assignments', staff_location_assignment_route_1.default);
-app.use('/api/guarantors', guarantor_route_1.default);
-app.use('/api/dashboard', dashboard_route_1.default);
-app.use('/api/leave-cleanup', leave_cleanup_route_1.default);
-app.use('/api/health', health_route_1.default);
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Welcome to the HR Management System API',
-        version: '1.0.0',
-        timestamp: new Date().toISOString()
-    });
-});
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
-});
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found',
-        path: req.originalUrl
-    });
-});
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        success: false,
-        message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : {}
-    });
-});
-app.listen(PORT, () => {
-    console.log(`HR Management System server is running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log('Database connected successfully');
+bootstrap().catch((error) => {
+    shutdown('Fatal bootstrap failure', error);
 });
 exports.default = app;
 //# sourceMappingURL=index.js.map
