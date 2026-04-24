@@ -178,10 +178,6 @@ const getStaffById = async (req, res) => {
         if (req.currentUser?.id === staffId) {
             console.log('[Backend] Self-access detected, resolving by user_id first:', staffId);
             staff = await staff_model_1.default.findByUserId(staffId);
-            if (!staff) {
-                console.log('[Backend] No staff by user_id, trying staff.id fallback:', staffId);
-                staff = await staff_model_1.default.findById(staffId);
-            }
         }
         else {
             staff = await staff_model_1.default.findById(staffId);

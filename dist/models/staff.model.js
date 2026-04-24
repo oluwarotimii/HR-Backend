@@ -71,7 +71,9 @@ class StaffModel {
        FROM ${this.tableName} s
        LEFT JOIN users u ON s.user_id = u.id
        LEFT JOIN branches b ON s.branch_id = b.id
-       WHERE s.user_id = ?`, [userId]);
+       WHERE s.user_id = ?
+       ORDER BY s.updated_at DESC, s.created_at DESC, s.id DESC
+       LIMIT 1`, [userId]);
         return rows[0] || null;
     }
     static async findByEmployeeId(employeeId) {
