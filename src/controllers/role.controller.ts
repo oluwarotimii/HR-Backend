@@ -205,6 +205,8 @@ export const deleteRole = async (req: Request, res: Response) => {
       });
     }
 
+    await PermissionService.invalidateAllUserPermissionCaches();
+
     return res.json({
       success: true,
       message: 'Role deleted successfully'

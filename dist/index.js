@@ -95,6 +95,7 @@ const staff_document_route_1 = __importDefault(require("./api/staff-document.rou
 const staff_location_assignment_route_1 = __importDefault(require("./api/staff-location-assignment.route"));
 const dashboard_route_1 = __importDefault(require("./api/dashboard.route"));
 const guarantor_route_1 = __importDefault(require("./api/guarantor.route"));
+const leave_policy_route_1 = __importDefault(require("./api/leave-policy.route"));
 const health_route_1 = __importDefault(require("./api/health.route"));
 const attendance_processor_worker_1 = __importDefault(require("./workers/attendance-processor.worker"));
 const auto_checkout_worker_1 = __importDefault(require("./workers/auto-checkout.worker"));
@@ -269,6 +270,7 @@ const bootstrap = async () => {
     app.use('/api/staff-documents', staff_document_route_1.default);
     app.use('/api/staff-location-assignments', staff_location_assignment_route_1.default);
     app.use('/api/guarantors', guarantor_route_1.default);
+    app.use('/api/leave-policy', leave_policy_route_1.default);
     app.use('/api/dashboard', dashboard_route_1.default);
     app.use('/api/leave-cleanup', leave_cleanup_route_1.default);
     app.use('/api/health', health_route_1.default);

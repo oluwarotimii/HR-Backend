@@ -95,6 +95,7 @@ const login = async (req, res) => {
             maxAge: cookieMaxAge,
             path: '/'
         });
+        await permission_service_1.default.invalidateUserPermissionCache(user.id);
         const permissions = await permission_service_1.default.generatePermissionManifest(user.id);
         const needsPasswordChange = !!user.must_change_password;
         const needsProfileCompletion = !user.phone;

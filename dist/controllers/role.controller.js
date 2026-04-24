@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeRolePermission = exports.addRolePermission = exports.getRolePermissions = exports.deleteRole = exports.updateRole = exports.createRole = exports.getRoleById = exports.getAllRoles = void 0;
 const role_model_1 = __importDefault(require("../models/role.model"));
 const role_permission_model_1 = __importDefault(require("../models/role-permission.model"));
+const permission_service_1 = __importDefault(require("../services/permission.service"));
 const getAllRoles = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -183,6 +184,7 @@ const deleteRole = async (req, res) => {
                 message: 'Role not found'
             });
         }
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         return res.json({
             success: true,
             message: 'Role deleted successfully'
@@ -255,6 +257,7 @@ const addRolePermission = async (req, res) => {
             allow_deny: allow_deny || 'allow'
         };
         const newPermission = await role_permission_model_1.default.create(permissionData);
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         return res.status(201).json({
             success: true,
             message: 'Role permission added successfully',
@@ -297,6 +300,7 @@ const removeRolePermission = async (req, res) => {
                 message: 'Role permission not found'
             });
         }
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         return res.json({
             success: true,
             message: 'Role permission removed successfully'

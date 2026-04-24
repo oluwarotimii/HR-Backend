@@ -45,6 +45,27 @@ const leave_allocation_model_1 = __importDefault(require("../models/leave-alloca
 const attachment_service_1 = __importDefault(require("../services/attachment.service"));
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
+const getLeavePolicy = async () => {
+    const [rows] = await database_1.pool.execute(`SELECT exclude_sundays_from_leave
+     FROM global_attendance_settings
+     LIMIT 1`);
+    return rows[0] || { exclude_sundays_from_leave: false };
+};
+const calculateLeaveDays = (startDate, endDate, excludeSundays) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    let count = 0;
+    const current = new Date(start);
+    while (current <= end) {
+        if (!(excludeSundays && current.getDay() === 0)) {
+            count += 1;
+        }
+        current.setDate(current.getDate() + 1);
+    }
+    return count;
+};
 router.get('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('leave:read'), async (req, res) => {
     try {
         const { userId, status, limit = 20, page = 1 } = req.query;
@@ -369,8 +390,16 @@ router.post('/', auth_middleware_1.authenticateJWT, upload_middleware_1.upload.a
        WHERE user_id = ? AND leave_type_id = ? AND status IN ('submitted', 'pending') AND id != ?`, [userId, leave_type_id, -1]);
         const pendingDays = parseFloat(pendingRows[0].pending_days);
         const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days - pendingDays;
-        const timeDiff = endDateObj.getTime() - startDateObj.getTime();
-        const requestedDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+        const leavePolicy = await getLeavePolicy();
+        const requestedDays = calculateLeaveDays(startDateObj, endDateObj, leavePolicy.exclude_sundays_from_leave);
+        if (requestedDays < 1) {
+            return res.status(400).json({
+                success: false,
+                message: leavePolicy.exclude_sundays_from_leave
+                    ? 'Selected leave range only contains Sundays. Please choose at least one non-Sunday leave day.'
+                    : 'Invalid leave date range'
+            });
+        }
         if (remainingDays < requestedDays) {
             return res.status(400).json({
                 success: false,
