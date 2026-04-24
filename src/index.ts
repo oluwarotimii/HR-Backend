@@ -71,6 +71,55 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+let server: ReturnType<typeof app.listen> | null = null;
+
+const shutdown = (reason: string, error?: unknown) => {
+  console.error(`[Server] ${reason}`);
+  if (error) {
+    console.error(error);
+  }
+
+  if (server) {
+    server.close(() => {
+      console.log('[Server] HTTP server closed');
+      process.exit(1);
+    });
+
+    setTimeout(() => {
+      console.error('[Server] Forced shutdown after timeout');
+      process.exit(1);
+    }, 5000).unref();
+    return;
+  }
+
+  process.exit(1);
+};
+
+process.on('uncaughtException', (error) => {
+  shutdown('Uncaught exception', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  shutdown('Unhandled promise rejection', reason);
+});
+
+process.on('SIGTERM', () => {
+  console.log('[Server] SIGTERM received, shutting down gracefully');
+  if (server) {
+    server.close(() => process.exit(0));
+  } else {
+    process.exit(0);
+  }
+});
+
+process.on('SIGINT', () => {
+  console.log('[Server] SIGINT received, shutting down gracefully');
+  if (server) {
+    server.close(() => process.exit(0));
+  } else {
+    process.exit(0);
+  }
+});
 
 // Rate limiting middleware
 const limiter = rateLimit({
@@ -106,22 +155,49 @@ app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Test database connection when server starts
-testConnection();
+// Initialize app services and start the HTTP server in an explicit bootstrap path.
+const bootstrap = async () => {
+  // Test database connection when server starts
+  try {
+    await testConnection();
+  } catch (error) {
+    console.error('[Server] Database test failed:', error);
+  }
 
-// Initialize Redis connection when server starts
-initializeRedis();
+  // Initialize Redis connection when server starts
+  try {
+    await initializeRedis();
+  } catch (error) {
+    console.error('[Server] Redis initialization failed:', error);
+  }
 
-// Initialize system cache (pre-load static data)
-SystemInitService.initialize();
+  // Initialize system cache (pre-load static data)
+  try {
+    await SystemInitService.initialize();
+  } catch (error) {
+    console.error('[Server] System initialization failed:', error);
+  }
 
-// Start attendance processor worker (daily automated processing)
-AttendanceProcessorWorker.start();
+  // Start attendance processor worker (daily automated processing)
+  try {
+    await AttendanceProcessorWorker.start();
+  } catch (error) {
+    console.error('[Server] Attendance processor failed to start:', error);
+  }
 
-// Start auto-checkout worker (automatically checks out staff at end of day)
-AutoCheckoutWorker.start();
+  // Start auto-checkout worker (automatically checks out staff at end of day)
+  try {
+    await AutoCheckoutWorker.start();
+  } catch (error) {
+    console.error('[Server] Auto-checkout worker failed to start:', error);
+  }
 
-// Start leave cleanup worker (declines expired pending leaves)
-LeaveCleanupWorker.start();
+  // Start leave cleanup worker (declines expired pending leaves)
+  try {
+    LeaveCleanupWorker.start();
+  } catch (error) {
+    console.error('[Server] Leave cleanup worker failed to start:', error);
+  }
 
 // Routes
 app.use('/api/auth', authLimiter, authRoutes); // Apply stricter rate limiting to auth endpoints
@@ -228,10 +304,18 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`HR Management System server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('Database connected successfully');
+  server = app.listen(PORT, () => {
+    console.log(`HR Management System server is running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  server.on('error', (error) => {
+    shutdown('HTTP server error', error);
+  });
+};
+
+bootstrap().catch((error) => {
+  shutdown('Fatal bootstrap failure', error);
 });
 
 export default app;
