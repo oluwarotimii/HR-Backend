@@ -23,6 +23,7 @@ export interface Staff {
     emergency_contact_phone?: string;
     emergency_contact_relationship?: string;
     date_of_birth?: Date;
+    nationality?: string;
     gender?: 'male' | 'female' | 'other';
     current_address_id?: number;
     permanent_address_id?: number;
@@ -89,6 +90,7 @@ export interface StaffInput {
     emergency_contact_phone?: string;
     emergency_contact_relationship?: string;
     date_of_birth?: Date;
+    nationality?: string;
     gender?: 'male' | 'female' | 'other';
     current_address_id?: number;
     permanent_address_id?: number;
@@ -156,6 +158,7 @@ export interface StaffUpdate {
     emergency_contact_phone?: string;
     emergency_contact_relationship?: string;
     date_of_birth?: Date;
+    nationality?: string;
     gender?: 'male' | 'female' | 'other';
     current_address_id?: number;
     permanent_address_id?: number;

@@ -87,7 +87,7 @@ class StaffModel {
         reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code,
         tax_identification_number, base_salary, pay_grade, pension_insurance_id,
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-        date_of_birth, gender, current_address_id, permanent_address_id, company_assets,
+        date_of_birth, nationality, gender, current_address_id, permanent_address_id, company_assets,
         primary_skills, education_certifications, employee_photo, probation_end_date,
         contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
         provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email,
@@ -96,9 +96,9 @@ class StaffModel {
         professional_certifications, certifications_json, languages_known, notice_period_start_date,
         notice_period_end_date, relieving_date, experience_years, previous_company,
         resignation_date, last_working_date, reason_for_leaving, reference_check_status,
-        background_verification_status
+        background_verification_status, state_of_origin, lga, course_of_study
       )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
             staffData.user_id,
             staffData.employee_id,
             staffData.designation,
@@ -119,6 +119,7 @@ class StaffModel {
             staffData.emergency_contact_phone,
             staffData.emergency_contact_relationship,
             staffData.date_of_birth,
+            staffData.nationality,
             staffData.gender,
             staffData.current_address_id,
             staffData.permanent_address_id,
@@ -157,7 +158,10 @@ class StaffModel {
             staffData.last_working_date,
             staffData.reason_for_leaving,
             staffData.reference_check_status,
-            staffData.background_verification_status
+            staffData.background_verification_status,
+            staffData.state_of_origin,
+            staffData.lga,
+            staffData.course_of_study
         ]);
         const insertedId = result.insertId;
         const createdItem = await this.findById(insertedId);
@@ -252,6 +256,10 @@ class StaffModel {
         if (staffData.gender !== undefined) {
             updates.push('gender = ?');
             values.push(staffData.gender);
+        }
+        if (staffData.nationality !== undefined) {
+            updates.push('nationality = ?');
+            values.push(staffData.nationality);
         }
         if (staffData.current_address_id !== undefined) {
             updates.push('current_address_id = ?');
@@ -404,6 +412,18 @@ class StaffModel {
         if (staffData.background_verification_status !== undefined) {
             updates.push('background_verification_status = ?');
             values.push(staffData.background_verification_status);
+        }
+        if (staffData.state_of_origin !== undefined) {
+            updates.push('state_of_origin = ?');
+            values.push(staffData.state_of_origin);
+        }
+        if (staffData.lga !== undefined) {
+            updates.push('lga = ?');
+            values.push(staffData.lga);
+        }
+        if (staffData.course_of_study !== undefined) {
+            updates.push('course_of_study = ?');
+            values.push(staffData.course_of_study);
         }
         console.log('[StaffModel] Update called for ID:', id);
         console.log('[StaffModel] Number of fields to update:', updates.length);

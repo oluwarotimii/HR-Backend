@@ -77,6 +77,39 @@ const normalizeTextListInput = (value) => {
         return undefined;
     return list.join(', ');
 };
+const parseOptionalDateInput = (value, fieldName) => {
+    if (value === undefined || value === null || value === '')
+        return undefined;
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error(`${fieldName} must be a valid date`);
+    }
+    return parsedDate;
+};
+const parseGraduationYearInput = (value) => {
+    if (value === undefined || value === null || value === '')
+        return undefined;
+    const parsedYear = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+    if (!Number.isInteger(parsedYear) || parsedYear < 1901 || parsedYear > 2155) {
+        throw new Error('year_of_graduation must be a valid year between 1901 and 2155');
+    }
+    return parsedYear;
+};
+const isValidationError = (error) => {
+    return error instanceof Error && (error.message.includes('must be a valid date') ||
+        error.message.includes('year_of_graduation must be a valid year'));
+};
+const enrichStaffWithAddresses = async (staff) => {
+    const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
+    const [addresses] = await pool.execute('SELECT address_type, street_address FROM staff_addresses WHERE staff_id = ?', [staff.id]);
+    const currentAddr = addresses.find((a) => a.address_type === 'current');
+    const permAddr = addresses.find((a) => a.address_type === 'permanent');
+    return {
+        ...staff,
+        current_address: currentAddr?.street_address || '',
+        permanent_address: permAddr?.street_address || ''
+    };
+};
 const getAllStaff = async (req, res) => {
     try {
         const paginate = req.query.paginate !== 'false';
@@ -166,15 +199,9 @@ const getStaffById = async (req, res) => {
         }
         console.log('[Backend] Found staff:', staff.id, 'for user:', staff.user_id);
         const user = await user_model_1.default.findById(staff.user_id);
-        const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
-        const [addresses] = await pool.execute('SELECT address_type, street_address FROM staff_addresses WHERE staff_id = ?', [staff.id]);
-        const currentAddr = addresses.find((a) => a.address_type === 'current');
-        const permAddr = addresses.find((a) => a.address_type === 'permanent');
         const staffWithProfile = {
-            ...staff,
-            profile_picture: user?.profile_picture || null,
-            current_address: currentAddr?.street_address || '',
-            permanent_address: permAddr?.street_address || ''
+            ...(await enrichStaffWithAddresses(staff)),
+            profile_picture: user?.profile_picture || null
         };
         return res.json({
             success: true,
@@ -193,7 +220,7 @@ const getStaffById = async (req, res) => {
 exports.getStaffById = getStaffById;
 const createStaff = async (req, res) => {
     try {
-        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
+        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, nationality, state_of_origin, lga, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
         if (!user_id) {
             return res.status(400).json({
                 success: false,
@@ -230,13 +257,23 @@ const createStaff = async (req, res) => {
         const professionalCertificationsText = normalizeTextListInput(professional_certifications);
         const certificationList = normalizeArrayInput(certifications_json) ?? normalizeArrayInput(professional_certifications);
         const languagesList = normalizeArrayInput(languages_known);
+        const parsedJoiningDate = parseOptionalDateInput(joining_date, 'joining_date');
+        const parsedDateOfBirth = parseOptionalDateInput(date_of_birth, 'date_of_birth');
+        const parsedProbationEndDate = parseOptionalDateInput(probation_end_date, 'probation_end_date');
+        const parsedContractEndDate = parseOptionalDateInput(contract_end_date, 'contract_end_date');
+        const parsedNoticePeriodStartDate = parseOptionalDateInput(notice_period_start_date, 'notice_period_start_date');
+        const parsedNoticePeriodEndDate = parseOptionalDateInput(notice_period_end_date, 'notice_period_end_date');
+        const parsedRelievingDate = parseOptionalDateInput(relieving_date, 'relieving_date');
+        const parsedResignationDate = parseOptionalDateInput(resignation_date, 'resignation_date');
+        const parsedLastWorkingDate = parseOptionalDateInput(last_working_date, 'last_working_date');
+        const parsedYearOfGraduation = parseGraduationYearInput(year_of_graduation);
         const staffData = {
             user_id,
             employee_id: autoGeneratedEmployeeId,
             designation,
             department,
             branch_id,
-            joining_date: joining_date ? new Date(joining_date) : undefined,
+            joining_date: parsedJoiningDate,
             employment_type: employment_type || 'full_time',
             reporting_manager_id,
             work_mode,
@@ -250,14 +287,17 @@ const createStaff = async (req, res) => {
             emergency_contact_name,
             emergency_contact_phone,
             emergency_contact_relationship,
-            date_of_birth,
+            date_of_birth: parsedDateOfBirth,
+            nationality,
+            state_of_origin,
+            lga,
             gender,
             company_assets,
             primary_skills: primarySkillsText,
             education_certifications,
             employee_photo,
-            probation_end_date: probation_end_date ? new Date(probation_end_date) : undefined,
-            contract_end_date: contract_end_date ? new Date(contract_end_date) : undefined,
+            probation_end_date: parsedProbationEndDate,
+            contract_end_date: parsedContractEndDate,
             weekly_working_hours,
             overtime_eligibility,
             medical_insurance_id,
@@ -273,17 +313,17 @@ const createStaff = async (req, res) => {
             special_medical_notes,
             highest_qualification,
             university_school,
-            year_of_graduation,
+            year_of_graduation: parsedYearOfGraduation,
             professional_certifications: professionalCertificationsText,
             certifications_json: certificationList,
             languages_known: languagesList,
-            notice_period_start_date: notice_period_start_date ? new Date(notice_period_start_date) : undefined,
-            notice_period_end_date: notice_period_end_date ? new Date(notice_period_end_date) : undefined,
-            relieving_date: relieving_date ? new Date(relieving_date) : undefined,
+            notice_period_start_date: parsedNoticePeriodStartDate,
+            notice_period_end_date: parsedNoticePeriodEndDate,
+            relieving_date: parsedRelievingDate,
             experience_years,
             previous_company,
-            resignation_date: resignation_date ? new Date(resignation_date) : undefined,
-            last_working_date: last_working_date ? new Date(last_working_date) : undefined,
+            resignation_date: parsedResignationDate,
+            last_working_date: parsedLastWorkingDate,
             reason_for_leaving,
             reference_check_status,
             background_verification_status
@@ -300,6 +340,12 @@ const createStaff = async (req, res) => {
     }
     catch (error) {
         console.error('Create staff error:', error);
+        if (isValidationError(error)) {
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
         return res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -345,7 +391,7 @@ const updateStaff = async (req, res) => {
         }
         console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', requestedUserId);
         console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
-        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name } = req.body;
+        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name, nationality } = req.body;
         if (employee_id !== undefined) {
             console.log('[Backend] ⚠️ employee_id field ignored - employee_id is auto-generated and cannot be changed');
         }
@@ -356,15 +402,9 @@ const updateStaff = async (req, res) => {
             updateData.department = department;
         if (branch_id !== undefined)
             updateData.branch_id = branch_id;
-        if (joining_date !== undefined) {
-            const joinDate = new Date(joining_date);
-            if (!isNaN(joinDate.getTime())) {
-                updateData.joining_date = joinDate;
-            }
-            else {
-                console.error('[Backend] Invalid joining_date:', joining_date);
-            }
-        }
+        const parsedJoiningDate = parseOptionalDateInput(joining_date, 'joining_date');
+        if (parsedJoiningDate !== undefined)
+            updateData.joining_date = parsedJoiningDate;
         if (employment_type !== undefined)
             updateData.employment_type = employment_type;
         if (status !== undefined)
@@ -393,15 +433,11 @@ const updateStaff = async (req, res) => {
             updateData.emergency_contact_phone = emergency_contact_phone;
         if (emergency_contact_relationship !== undefined)
             updateData.emergency_contact_relationship = emergency_contact_relationship;
-        if (date_of_birth !== undefined) {
-            const dobDate = new Date(date_of_birth);
-            if (!isNaN(dobDate.getTime())) {
-                updateData.date_of_birth = dobDate;
-            }
-            else {
-                console.error('[Backend] Invalid date_of_birth:', date_of_birth);
-            }
-        }
+        const parsedDateOfBirth = parseOptionalDateInput(date_of_birth, 'date_of_birth');
+        if (parsedDateOfBirth !== undefined)
+            updateData.date_of_birth = parsedDateOfBirth;
+        if (nationality !== undefined)
+            updateData.nationality = nationality;
         if (gender !== undefined)
             updateData.gender = gender;
         if (company_assets !== undefined)
@@ -423,16 +459,6 @@ const updateStaff = async (req, res) => {
             updateData.education_certifications = education_certifications;
         if (employee_photo !== undefined)
             updateData.employee_photo = employee_photo;
-        if (probation_end_date !== undefined) {
-            const probDate = new Date(probation_end_date);
-            if (!isNaN(probDate.getTime()))
-                updateData.probation_end_date = probDate;
-        }
-        if (contract_end_date !== undefined) {
-            const contractDate = new Date(contract_end_date);
-            if (!isNaN(contractDate.getTime()))
-                updateData.contract_end_date = contractDate;
-        }
         if (weekly_working_hours !== undefined)
             updateData.weekly_working_hours = weekly_working_hours;
         if (overtime_eligibility !== undefined)
@@ -464,8 +490,9 @@ const updateStaff = async (req, res) => {
             updateData.highest_qualification = highest_qualification;
         if (university_school !== undefined)
             updateData.university_school = university_school;
-        if (year_of_graduation !== undefined)
-            updateData.year_of_graduation = year_of_graduation;
+        const parsedYearOfGraduation = parseGraduationYearInput(year_of_graduation);
+        if (parsedYearOfGraduation !== undefined)
+            updateData.year_of_graduation = parsedYearOfGraduation;
         if (course_of_study !== undefined && course_of_study !== '')
             updateData.course_of_study = course_of_study;
         if (professional_certifications !== undefined) {
@@ -583,6 +610,9 @@ const updateStaff = async (req, res) => {
         s.joining_date,
         s.employment_type,
         s.status as staff_status,
+        s.nationality,
+        s.state_of_origin,
+        s.lga,
         s.created_at,
         s.updated_at,
         u.full_name,
@@ -628,6 +658,12 @@ const updateStaff = async (req, res) => {
         console.error('[Backend] Error errno:', error.errno);
         console.error('[Backend] Error SQL:', error.sql);
         console.error('========================================');
+        if (isValidationError(error)) {
+            return res.status(400).json({
+                success: false,
+                message: error.message
+            });
+        }
         return res.status(500).json({
             success: false,
             message: 'Internal server error: ' + error.message
@@ -789,10 +825,11 @@ const getCurrentUserStaffDetails = async (req, res) => {
                 message: 'Staff details not found for current user'
             });
         }
+        const staffWithAddresses = await enrichStaffWithAddresses(staff);
         return res.json({
             success: true,
             message: 'Current user staff details retrieved successfully',
-            data: { staff }
+            data: { staff: staffWithAddresses }
         });
     }
     catch (error) {
