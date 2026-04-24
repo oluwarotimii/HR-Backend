@@ -1,7 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteRole = exports.updateRole = exports.getAllRoles = exports.getAvailablePermissions = exports.createRole = void 0;
 const database_1 = require("../config/database");
+const permission_service_1 = __importDefault(require("../services/permission.service"));
 const permission_definitions_service_1 = require("../services/permission-definitions.service");
 const createRole = async (req, res) => {
     try {
@@ -36,6 +40,7 @@ const createRole = async (req, res) => {
                 await database_1.pool.execute('INSERT INTO roles_permissions (role_id, permission, allow_deny, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())', [roleId, permission, 'allow']);
             }
         }
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         const [newRoleRows] = await database_1.pool.execute('SELECT * FROM roles WHERE id = ?', [roleId]);
         const newRole = newRoleRows[0];
         return res.status(201).json({
@@ -171,6 +176,7 @@ const updateRole = async (req, res) => {
                 }
             }
         }
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         const [updatedRoleRows] = await database_1.pool.execute('SELECT * FROM roles WHERE id = ?', [roleId]);
         const updatedRole = updatedRoleRows[0];
         return res.json({
@@ -231,6 +237,7 @@ const deleteRole = async (req, res) => {
         }
         await database_1.pool.execute('DELETE FROM roles_permissions WHERE role_id = ?', [roleId]);
         await database_1.pool.execute('DELETE FROM roles WHERE id = ?', [roleId]);
+        await permission_service_1.default.invalidateAllUserPermissionCaches();
         return res.json({
             success: true,
             message: 'Role deleted successfully'

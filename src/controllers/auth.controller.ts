@@ -90,6 +90,10 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
       path: '/'
     });
 
+    // Refresh the cached manifest before generating a new login response.
+    // This avoids serving stale permissions after role changes.
+    await PermissionService.invalidateUserPermissionCache(user.id);
+
     // Get user permissions manifest
     const permissions = await PermissionService.generatePermissionManifest(user.id);
 

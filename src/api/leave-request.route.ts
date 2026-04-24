@@ -9,6 +9,35 @@ import { pool } from '../config/database';
 
 const router = Router();
 
+const getLeavePolicy = async (): Promise<{ exclude_sundays_from_leave: boolean }> => {
+  const [rows] = await pool.execute(
+    `SELECT exclude_sundays_from_leave
+     FROM global_attendance_settings
+     LIMIT 1`
+  ) as [any[], any];
+
+  return rows[0] || { exclude_sundays_from_leave: false };
+};
+
+const calculateLeaveDays = (startDate: Date, endDate: Date, excludeSundays: boolean): number => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  let count = 0;
+  const current = new Date(start);
+
+  while (current <= end) {
+    if (!(excludeSundays && current.getDay() === 0)) {
+      count += 1;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+};
+
 // GET /api/leave/requests - Get all leave requests (with filters)
 router.get('/', authenticateJWT, checkPermission('leave:read'), async (req: Request, res: Response) => {
   try {
@@ -478,9 +507,19 @@ router.post(
     // Calculate remaining days for this allocation (subtract pending requests)
     const remainingDays = allocation.allocated_days - allocation.used_days + allocation.carried_over_days - pendingDays;
 
+    const leavePolicy = await getLeavePolicy();
+
     // Calculate requested days
-    const timeDiff = endDateObj.getTime() - startDateObj.getTime();
-    const requestedDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // Include both start and end date
+    const requestedDays = calculateLeaveDays(startDateObj, endDateObj, leavePolicy.exclude_sundays_from_leave);
+
+    if (requestedDays < 1) {
+      return res.status(400).json({
+        success: false,
+        message: leavePolicy.exclude_sundays_from_leave
+          ? 'Selected leave range only contains Sundays. Please choose at least one non-Sunday leave day.'
+          : 'Invalid leave date range'
+      });
+    }
 
     // Check if user has enough balance
     if (remainingDays < requestedDays) {
