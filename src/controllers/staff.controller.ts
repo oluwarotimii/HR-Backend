@@ -174,10 +174,6 @@ export const getStaffById = async (req: Request, res: Response) => {
     if (req.currentUser?.id === staffId) {
       console.log('[Backend] Self-access detected, resolving by user_id first:', staffId);
       staff = await StaffModel.findByUserId(staffId);
-      if (!staff) {
-        console.log('[Backend] No staff by user_id, trying staff.id fallback:', staffId);
-        staff = await StaffModel.findById(staffId);
-      }
     } else {
       // Admin/privileged flow: resolve by staff primary key first.
       staff = await StaffModel.findById(staffId);
