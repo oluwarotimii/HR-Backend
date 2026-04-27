@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { getNumberQueryParam, getStringQueryParam } from '../utils/type-utils';
 import UserModel, { UserInput, UserUpdate } from '../models/user.model';
 import UserPermissionModel from '../models/user-permission.model';
-import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+import RoleModel from '../models/role.model';
+import { generateTemporaryPassword } from '../utils/password-utils';
+import { sendPasswordResetEmail } from '../services/email.service';
 
 // Controller for user management
 export const getAllUsers = async (req: Request, res: Response) => {
@@ -59,6 +61,89 @@ export const getAllUsers = async (req: Request, res: Response) => {
       success: false,
       message: 'Internal server error'
     });
+  }
+};
+
+export const resetUserPassword = async (req: Request, res: Response) => {
+  try {
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '', 10);
+
+    if (!req.currentUser) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const tempPassword = generateTemporaryPassword();
+    await UserModel.update(userId, { password: tempPassword, must_change_password: true });
+
+    const requestedBy = req.currentUser.full_name || req.currentUser.email || `User ${req.currentUser.id}`;
+    await sendPasswordResetEmail({
+      to: user.email,
+      fullName: user.full_name,
+      loginEmail: user.email,
+      temporaryPassword: tempPassword,
+      requestedBy
+    });
+
+    return res.json({
+      success: true,
+      message: 'Temporary password generated and sent successfully',
+      data: { user: { id: user.id, email: user.email } }
+    });
+  } catch (error) {
+    console.error('Reset user password error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+export const updateUserRole = async (req: Request, res: Response) => {
+  try {
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const userId = parseInt(typeof idStr === 'string' ? idStr : '', 10);
+    const roleId = parseInt(String((req.body as any)?.role_id ?? ''), 10);
+
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+    if (Number.isNaN(roleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid role ID' });
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const role = await RoleModel.findById(roleId);
+    if (!role) {
+      return res.status(404).json({ success: false, message: 'Role not found' });
+    }
+
+    const updatedUser = await UserModel.update(userId, { role_id: roleId });
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const { password_hash, ...userWithoutPassword } = updatedUser as any;
+    return res.json({
+      success: true,
+      message: 'User role updated successfully',
+      data: { user: userWithoutPassword }
+    });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
 

@@ -3,10 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.removeUserPermission = exports.addUserPermission = exports.getUserPermissions = exports.terminateUser = exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserById = exports.getAllUsers = void 0;
+exports.removeUserPermission = exports.addUserPermission = exports.getUserPermissions = exports.terminateUser = exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserById = exports.updateUserRole = exports.resetUserPassword = exports.getAllUsers = void 0;
 const type_utils_1 = require("../utils/type-utils");
 const user_model_1 = __importDefault(require("../models/user.model"));
 const user_permission_model_1 = __importDefault(require("../models/user-permission.model"));
+const role_model_1 = __importDefault(require("../models/role.model"));
+const password_utils_1 = require("../utils/password-utils");
+const email_service_1 = require("../services/email.service");
 const getAllUsers = async (req, res) => {
     try {
         const page = (0, type_utils_1.getNumberQueryParam)(req, 'page', 1) || 1;
@@ -56,6 +59,80 @@ const getAllUsers = async (req, res) => {
     }
 };
 exports.getAllUsers = getAllUsers;
+const resetUserPassword = async (req, res) => {
+    try {
+        const idParam = req.params.id;
+        const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+        const userId = parseInt(typeof idStr === 'string' ? idStr : '', 10);
+        if (!req.currentUser) {
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+        if (Number.isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+        const user = await user_model_1.default.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const tempPassword = (0, password_utils_1.generateTemporaryPassword)();
+        await user_model_1.default.update(userId, { password: tempPassword, must_change_password: true });
+        const requestedBy = req.currentUser.full_name || req.currentUser.email || `User ${req.currentUser.id}`;
+        await (0, email_service_1.sendPasswordResetEmail)({
+            to: user.email,
+            fullName: user.full_name,
+            loginEmail: user.email,
+            temporaryPassword: tempPassword,
+            requestedBy
+        });
+        return res.json({
+            success: true,
+            message: 'Temporary password generated and sent successfully',
+            data: { user: { id: user.id, email: user.email } }
+        });
+    }
+    catch (error) {
+        console.error('Reset user password error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+exports.resetUserPassword = resetUserPassword;
+const updateUserRole = async (req, res) => {
+    try {
+        const idParam = req.params.id;
+        const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+        const userId = parseInt(typeof idStr === 'string' ? idStr : '', 10);
+        const roleId = parseInt(String(req.body?.role_id ?? ''), 10);
+        if (Number.isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+        if (Number.isNaN(roleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
+        const user = await user_model_1.default.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const role = await role_model_1.default.findById(roleId);
+        if (!role) {
+            return res.status(404).json({ success: false, message: 'Role not found' });
+        }
+        const updatedUser = await user_model_1.default.update(userId, { role_id: roleId });
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const { password_hash, ...userWithoutPassword } = updatedUser;
+        return res.json({
+            success: true,
+            message: 'User role updated successfully',
+            data: { user: userWithoutPassword }
+        });
+    }
+    catch (error) {
+        console.error('Update user role error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+exports.updateUserRole = updateUserRole;
 const getUserById = async (req, res) => {
     try {
         const { id } = req.params;

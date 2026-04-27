@@ -13,6 +13,8 @@ router.get('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPe
 router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('users:read'), user_controller_1.getUserById);
 router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.create'), user_controller_1.createUser);
 router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.update'), user_controller_1.updateUser);
+router.post('/:id/reset-password', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.update'), user_controller_1.resetUserPassword);
+router.put('/:id/role', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.update'), user_controller_1.updateUserRole);
 router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.delete'), user_controller_1.deleteUser);
 router.patch('/:id/terminate', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('user.terminate'), user_controller_1.terminateUser);
 router.post('/me/upload-photo', auth_middleware_1.authenticateJWT, (req, res, next) => {

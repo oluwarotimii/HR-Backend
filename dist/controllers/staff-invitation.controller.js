@@ -8,16 +8,9 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const database_1 = require("../config/database");
 const email_service_1 = require("../services/email.service");
+const password_utils_1 = require("../utils/password-utils");
 const generateInvitationToken = () => {
     return crypto_1.default.randomBytes(32).toString('hex');
-};
-const generateTemporaryPassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
 };
 async function createSingleInvitation(firstName, lastName, personalEmail, phone, roleId, branchId, departmentId, adminId) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +46,7 @@ async function createSingleInvitation(firstName, lastName, personalEmail, phone,
         }
     }
     const token = generateInvitationToken();
-    const temporaryPassword = generateTemporaryPassword();
+    const temporaryPassword = (0, password_utils_1.generateTemporaryPassword)();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
     let departmentName = null;
@@ -376,7 +369,7 @@ const resendInvitation = async (req, res) => {
             });
         }
         const newToken = generateInvitationToken();
-        const newTemporaryPassword = generateTemporaryPassword();
+        const newTemporaryPassword = (0, password_utils_1.generateTemporaryPassword)();
         const newExpiresAt = new Date();
         newExpiresAt.setDate(newExpiresAt.getDate() + 7);
         const userId = invitation.user_id;
