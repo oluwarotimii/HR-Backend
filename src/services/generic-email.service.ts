@@ -12,8 +12,9 @@ interface GenericEmailProps {
 export const sendGenericEmail = async ({ to, subject, html }: GenericEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'noreply@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
     const { error } = await resend.emails.send({
-      from: defaultEmail,
+      from: sender,
       to: to,
       subject: subject,
       html: html

@@ -356,9 +356,16 @@ export const updateShiftTemplate = async (req: Request, res: Response) => {
 
     // Add updated_at field
     updateFields.push('updated_at = NOW()');
-    params.push(id); // For WHERE clause
+
+    if (updateFields.length === 1) { // Only updated_at
+        return res.status(400).json({
+            success: false,
+            message: 'No fields provided for update'
+        });
+    }
 
     const query = `UPDATE shift_templates SET ${updateFields.join(', ')} WHERE id = ?`;
+    params.push(id); // For WHERE clause
 
     await pool.execute(query, params);
 

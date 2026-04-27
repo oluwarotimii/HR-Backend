@@ -271,9 +271,10 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
         ) as [any[], any];
 
         if (leaveCheck[0].length === 0) {
+          const scheduleNote = effectiveSchedule?.schedule_note || 'Scheduled Day Off';
           return res.status(403).json({
             success: false,
-            message: `Today is a non-working day (${effectiveSchedule?.schedule_note || 'Scheduled Day Off'}). Check-in is not allowed.`,
+            message: `Today is a non-working day (${scheduleNote}). You do not have an active shift assigned for this date.`,
             data: { non_working_day: true }
           });
         }
@@ -292,7 +293,7 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       if (isToday && serverTime > cutoffTime) {
         return res.status(403).json({
           success: false,
-          message: `The check-in window for your shift (started at ${effectiveSchedule.start_time}) has closed. Please contact your supervisor.`,
+          message: `Your scheduled shift started at ${effectiveSchedule.start_time}, and the 4-hour check-in window has now closed. Please contact your supervisor.`,
           data: { cutoff_exceeded: true, scheduled_start: effectiveSchedule.start_time }
         });
       }
