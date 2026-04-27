@@ -35,6 +35,9 @@ declare class AttendanceLocationModel {
     static delete(id: number): Promise<boolean>;
     static isWithinAttendanceLocation(lat: number, lng: number, branchId?: number | null): Promise<AttendanceLocation | null>;
     static getLocationsNearby(lat: number, lng: number, maxDistanceMeters?: number, branchId?: number | null): Promise<AttendanceLocation[]>;
+    static getAssignedLocationsWithinRadius(locationIds: number[], lat: number, lng: number, branchId?: number | null): Promise<(AttendanceLocation & {
+        distance_meters: number;
+    })[]>;
     static isWithinSpecificLocation(locationId: number, lat: number, lng: number): Promise<boolean>;
     static findByActiveStatus(isActive: boolean): Promise<AttendanceLocation[]>;
 }

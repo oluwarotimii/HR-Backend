@@ -47,6 +47,7 @@ export interface Staff {
   alternate_phone_number?: string;
   marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
   blood_group?: string;
+  religion?: string;
   allergies?: string;
   special_medical_notes?: string;
   highest_qualification?: string;
@@ -116,6 +117,7 @@ export interface StaffInput {
   alternate_phone_number?: string;
   marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
   blood_group?: string;
+  religion?: string;
   allergies?: string;
   special_medical_notes?: string;
   highest_qualification?: string;
@@ -186,6 +188,7 @@ export interface StaffUpdate {
   alternate_phone_number?: string;
   marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
   blood_group?: string;
+  religion?: string;
   allergies?: string;
   special_medical_notes?: string;
   highest_qualification?: string;
@@ -343,14 +346,14 @@ class StaffModel {
         primary_skills, education_certifications, employee_photo, probation_end_date,
         contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
         provident_fund_id, gratuity_applicable, notice_period_days, work_email, personal_email,
-        phone_number, alternate_phone_number, marital_status, blood_group, allergies,
+        phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies,
         special_medical_notes, highest_qualification, university_school, year_of_graduation,
         professional_certifications, certifications_json, languages_known, notice_period_start_date,
         notice_period_end_date, relieving_date, experience_years, previous_company,
         resignation_date, last_working_date, reason_for_leaving, reference_check_status,
         background_verification_status, state_of_origin, lga, course_of_study
       )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         staffData.user_id,
         staffData.employee_id,
@@ -394,6 +397,7 @@ class StaffModel {
         staffData.alternate_phone_number,
         staffData.marital_status,
         staffData.blood_group,
+        staffData.religion,
         staffData.allergies,
         staffData.special_medical_notes,
         staffData.highest_qualification,
@@ -640,6 +644,11 @@ class StaffModel {
     if (staffData.blood_group !== undefined) {
       updates.push('blood_group = ?');
       values.push(staffData.blood_group);
+    }
+
+    if (staffData.religion !== undefined) {
+      updates.push('religion = ?');
+      values.push(staffData.religion);
     }
 
     if (staffData.allergies !== undefined) {

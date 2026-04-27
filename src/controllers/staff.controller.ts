@@ -226,7 +226,7 @@ export const createStaff = async (req: Request, res: Response) => {
       primary_skills, education_certifications, employee_photo, probation_end_date,
       contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
       provident_fund_id, gratuity_applicable, notice_period_days, personal_email,
-      phone_number, alternate_phone_number, marital_status, blood_group, allergies,
+      phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies,
       special_medical_notes, highest_qualification, university_school, year_of_graduation,
       professional_certifications, certifications_json, languages_known, notice_period_start_date,
       notice_period_end_date, relieving_date, experience_years, previous_company,
@@ -342,6 +342,7 @@ export const createStaff = async (req: Request, res: Response) => {
       alternate_phone_number,
       marital_status,
       blood_group,
+      religion,
       allergies: allergiesText,
       special_medical_notes,
       highest_qualification,
@@ -455,7 +456,7 @@ export const updateStaff = async (req: Request, res: Response) => {
       primary_skills, education_certifications, employee_photo, probation_end_date,
       contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id,
       provident_fund_id, gratuity_applicable, notice_period_days, personal_email,
-      phone_number, alternate_phone_number, marital_status, blood_group, allergies,
+      phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies,
       special_medical_notes, highest_qualification, university_school, year_of_graduation,
       professional_certifications, certifications_json, languages_known, notice_period_start_date,
       notice_period_end_date, relieving_date, experience_years, previous_company,
@@ -530,6 +531,7 @@ export const updateStaff = async (req: Request, res: Response) => {
     if (alternate_phone_number !== undefined) updateData.alternate_phone_number = alternate_phone_number;
     if (marital_status !== undefined) updateData.marital_status = marital_status;
     if (blood_group !== undefined) updateData.blood_group = blood_group;
+    if (religion !== undefined) updateData.religion = religion;
     if (allergies !== undefined) {
       updateData.allergies = normalizeTextListInput(allergies) ?? '';
     }
@@ -705,6 +707,7 @@ export const updateStaff = async (req: Request, res: Response) => {
         s.employment_type,
         s.status as staff_status,
         s.nationality,
+        s.religion,
         s.state_of_origin,
         s.lga,
         s.created_at,

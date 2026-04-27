@@ -46,6 +46,19 @@ router.get('/', authenticateJWT, async (req: Request, res: Response) => {
       });
     }
 
+    // Merge in persisted attendance_settings (if present). This is where flags like
+    // enable_location_verification / strict_location_mode actually live.
+    let persistedSettings: Record<string, any> = {};
+    try {
+      const [rows] = await pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [targetBranchId]) as [any[], any];
+      if (rows && rows.length > 0) {
+        persistedSettings = rows[0] || {};
+      }
+    } catch (error) {
+      // Table may not exist in older deployments; fall back to defaults/branch config.
+      console.log('Using derived attendance settings (attendance_settings table not available)');
+    }
+
     // Get attendance settings from branch configuration
     const attendanceSettings = {
       branch_id: branch.id,
@@ -61,6 +74,7 @@ router.get('/', authenticateJWT, async (req: Request, res: Response) => {
       allow_future_attendance_entry: false, // Default
       grace_period_minutes: 0, // Default - no grace period
       enable_location_verification: !!branch.location_coordinates,
+      strict_location_mode: false,
       enable_face_recognition: false, // Default
       enable_biometric_verification: false, // Default
       notify_absent_employees: true, // Default
@@ -79,7 +93,17 @@ router.get('/', authenticateJWT, async (req: Request, res: Response) => {
     return res.json({
       success: true,
       message: 'Attendance settings retrieved successfully',
-      data: { settings: attendanceSettings }
+      data: {
+        settings: {
+          ...attendanceSettings,
+          ...persistedSettings,
+          branch_id: branch.id,
+          branch_name: branch.name,
+          attendance_mode: branch.attendance_mode,
+          location_coordinates: branch.location_coordinates,
+          location_radius_meters: branch.location_radius_meters,
+        }
+      }
     });
   } catch (error) {
     console.error('Get attendance settings error:', error);
@@ -227,7 +251,8 @@ router.patch('/', authenticateJWT, checkPermission('attendance:manage'), async (
         'enable_location_verification', 'allow_manual_attendance_entry',
         'enable_weekend_attendance', 'notify_absent_employees',
         'notify_supervisors_daily_summary', 'enable_face_recognition',
-        'enable_biometric_verification', 'enable_holiday_attendance'
+        'enable_biometric_verification', 'enable_holiday_attendance',
+        'strict_location_mode'
       ];
 
       for (const [key, value] of Object.entries(settings)) {
@@ -260,7 +285,8 @@ router.patch('/', authenticateJWT, checkPermission('attendance:manage'), async (
         'enable_location_verification', 'allow_manual_attendance_entry',
         'enable_weekend_attendance', 'notify_absent_employees',
         'notify_supervisors_daily_summary', 'enable_face_recognition',
-        'enable_biometric_verification', 'enable_holiday_attendance'
+        'enable_biometric_verification', 'enable_holiday_attendance',
+        'strict_location_mode'
       ];
 
       for (const [key, value] of Object.entries(settings)) {

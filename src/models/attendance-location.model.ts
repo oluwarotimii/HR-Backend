@@ -208,7 +208,8 @@ class AttendanceLocationModel {
   // Method to get all locations within a certain distance of a coordinate
   static async getLocationsNearby(lat: number, lng: number, maxDistanceMeters: number = 1000, branchId?: number | null): Promise<AttendanceLocation[]> {
     let query = '';
-    const params: any[] = [`POINT(${lng} ${lat})`, maxDistanceMeters];
+    const pointWkt = `POINT(${lng} ${lat})`;
+    const params: any[] = [pointWkt, pointWkt, maxDistanceMeters];
 
     if (branchId !== undefined && branchId !== null) {
       query = `
@@ -230,6 +231,41 @@ class AttendanceLocationModel {
 
     const [rows] = await pool.execute(query, params);
     return rows as AttendanceLocation[];
+  }
+
+  static async getAssignedLocationsWithinRadius(
+    locationIds: number[],
+    lat: number,
+    lng: number,
+    branchId?: number | null
+  ): Promise<(AttendanceLocation & { distance_meters: number })[]> {
+    if (!locationIds || locationIds.length === 0) {
+      return [];
+    }
+
+    const pointWkt = `POINT(${lng} ${lat})`;
+    const idPlaceholders = locationIds.map(() => '?').join(', ');
+    const params: any[] = [pointWkt, pointWkt, ...locationIds];
+
+    let query = `
+      SELECT
+        *,
+        ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) AS distance_meters
+      FROM ${this.tableName}
+      WHERE is_active = TRUE
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= location_radius_meters
+        AND id IN (${idPlaceholders})
+    `;
+
+    if (branchId !== undefined && branchId !== null) {
+      query += ` AND (branch_id = ? OR branch_id IS NULL)`;
+      params.push(branchId);
+    }
+
+    query += ` ORDER BY distance_meters ASC`;
+
+    const [rows] = await pool.execute(query, params);
+    return rows as (AttendanceLocation & { distance_meters: number })[];
   }
 
   // Method to check if a coordinate is within a specific location's radius

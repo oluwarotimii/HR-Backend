@@ -216,7 +216,7 @@ const getStaffById = async (req, res) => {
 exports.getStaffById = getStaffById;
 const createStaff = async (req, res) => {
     try {
-        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, nationality, state_of_origin, lga, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
+        const { user_id, employee_id, designation, department, branch_id, joining_date, employment_type, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, nationality, state_of_origin, lga, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status } = req.body;
         if (!user_id) {
             return res.status(400).json({
                 success: false,
@@ -305,6 +305,7 @@ const createStaff = async (req, res) => {
             alternate_phone_number,
             marital_status,
             blood_group,
+            religion,
             allergies: allergiesText,
             special_medical_notes,
             highest_qualification,
@@ -387,7 +388,7 @@ const updateStaff = async (req, res) => {
         }
         console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', requestedUserId);
         console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
-        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name, nationality } = req.body;
+        const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name, nationality } = req.body;
         if (employee_id !== undefined) {
             console.log('[Backend] ⚠️ employee_id field ignored - employee_id is auto-generated and cannot be changed');
         }
@@ -477,6 +478,8 @@ const updateStaff = async (req, res) => {
             updateData.marital_status = marital_status;
         if (blood_group !== undefined)
             updateData.blood_group = blood_group;
+        if (religion !== undefined)
+            updateData.religion = religion;
         if (allergies !== undefined) {
             updateData.allergies = normalizeTextListInput(allergies) ?? '';
         }
@@ -607,6 +610,7 @@ const updateStaff = async (req, res) => {
         s.employment_type,
         s.status as staff_status,
         s.nationality,
+        s.religion,
         s.state_of_origin,
         s.lga,
         s.created_at,
