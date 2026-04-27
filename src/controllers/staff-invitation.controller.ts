@@ -5,23 +5,12 @@ import { pool } from '../config/database';
 import { sendStaffInvitationEmail } from '../services/email.service';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/auth.middleware';
+import { generateTemporaryPassword } from '../utils/password-utils';
 
 // Function to generate invitation token
 const generateInvitationToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
 };
-
-// Function to generate a temporary password
-const generateTemporaryPassword = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-};
-
-
 
 // Internal: core invitation creation logic (shared by single and bulk invite)
 async function createSingleInvitation(

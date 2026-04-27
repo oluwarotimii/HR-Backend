@@ -8,7 +8,9 @@ import {
   terminateUser,
   getUserPermissions,
   addUserPermission,
-  removeUserPermission
+  removeUserPermission,
+  resetUserPassword,
+  updateUserRole
 } from '../controllers/user.controller';
 import { changePasswordAfterFirstLogin } from '../controllers/password-change.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
@@ -21,6 +23,8 @@ router.get('/', authenticateJWT, checkPermission('users:read'), getAllUsers);
 router.get('/:id', authenticateJWT, checkPermission('users:read'), getUserById);
 router.post('/', authenticateJWT, checkPermission('user.create'), createUser);
 router.put('/:id', authenticateJWT, checkPermission('user.update'), updateUser);
+router.post('/:id/reset-password', authenticateJWT, checkPermission('user.update'), resetUserPassword);
+router.put('/:id/role', authenticateJWT, checkPermission('user.update'), updateUserRole);
 router.delete('/:id', authenticateJWT, checkPermission('user.delete'), deleteUser);
 router.patch('/:id/terminate', authenticateJWT, checkPermission('user.terminate'), terminateUser);
 

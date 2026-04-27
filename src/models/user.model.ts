@@ -223,6 +223,11 @@ class UserModel {
       values.push(userData.profile_picture);
     }
 
+    if (userData.must_change_password !== undefined) {
+      updates.push('must_change_password = ?');
+      values.push(userData.must_change_password ? 1 : 0);
+    }
+
     if (updates.length === 0) {
       return this.findById(id);
     }
@@ -267,12 +272,15 @@ class UserModel {
 
   // Method to update password change requirement
   static async setPasswordChangeRequirement(userId: number, mustChange: boolean): Promise<User | null> {
+    // Invalidate cache before/after to avoid stale reads
+    await CacheService.del(`user:${userId}`);
     const result: any = await pool.execute(
       `UPDATE ${this.tableName} SET must_change_password = ? WHERE id = ?`,
       [mustChange, userId]
     );
 
     if (result.affectedRows > 0) {
+      await CacheService.del(`user:${userId}`);
       return this.findById(userId);
     }
     return null;

@@ -144,6 +144,76 @@ export const sendStaffInvitationEmail = async ({
   }
 };
 
+interface PasswordResetEmailProps {
+  to: string;
+  fullName: string;
+  loginEmail: string;
+  temporaryPassword: string;
+  requestedBy: string;
+}
+
+export const sendPasswordResetEmail = async ({
+  to,
+  fullName,
+  loginEmail,
+  temporaryPassword,
+  requestedBy
+}: PasswordResetEmailProps): Promise<void> => {
+  try {
+    const defaultEmail = process.env.EMAIL_FROM || 'support@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
+    const staffPortalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
+
+    const { error } = await resend.emails.send({
+      from: sender,
+      to: to,
+      subject: 'Your Femtech HR Temporary Password',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #2c3e50;">Password Reset</h1>
+          <p>Hello ${fullName || ''},</p>
+          <p>An administrator (${requestedBy}) generated a new temporary password for your account.</p>
+
+          <h2 style="color: #3498db;">Temporary Login Credentials:</h2>
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #3498db; margin: 20px 0;">
+            <p style="margin: 10px 0;"><strong>Login Email:</strong> <span style="color: #2c3e50; font-family: monospace; font-size: 14px;">${loginEmail}</span></p>
+            <p style="margin: 10px 0;"><strong>Temporary Password:</strong> <span style="color: #2c3e50; font-family: monospace; font-size: 14px;">${temporaryPassword}</span></p>
+          </div>
+
+          <p style="margin: 18px 0;"><strong>Next steps:</strong></p>
+          <ol style="line-height: 1.8;">
+            <li>Log in with the credentials above</li>
+            <li>You will be asked to set a new password immediately</li>
+          </ol>
+
+          <p style="text-align: center; margin: 28px 0;">
+            <a href="${staffPortalUrl}"
+               style="background-color: #27ae60; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              Open Staff Portal
+            </a>
+          </p>
+          <p style="text-align: center; margin: 10px 0;">
+            <a href="${staffPortalUrl}" style="color: #3498db; font-size: 12px;">${staffPortalUrl}</a>
+          </p>
+
+          <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
+          <p style="font-size: 12px; color: #7f8c8d;">
+            If you did not request this, please contact your administrator immediately.
+          </p>
+        </div>
+      `
+    });
+
+    if (error) {
+      console.error('Error sending password reset email:', error);
+      throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('Unexpected error sending password reset email:', error);
+    throw error;
+  }
+};
+
 interface PayrollReadyEmailProps {
   to: string;
   month: string;

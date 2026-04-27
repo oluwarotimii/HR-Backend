@@ -127,6 +127,10 @@ class UserModel {
             updates.push('profile_picture = ?');
             values.push(userData.profile_picture);
         }
+        if (userData.must_change_password !== undefined) {
+            updates.push('must_change_password = ?');
+            values.push(userData.must_change_password ? 1 : 0);
+        }
         if (updates.length === 0) {
             return this.findById(id);
         }
@@ -150,8 +154,10 @@ class UserModel {
         return bcryptjs_1.default.compare(inputPassword, hashedPassword);
     }
     static async setPasswordChangeRequirement(userId, mustChange) {
+        await cache_service_1.CacheService.del(`user:${userId}`);
         const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET must_change_password = ? WHERE id = ?`, [mustChange, userId]);
         if (result.affectedRows > 0) {
+            await cache_service_1.CacheService.del(`user:${userId}`);
             return this.findById(userId);
         }
         return null;

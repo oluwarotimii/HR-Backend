@@ -12,6 +12,14 @@ interface StaffInvitationEmailProps {
     fromAdmin: string;
 }
 export declare const sendStaffInvitationEmail: ({ to, fullName, loginEmail, temporaryPassword, invitationToken, fromAdmin }: StaffInvitationEmailProps) => Promise<void>;
+interface PasswordResetEmailProps {
+    to: string;
+    fullName: string;
+    loginEmail: string;
+    temporaryPassword: string;
+    requestedBy: string;
+}
+export declare const sendPasswordResetEmail: ({ to, fullName, loginEmail, temporaryPassword, requestedBy }: PasswordResetEmailProps) => Promise<void>;
 interface PayrollReadyEmailProps {
     to: string;
     month: string;
