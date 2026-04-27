@@ -115,7 +115,7 @@ const verifyUserLocation = async (args) => {
         if (assignedLocationIds.length === 0) {
             return { verified: false, reason: 'no_assignment' };
         }
-        const matches = await attendance_location_model_1.default.getAssignedLocationsWithinRadius(assignedLocationIds, userLat, userLng, staffRecord?.branch_id ?? null);
+        const matches = await attendance_location_model_1.default.getAssignedLocationsWithinRadius(assignedLocationIds, userLat, userLng, null);
         if (matches.length > 0) {
             return {
                 verified: true,
@@ -194,6 +194,7 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
         const { date, check_in_time, location_coordinates, location_address, status: providedStatus } = req.body;
         const userId = req.currentUser?.id;
         const userCoords = parseLocationCoordinates(location_coordinates);
+        const debug = process.env.ATTENDANCE_DEBUG === 'true';
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -297,8 +298,24 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
                 console.log('Using default attendance settings');
             }
             const strictMode = !!settings.strict_location_mode;
+            if (debug) {
+                console.log('[Attendance][CheckIn] Verify start', {
+                    userId,
+                    date,
+                    branchId,
+                    attendance_mode: branch.attendance_mode,
+                    enable_location_verification: settings.enable_location_verification,
+                    strict_location_mode: strictMode,
+                    assigned_location_id: staffRecord.assigned_location_id,
+                    location_assignments: staffRecord.location_assignments,
+                    userCoords
+                });
+            }
             const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
             locationVerified = verifyResult.verified;
+            if (debug) {
+                console.log('[Attendance][CheckIn] Verify result', verifyResult);
+            }
             if (settings.enable_location_verification && !locationVerified) {
                 let locationRequiredMessage = 'Location verification failed.';
                 if (verifyResult.verified === false) {
@@ -465,8 +482,24 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
                 });
             }
             const strictMode = !!settings.strict_location_mode;
+            if (debug) {
+                console.log('[Attendance][CheckIn] (create) Verify start', {
+                    userId,
+                    date,
+                    branchId,
+                    attendance_mode: branch.attendance_mode,
+                    enable_location_verification: settings.enable_location_verification,
+                    strict_location_mode: strictMode,
+                    assigned_location_id: staffRecord.assigned_location_id,
+                    location_assignments: staffRecord.location_assignments,
+                    userCoords
+                });
+            }
             const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
             const locationVerified = verifyResult.verified;
+            if (debug) {
+                console.log('[Attendance][CheckIn] (create) Verify result', verifyResult);
+            }
             if (settings.enable_location_verification && !locationVerified) {
                 let locationRequiredMessage = 'Location verification failed.';
                 if (verifyResult.verified === false) {
@@ -530,6 +563,7 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
         const { date, check_out_time, location_coordinates, location_address } = req.body;
         const userId = req.currentUser?.id;
         const userCoords = parseLocationCoordinates(location_coordinates);
+        const debug = process.env.ATTENDANCE_DEBUG === 'true';
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -628,8 +662,24 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
                         : false;
         }
         const strictMode = !!settings.strict_location_mode;
+        if (debug) {
+            console.log('[Attendance][CheckOut] Verify start', {
+                userId,
+                date,
+                branchId,
+                attendance_mode: branch.attendance_mode,
+                enable_location_verification: settings.enable_location_verification,
+                strict_location_mode: strictMode,
+                assigned_location_id: staffRecord.assigned_location_id,
+                location_assignments: staffRecord.location_assignments,
+                userCoords
+            });
+        }
         const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
         const locationVerified = verifyResult.verified;
+        if (debug) {
+            console.log('[Attendance][CheckOut] Verify result', verifyResult);
+        }
         if (settings.enable_location_verification && !locationVerified) {
             let locationRequiredMessage = 'Location verification failed.';
             if (verifyResult.verified === false) {
