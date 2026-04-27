@@ -41,6 +41,16 @@ router.get('/', auth_middleware_1.authenticateJWT, async (req, res) => {
                 message: 'Branch not found'
             });
         }
+        let persistedSettings = {};
+        try {
+            const [rows] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [targetBranchId]);
+            if (rows && rows.length > 0) {
+                persistedSettings = rows[0] || {};
+            }
+        }
+        catch (error) {
+            console.log('Using derived attendance settings (attendance_settings table not available)');
+        }
         const attendanceSettings = {
             branch_id: branch.id,
             branch_name: branch.name,
@@ -55,6 +65,7 @@ router.get('/', auth_middleware_1.authenticateJWT, async (req, res) => {
             allow_future_attendance_entry: false,
             grace_period_minutes: 0,
             enable_location_verification: !!branch.location_coordinates,
+            strict_location_mode: false,
             enable_face_recognition: false,
             enable_biometric_verification: false,
             notify_absent_employees: true,
@@ -71,7 +82,17 @@ router.get('/', auth_middleware_1.authenticateJWT, async (req, res) => {
         return res.json({
             success: true,
             message: 'Attendance settings retrieved successfully',
-            data: { settings: attendanceSettings }
+            data: {
+                settings: {
+                    ...attendanceSettings,
+                    ...persistedSettings,
+                    branch_id: branch.id,
+                    branch_name: branch.name,
+                    attendance_mode: branch.attendance_mode,
+                    location_coordinates: branch.location_coordinates,
+                    location_radius_meters: branch.location_radius_meters,
+                }
+            }
         });
     }
     catch (error) {
@@ -172,7 +193,8 @@ router.patch('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.check
                 'enable_location_verification', 'allow_manual_attendance_entry',
                 'enable_weekend_attendance', 'notify_absent_employees',
                 'notify_supervisors_daily_summary', 'enable_face_recognition',
-                'enable_biometric_verification', 'enable_holiday_attendance'
+                'enable_biometric_verification', 'enable_holiday_attendance',
+                'strict_location_mode'
             ];
             for (const [key, value] of Object.entries(settings)) {
                 if (allowedKeys.includes(key) && typeof value !== 'undefined') {
@@ -198,7 +220,8 @@ router.patch('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.check
                 'enable_location_verification', 'allow_manual_attendance_entry',
                 'enable_weekend_attendance', 'notify_absent_employees',
                 'notify_supervisors_daily_summary', 'enable_face_recognition',
-                'enable_biometric_verification', 'enable_holiday_attendance'
+                'enable_biometric_verification', 'enable_holiday_attendance',
+                'strict_location_mode'
             ];
             for (const [key, value] of Object.entries(settings)) {
                 if (allowedKeys.includes(key) && typeof value !== 'undefined') {

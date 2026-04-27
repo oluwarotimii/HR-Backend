@@ -127,7 +127,8 @@ class AttendanceLocationModel {
     }
     static async getLocationsNearby(lat, lng, maxDistanceMeters = 1000, branchId) {
         let query = '';
-        const params = [`POINT(${lng} ${lat})`, maxDistanceMeters];
+        const pointWkt = `POINT(${lng} ${lat})`;
+        const params = [pointWkt, pointWkt, maxDistanceMeters];
         if (branchId !== undefined && branchId !== null) {
             query = `
         SELECT *, ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) AS distance_meters
@@ -146,6 +147,30 @@ class AttendanceLocationModel {
         AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= ?
         ORDER BY distance_meters ASC`;
         }
+        const [rows] = await database_1.pool.execute(query, params);
+        return rows;
+    }
+    static async getAssignedLocationsWithinRadius(locationIds, lat, lng, branchId) {
+        if (!locationIds || locationIds.length === 0) {
+            return [];
+        }
+        const pointWkt = `POINT(${lng} ${lat})`;
+        const idPlaceholders = locationIds.map(() => '?').join(', ');
+        const params = [pointWkt, pointWkt, ...locationIds];
+        let query = `
+      SELECT
+        *,
+        ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) AS distance_meters
+      FROM ${this.tableName}
+      WHERE is_active = TRUE
+        AND ST_Distance_Sphere(location_coordinates, ST_GeomFromText(?)) <= location_radius_meters
+        AND id IN (${idPlaceholders})
+    `;
+        if (branchId !== undefined && branchId !== null) {
+            query += ` AND (branch_id = ? OR branch_id IS NULL)`;
+            params.push(branchId);
+        }
+        query += ` ORDER BY distance_meters ASC`;
         const [rows] = await database_1.pool.execute(query, params);
         return rows;
     }

@@ -104,10 +104,96 @@ const getAssignedLocationIds = (staffRecord) => {
     }
     return [...assignedLocationIds].filter((locationId) => Number.isFinite(locationId));
 };
+const verifyUserLocation = async (args) => {
+    const { branch, staffRecord, userCoords, strictLocationMode } = args;
+    if (!userCoords) {
+        return { verified: false, reason: 'no_coords' };
+    }
+    const { latitude: userLat, longitude: userLng } = userCoords;
+    if (branch?.attendance_mode === 'multiple_locations' || strictLocationMode) {
+        const assignedLocationIds = getAssignedLocationIds(staffRecord);
+        if (assignedLocationIds.length === 0) {
+            return { verified: false, reason: 'no_assignment' };
+        }
+        const matches = await attendance_location_model_1.default.getAssignedLocationsWithinRadius(assignedLocationIds, userLat, userLng, staffRecord?.branch_id ?? null);
+        if (matches.length > 0) {
+            return {
+                verified: true,
+                method: 'assigned_locations',
+                matched_location_id: matches[0].id
+            };
+        }
+        return { verified: false, reason: 'outside_allowed_area' };
+    }
+    if (branch?.attendance_mode === 'branch_based') {
+        if (!branch.location_coordinates) {
+            return { verified: false, reason: 'outside_allowed_area' };
+        }
+        const branchCoords = String(branch.location_coordinates).match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
+        if (!branchCoords) {
+            return { verified: false, reason: 'outside_allowed_area' };
+        }
+        const branchLng = parseFloat(branchCoords[1]);
+        const branchLat = parseFloat(branchCoords[2]);
+        const latDiff = (userLat - branchLat) * 111320;
+        const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
+        const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
+        const radius = branch.location_radius_meters || 100;
+        if (distance <= radius) {
+            return { verified: true, method: 'branch_based' };
+        }
+        return { verified: false, reason: 'outside_allowed_area' };
+    }
+    return { verified: true, method: 'multiple_locations_any' };
+};
+router.get('/my-locations', auth_middleware_1.authenticateJWT, async (req, res) => {
+    try {
+        const userId = req.currentUser?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+        const staffRecord = await staff_model_1.default.findByUserId(userId);
+        if (!staffRecord) {
+            return res.status(404).json({ success: false, message: 'Staff record not found' });
+        }
+        const assignedIds = getAssignedLocationIds(staffRecord);
+        if (assignedIds.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No attendance locations assigned',
+                data: { locations: [], assigned_location_ids: [] }
+            });
+        }
+        const placeholders = assignedIds.map(() => '?').join(', ');
+        const [rows] = await database_1.pool.execute(`
+        SELECT
+          id,
+          name,
+          ST_AsText(location_coordinates) AS location_coordinates,
+          location_radius_meters,
+          branch_id,
+          is_active
+        FROM attendance_locations
+        WHERE is_active = TRUE
+          AND id IN (${placeholders})
+        ORDER BY name
+      `, assignedIds);
+        return res.json({
+            success: true,
+            message: 'Assigned attendance locations retrieved successfully',
+            data: { locations: rows, assigned_location_ids: assignedIds }
+        });
+    }
+    catch (error) {
+        console.error('Get my attendance locations error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
 router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
         const { date, check_in_time, location_coordinates, location_address, status: providedStatus } = req.body;
         const userId = req.currentUser?.id;
+        const userCoords = parseLocationCoordinates(location_coordinates);
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -172,7 +258,6 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             if (!branchId) {
                 return res.status(400).json({ success: false, message: 'No branch assigned' });
             }
-            const userCoords = parseLocationCoordinates(location_coordinates);
             if (userCoords) {
                 const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userCoords.latitude, userCoords.longitude, 1000);
                 const assignedLocationIds = getAssignedLocationIds(staffRecord);
@@ -195,7 +280,11 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
                 require_check_in: true,
                 require_check_out: true,
                 grace_period_minutes: 0,
-                enable_location_verification: false,
+                enable_location_verification: branch.attendance_mode === 'multiple_locations'
+                    ? true
+                    : branch.attendance_mode === 'branch_based'
+                        ? !!branch.location_coordinates
+                        : false,
                 strict_location_mode: false
             };
             try {
@@ -207,50 +296,25 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             catch (error) {
                 console.log('Using default attendance settings');
             }
-            if (userCoords) {
-                const { latitude: userLat, longitude: userLng } = userCoords;
-                const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
-                if (settings.strict_location_mode && hasAssignedLocation) {
-                    const assignedLocationIds = getAssignedLocationIds(staffRecord);
-                    console.log('📍 Staff assigned locations:', assignedLocationIds);
-                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                    const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
-                    if (isWithinAssignedLocation) {
-                        locationVerified = true;
-                        console.log('✅ Staff checked in at assigned location');
+            const strictMode = !!settings.strict_location_mode;
+            const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
+            locationVerified = verifyResult.verified;
+            if (settings.enable_location_verification && !locationVerified) {
+                let locationRequiredMessage = 'Location verification failed.';
+                if (verifyResult.verified === false) {
+                    if (verifyResult.reason === 'no_coords') {
+                        locationRequiredMessage =
+                            'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
+                    }
+                    else if (verifyResult.reason === 'no_assignment') {
+                        locationRequiredMessage =
+                            'No attendance location has been assigned to you yet. Please contact HR to assign your check-in location(s).';
                     }
                     else {
-                        locationVerified = false;
-                        console.log('❌ Staff NOT at assigned location');
+                        locationRequiredMessage =
+                            'Location verification failed. You must be within the allowed radius of your assigned location to check in.';
                     }
                 }
-                else {
-                    if (branch.attendance_mode === 'branch_based') {
-                        if (branch.location_coordinates) {
-                            const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-                            if (branchCoords) {
-                                const branchLng = parseFloat(branchCoords[1]);
-                                const branchLat = parseFloat(branchCoords[2]);
-                                const latDiff = (userLat - branchLat) * 111320;
-                                const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                                const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
-                                const radius = branch.location_radius_meters || 100;
-                                if (distance <= radius)
-                                    locationVerified = true;
-                            }
-                        }
-                    }
-                    else if (branch.attendance_mode === 'multiple_locations') {
-                        const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
-                        if (nearbyLocations.length > 0)
-                            locationVerified = true;
-                    }
-                }
-            }
-            if (settings.enable_location_verification && !locationVerified) {
-                const locationRequiredMessage = userCoords
-                    ? 'Location verification failed. You must be within the allowed radius of the branch to check in.'
-                    : 'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
                 return res.status(403).json({
                     success: false,
                     message: locationRequiredMessage,
@@ -378,7 +442,12 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
                 require_check_in: true,
                 require_check_out: true,
                 grace_period_minutes: 0,
-                enable_location_verification: false
+                enable_location_verification: branch.attendance_mode === 'multiple_locations'
+                    ? true
+                    : branch.attendance_mode === 'branch_based'
+                        ? !!branch.location_coordinates
+                        : false,
+                strict_location_mode: false
             };
             try {
                 const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]);
@@ -395,31 +464,33 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
                     message: 'Check-in is not required for this branch'
                 });
             }
-            let locationVerified = false;
-            let status = 'absent';
-            if (location_coordinates) {
-                if (branch.attendance_mode === 'branch_based' && location_coordinates) {
-                    if (branch.location_coordinates) {
-                        const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.\d+) ([-+]?\d*\.\d+)\)/);
-                        if (branchCoords) {
-                            const branchLng = parseFloat(branchCoords[1]);
-                            const branchLat = parseFloat(branchCoords[2]);
-                            const userLng = parseFloat(location_coordinates.longitude);
-                            const userLat = parseFloat(location_coordinates.latitude);
-                            const distance = Math.sqrt(Math.pow(userLng - branchLng, 2) + Math.pow(userLat - branchLat, 2)) * 111000;
-                            const radius = branch.location_radius_meters || 100;
-                            if (distance <= radius) {
-                                locationVerified = true;
-                            }
-                        }
+            const strictMode = !!settings.strict_location_mode;
+            const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
+            const locationVerified = verifyResult.verified;
+            if (settings.enable_location_verification && !locationVerified) {
+                let locationRequiredMessage = 'Location verification failed.';
+                if (verifyResult.verified === false) {
+                    if (verifyResult.reason === 'no_coords') {
+                        locationRequiredMessage =
+                            'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
+                    }
+                    else if (verifyResult.reason === 'no_assignment') {
+                        locationRequiredMessage =
+                            'No attendance location has been assigned to you yet. Please contact HR to assign your check-in location(s).';
+                    }
+                    else {
+                        locationRequiredMessage =
+                            'Location verification failed. You must be within the allowed radius of your assigned location to check in.';
                     }
                 }
-                else if (branch.attendance_mode === 'multiple_locations' && location_coordinates) {
-                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(parseFloat(location_coordinates.latitude), parseFloat(location_coordinates.longitude), branch.location_radius_meters || 100);
-                    if (nearbyLocations.length > 0) {
-                        locationVerified = true;
+                return res.status(403).json({
+                    success: false,
+                    message: locationRequiredMessage,
+                    data: {
+                        distance_check_failed: !!userCoords,
+                        location_permission_required: !userCoords
                     }
-                }
+                });
             }
             const attendanceData = {
                 user_id: userId,
@@ -458,6 +529,7 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
     try {
         const { date, check_out_time, location_coordinates, location_address } = req.body;
         const userId = req.currentUser?.id;
+        const userCoords = parseLocationCoordinates(location_coordinates);
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -504,7 +576,6 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
                 message: 'Staff record does not have a branch assigned'
             });
         }
-        const userCoords = parseLocationCoordinates(location_coordinates);
         if (userCoords) {
             const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userCoords.latitude, userCoords.longitude, 1000);
             const assignedLocationIds = getAssignedLocationIds(staffRecord);
@@ -523,7 +594,7 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
             require_check_in: true,
             require_check_out: true,
             grace_period_minutes: 0,
-            enable_location_verification: false,
+            enable_location_verification: null,
             strict_location_mode: false
         };
         try {
@@ -548,60 +619,41 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
                 message: 'Branch not found for staff'
             });
         }
-        let locationVerified = attendanceRecord.location_verified;
-        if (userCoords) {
-            const { latitude: userLat, longitude: userLng } = userCoords;
-            const hasAssignedLocation = staffRecord.assigned_location_id || staffRecord.location_assignments;
-            if (settings.strict_location_mode && hasAssignedLocation) {
-                const assignedLocationIds = getAssignedLocationIds(staffRecord);
-                const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, 1000);
-                const isWithinAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id));
-                if (isWithinAssignedLocation) {
-                    locationVerified = true;
-                    console.log('✅ Staff checked out at assigned location');
+        if (settings.enable_location_verification === undefined || settings.enable_location_verification === null) {
+            settings.enable_location_verification =
+                branch.attendance_mode === 'multiple_locations'
+                    ? true
+                    : branch.attendance_mode === 'branch_based'
+                        ? !!branch.location_coordinates
+                        : false;
+        }
+        const strictMode = !!settings.strict_location_mode;
+        const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
+        const locationVerified = verifyResult.verified;
+        if (settings.enable_location_verification && !locationVerified) {
+            let locationRequiredMessage = 'Location verification failed.';
+            if (verifyResult.verified === false) {
+                if (verifyResult.reason === 'no_coords') {
+                    locationRequiredMessage =
+                        'Location permission is required to check out. Please allow location access in your browser or app settings and try again.';
+                }
+                else if (verifyResult.reason === 'no_assignment') {
+                    locationRequiredMessage =
+                        'No attendance location has been assigned to you yet. Please contact HR to assign your check-in location(s).';
                 }
                 else {
-                    locationVerified = false;
-                    console.log('❌ Staff NOT at assigned location for check-out');
+                    locationRequiredMessage =
+                        'Location verification failed. You must be within the allowed radius of your assigned location to check out.';
                 }
             }
-            else {
-                if (branch.attendance_mode === 'branch_based') {
-                    if (branch.location_coordinates) {
-                        const branchCoords = branch.location_coordinates.match(/POINT\(([-+]?\d*\.?\d*) ([-+]?\d*\.?\d*)\)/i);
-                        if (branchCoords) {
-                            const branchLng = parseFloat(branchCoords[1]);
-                            const branchLat = parseFloat(branchCoords[2]);
-                            const latDiff = (userLat - branchLat) * 111320;
-                            const lngDiff = (userLng - branchLng) * 111320 * Math.cos(branchLat * (Math.PI / 180));
-                            const distance = Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2));
-                            const radius = branch.location_radius_meters || 100;
-                            if (distance <= radius) {
-                                locationVerified = true;
-                            }
-                        }
-                    }
+            return res.status(403).json({
+                success: false,
+                message: locationRequiredMessage,
+                data: {
+                    distance_check_failed: !!userCoords,
+                    location_permission_required: !userCoords
                 }
-                else if (branch.attendance_mode === 'multiple_locations') {
-                    const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userLat, userLng, branch.location_radius_meters || 100);
-                    if (nearbyLocations.length > 0) {
-                        locationVerified = true;
-                    }
-                }
-            }
-            if (settings.enable_location_verification && !locationVerified) {
-                const locationRequiredMessage = userCoords
-                    ? 'Location verification failed. You must be within the allowed radius of the branch to check out.'
-                    : 'Location permission is required to check out. Please allow location access in your browser or app settings and try again.';
-                return res.status(403).json({
-                    success: false,
-                    message: locationRequiredMessage,
-                    data: {
-                        distance_check_failed: !!userCoords,
-                        location_permission_required: !userCoords
-                    }
-                });
-            }
+            });
         }
         const updateData = {
             check_out_time: new Date(`1970-01-01T${check_out_time}`),

@@ -361,42 +361,48 @@ router.get('/records', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.
 router.get('/staff-data', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
     try {
         const { startDate, endDate, branchId, departmentId } = req.query;
+        const attendanceJoinClause = startDate && endDate
+            ? 'LEFT JOIN attendance a ON s.user_id = a.user_id AND a.date BETWEEN ? AND ?'
+            : 'LEFT JOIN attendance a ON s.user_id = a.user_id';
         let query = `
       SELECT
         s.id,
         s.user_id,
         u.full_name,
         s.employee_id,
-        d.name as department,
+        COALESCE(d.name, s.department) as department,
         b.name as branch,
+        COUNT(a.id) as total_days,
         COUNT(CASE WHEN a.status = 'present' THEN 1 END) as present_count,
-        COUNT(CASE WHEN a.status = 'late' THEN 1 END) as late_count,
-        COUNT(CASE WHEN a.status = 'early' THEN 1 END) as early_count,
+        SUM(CASE WHEN a.status = 'late' OR a.is_late = 1 THEN 1 ELSE 0 END) as late_count,
+        SUM(CASE WHEN a.is_early_departure = 1 THEN 1 ELSE 0 END) as early_count,
         COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent_count,
         COUNT(CASE WHEN a.status = 'leave' THEN 1 END) as leave_count,
-        COUNT(CASE WHEN a.status = 'holiday' THEN 1 END) as holiday_count
+        COUNT(CASE WHEN a.status = 'holiday' THEN 1 END) as holiday_count,
+        ROUND((COUNT(CASE WHEN a.status IN ('present', 'late', 'half_day') THEN 1 END) / NULLIF(COUNT(a.id), 0)) * 100, 2) as attendance_percentage,
+        ROUND((SUM(CASE WHEN a.status = 'late' OR a.is_late = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0)) * 100, 2) as late_percentage,
+        ROUND((SUM(CASE WHEN a.is_early_departure = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(a.id), 0)) * 100, 2) as early_percentage
       FROM staff s
       LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN departments d ON s.department_id = d.id
+      LEFT JOIN departments d ON d.branch_id = s.branch_id AND d.name = s.department
       LEFT JOIN branches b ON s.branch_id = b.id
-      LEFT JOIN attendance a ON s.user_id = a.user_id
+      ${attendanceJoinClause}
       WHERE s.status = 'active' AND u.status = 'active'
     `;
         const params = [];
+        if (startDate && endDate) {
+            params.push(startDate, endDate);
+        }
         if (branchId) {
             query += ' AND s.branch_id = ?';
             params.push(branchId);
         }
         if (departmentId) {
-            query += ' AND s.department_id = ?';
+            query += ' AND d.id = ?';
             params.push(departmentId);
         }
-        if (startDate && endDate) {
-            query += ' AND a.date BETWEEN ? AND ?';
-            params.push(startDate, endDate);
-        }
         query += `
-      GROUP BY s.id, s.user_id, u.full_name, s.employee_id, d.name, b.name
+      GROUP BY s.id, s.user_id, u.full_name, s.employee_id, COALESCE(d.name, s.department), b.name
       ORDER BY u.full_name
     `;
         const [results] = await database_1.pool.execute(query, params);
@@ -518,46 +524,6 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
     }
     catch (error) {
         console.error('Update attendance error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
-    }
-});
-router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
-    try {
-        const idParam = req.params.id;
-        const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
-        const attendanceId = parseInt(idStr);
-        if (isNaN(attendanceId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid attendance ID'
-            });
-        }
-        const attendanceRecord = await attendance_model_1.default.findById(attendanceId);
-        if (!attendanceRecord) {
-            return res.status(404).json({
-                success: false,
-                message: 'Attendance record not found'
-            });
-        }
-        const currentUserId = req.currentUser?.id;
-        const currentUserRole = req.currentUser?.role_id;
-        if (attendanceRecord.user_id !== currentUserId && currentUserRole !== 1 && currentUserRole !== 3) {
-            return res.status(403).json({
-                success: false,
-                message: 'Cannot access other users\' attendance records'
-            });
-        }
-        return res.json({
-            success: true,
-            message: 'Attendance record retrieved successfully',
-            data: { attendance: attendanceRecord }
-        });
-    }
-    catch (error) {
-        console.error('Get attendance by ID error:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -908,5 +874,45 @@ router.post('/process-range', auth_middleware_1.authenticateJWT, (0, auth_middle
 router.use('/process', attendance_process_route_1.default);
 router.use('/settings', attendance_settings_route_1.default);
 router.use(attendance_check_route_1.default);
+router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
+    try {
+        const idParam = req.params.id;
+        const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+        const attendanceId = parseInt(idStr);
+        if (isNaN(attendanceId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid attendance ID'
+            });
+        }
+        const attendanceRecord = await attendance_model_1.default.findById(attendanceId);
+        if (!attendanceRecord) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attendance record not found'
+            });
+        }
+        const currentUserId = req.currentUser?.id;
+        const currentUserRole = req.currentUser?.role_id;
+        if (attendanceRecord.user_id !== currentUserId && currentUserRole !== 1 && currentUserRole !== 3) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot access other users\' attendance records'
+            });
+        }
+        return res.json({
+            success: true,
+            message: 'Attendance record retrieved successfully',
+            data: { attendance: attendanceRecord }
+        });
+    }
+    catch (error) {
+        console.error('Get attendance by ID error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=attendance.route.js.map

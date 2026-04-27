@@ -45,6 +45,7 @@ export interface Staff {
     alternate_phone_number?: string;
     marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
     blood_group?: string;
+    religion?: string;
     allergies?: string;
     special_medical_notes?: string;
     highest_qualification?: string;
@@ -112,6 +113,7 @@ export interface StaffInput {
     alternate_phone_number?: string;
     marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
     blood_group?: string;
+    religion?: string;
     allergies?: string;
     special_medical_notes?: string;
     highest_qualification?: string;
@@ -180,6 +182,7 @@ export interface StaffUpdate {
     alternate_phone_number?: string;
     marital_status?: 'single' | 'married' | 'divorced' | 'widowed';
     blood_group?: string;
+    religion?: string;
     allergies?: string;
     special_medical_notes?: string;
     highest_qualification?: string;
