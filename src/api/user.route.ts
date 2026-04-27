@@ -12,6 +12,7 @@ import {
 } from '../controllers/user.controller';
 import { changePasswordAfterFirstLogin } from '../controllers/password-change.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+import { upload, uploadProfilePhoto } from '../controllers/staff-photo.controller';
 
 const router = express.Router();
 
@@ -22,6 +23,50 @@ router.post('/', authenticateJWT, checkPermission('user.create'), createUser);
 router.put('/:id', authenticateJWT, checkPermission('user.update'), updateUser);
 router.delete('/:id', authenticateJWT, checkPermission('user.delete'), deleteUser);
 router.patch('/:id/terminate', authenticateJWT, checkPermission('user.terminate'), terminateUser);
+
+// Profile photo upload (explicitly user-id based; avoids staff.id/user.id ambiguity)
+router.post(
+  '/me/upload-photo',
+  authenticateJWT,
+  (req, res, next) => {
+    if (!req.currentUser) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    req.params.id = String(req.currentUser.id);
+    (req as any).resolvedUserId = req.currentUser.id;
+    return next();
+  },
+  upload.single('profile_picture'),
+  uploadProfilePhoto
+);
+
+router.post(
+  '/:id/upload-photo',
+  authenticateJWT,
+  async (req, res, next) => {
+    const id = parseInt(String(req.params.id ?? ''), 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    if (!req.currentUser) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    if (req.currentUser.id === id) {
+      (req as any).resolvedUserId = id;
+      return next();
+    }
+
+    // Cross-user upload: require permission (and typically admin roles).
+    return checkPermission('user.update')(req, res, () => {
+      (req as any).resolvedUserId = id;
+      next();
+    });
+  },
+  upload.single('profile_picture'),
+  uploadProfilePhoto
+);
 
 // Password change route
 router.put('/:id/password-change', authenticateJWT, changePasswordAfterFirstLogin);

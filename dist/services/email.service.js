@@ -6,8 +6,9 @@ const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
 const sendWelcomeEmail = async ({ to, fullName }) => {
     try {
         const defaultEmail = process.env.EMAIL_FROM || 'onboarding@femtechaccess.com.ng';
+        const sender = `Femtech HR <${defaultEmail}>`;
         const { error } = await resend.emails.send({
-            from: defaultEmail,
+            from: sender,
             to: to,
             subject: 'Welcome to Femtech HR Management System!',
             html: `
@@ -57,9 +58,10 @@ exports.sendWelcomeEmail = sendWelcomeEmail;
 const sendStaffInvitationEmail = async ({ to, fullName, loginEmail, temporaryPassword, invitationToken, fromAdmin }) => {
     try {
         const defaultEmail = process.env.EMAIL_FROM || 'invitations@femtechaccess.com.ng';
+        const sender = `Femtech HR <${defaultEmail}>`;
         const staffPortalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
         const { error } = await resend.emails.send({
-            from: defaultEmail,
+            from: sender,
             to: to,
             subject: 'Welcome to Femtech! Your Account Credentials',
             html: `
@@ -122,8 +124,9 @@ exports.sendStaffInvitationEmail = sendStaffInvitationEmail;
 const sendPayrollReady = async ({ to, month, year }) => {
     try {
         const defaultEmail = process.env.EMAIL_FROM || 'payroll@femtechaccess.com.ng';
+        const sender = `Femtech HR <${defaultEmail}>`;
         const { error } = await resend.emails.send({
-            from: defaultEmail,
+            from: sender,
             to: to,
             subject: `Your ${month} ${year} Payslip is Ready`,
             html: `

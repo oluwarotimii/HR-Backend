@@ -1058,12 +1058,69 @@ export const updateEmployeeShiftAssignment = async (req: Request, res: Response)
     });
   } catch (error) {
     console.error('[ShiftManagement Controller] Error updating employee shift assignment:', error);
-    console.error('[ShiftManagement Controller] Error details:', error.message);
-    console.error('[ShiftManagement Controller] Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error during update',
-      error: error.message
+      message: 'Internal server error during update'
+    });
+  }
+};
+
+/**
+ * Delete an employee shift assignment
+ */
+export const deleteEmployeeShiftAssignment = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if shift assignment exists
+    const [existingRows]: any = await pool.execute(
+      'SELECT * FROM employee_shift_assignments WHERE id = ?',
+      [id]
+    );
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employee shift assignment not found'
+      });
+    }
+
+    const assignment = existingRows[0];
+
+    // Delete the assignment
+    await pool.execute(
+      'DELETE FROM employee_shift_assignments WHERE id = ?',
+      [id]
+    );
+
+    // Process attendance update for the affected period (to revert to branch defaults or other assignments)
+    try {
+      const userId = assignment.user_id;
+      const startDate = new Date(assignment.effective_from);
+      // Re-process attendance from start date until 1 month in the future or effective_to
+      const endDate = assignment.effective_to ? new Date(assignment.effective_to) : new Date();
+      if (!assignment.effective_to) {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
+
+      const date = new Date(startDate);
+      while (date <= endDate) {
+        await ShiftSchedulingService.processAttendanceForDate(userId, date);
+        date.setDate(date.getDate() + 1);
+      }
+    } catch (attendanceError) {
+      console.error('Error processing attendance after shift assignment deletion:', attendanceError);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Employee shift assignment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting employee shift assignment:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while deleting shift assignment'
     });
   }
 };

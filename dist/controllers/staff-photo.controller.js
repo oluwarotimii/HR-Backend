@@ -8,6 +8,7 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const user_model_1 = __importDefault(require("../models/user.model"));
+const staff_model_1 = __importDefault(require("../models/staff.model"));
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadPath = path_1.default.join(process.cwd(), 'uploads', 'profile-photos');
@@ -17,7 +18,7 @@ const storage = multer_1.default.diskStorage({
         cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
-        const userId = req.params.id;
+        const userId = req.resolvedUserId ?? req.params.id;
         const ext = path_1.default.extname(file.originalname);
         cb(null, `user-${userId}-${Date.now()}${ext}`);
     }
@@ -45,20 +46,65 @@ const uploadProfilePhoto = async (req, res) => {
         console.log('[Backend] User ID param:', req.params.id);
         console.log('[Backend] Current user ID:', req.currentUser?.id);
         console.log('[Backend] File:', req.file);
-        const userId = parseInt(req.params.id);
-        if (isNaN(userId)) {
+        if (!req.currentUser) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
+        const rawId = parseInt(req.params.id);
+        if (Number.isNaN(rawId)) {
             console.log('[Backend] ❌ Invalid user ID');
             return res.status(400).json({
                 success: false,
                 message: 'Invalid user ID'
             });
         }
-        if (req.currentUser?.id && req.currentUser.id !== userId && req.currentUser.role_id !== 1) {
-            console.log('[Backend] ❌ Forbidden profile photo upload target:', userId, 'requester:', req.currentUser.id);
-            return res.status(403).json({
-                success: false,
-                message: 'You can only upload your own profile photo'
-            });
+        const preResolvedUserId = req.resolvedUserId;
+        const isSuperAdmin = req.currentUser.role_id === 1;
+        let resolvedUserId = typeof preResolvedUserId === 'number' && Number.isInteger(preResolvedUserId)
+            ? preResolvedUserId
+            : req.currentUser.id;
+        if (!preResolvedUserId && isSuperAdmin) {
+            if (rawId === req.currentUser.id) {
+                resolvedUserId = rawId;
+            }
+            else {
+                const idType = String(req.query.idType || req.query.id_type || '').toLowerCase();
+                if (idType === 'staff') {
+                    const staff = await staff_model_1.default.findById(rawId);
+                    if (!staff) {
+                        return res.status(404).json({
+                            success: false,
+                            message: 'Staff record not found for the provided staff ID'
+                        });
+                    }
+                    resolvedUserId = staff.user_id;
+                }
+                else if (idType === 'user') {
+                    const user = await user_model_1.default.findById(rawId);
+                    if (!user) {
+                        return res.status(404).json({
+                            success: false,
+                            message: 'User not found for the provided user ID'
+                        });
+                    }
+                    resolvedUserId = rawId;
+                }
+                else {
+                    const [user, staffByStaffId] = await Promise.all([
+                        user_model_1.default.findById(rawId),
+                        staff_model_1.default.findById(rawId)
+                    ]);
+                    if (user && staffByStaffId && staffByStaffId.user_id !== rawId) {
+                        return res.status(409).json({
+                            success: false,
+                            message: 'Ambiguous identifier: matches both a user ID and a staff ID. Retry with ?idType=user or ?idType=staff.'
+                        });
+                    }
+                    resolvedUserId = staffByStaffId ? staffByStaffId.user_id : rawId;
+                }
+            }
         }
         if (!req.file) {
             console.log('[Backend] ❌ No file uploaded');
@@ -68,8 +114,8 @@ const uploadProfilePhoto = async (req, res) => {
             });
         }
         const photoUrl = `/uploads/profile-photos/${req.file.filename}`;
-        console.log('[Backend] Updating user', userId, 'with photo URL:', photoUrl);
-        await user_model_1.default.update(userId, { profile_picture: photoUrl });
+        console.log('[Backend] Updating user', resolvedUserId, 'with photo URL:', photoUrl);
+        await user_model_1.default.update(resolvedUserId, { profile_picture: photoUrl });
         console.log('[Backend] ✅ Profile photo uploaded successfully');
         return res.json({
             success: true,

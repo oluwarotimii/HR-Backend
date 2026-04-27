@@ -40,6 +40,8 @@ const express_1 = __importDefault(require("express"));
 const staff_controller_1 = require("../controllers/staff.controller");
 const staff_photo_controller_1 = require("../controllers/staff-photo.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const staff_model_1 = __importDefault(require("../models/staff.model"));
+const user_model_1 = __importDefault(require("../models/user.model"));
 const router = express_1.default.Router();
 const validateNumericId = (req, res, next) => {
     const id = req.params.id || req.params.userId || req.params.staffId;
@@ -78,11 +80,44 @@ const validateNumericIdParam = (paramName) => {
     };
 };
 router.get('/me', auth_middleware_1.authenticateJWT, staff_controller_1.getCurrentUserStaffDetails);
-router.get('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff:read'), staff_controller_1.getAllStaff);
-router.get('/:id', auth_middleware_1.authenticateJWT, validateNumericId, (req, res, next) => {
-    if (req.currentUser?.id === req.numericId) {
-        return next();
+router.put('/me', auth_middleware_1.authenticateJWT, async (req, res) => {
+    req.numericId = req.currentUser?.id;
+    req.params.userId = String(req.currentUser?.id ?? '');
+    return Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => updateStaff(req, res));
+});
+router.post('/me/upload-photo', auth_middleware_1.authenticateJWT, (req, res, next) => {
+    if (!req.currentUser) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
     }
+    req.numericId = req.currentUser.id;
+    req.params.id = String(req.currentUser.id);
+    req.resolvedUserId = req.currentUser.id;
+    return next();
+}, staff_photo_controller_1.upload.single('profile_picture'), staff_photo_controller_1.uploadProfilePhoto);
+router.get('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff:read'), staff_controller_1.getAllStaff);
+router.get('/:id', auth_middleware_1.authenticateJWT, validateNumericId, async (req, res, next) => {
+    const requestedId = req.numericId;
+    const requesterUserId = req.currentUser?.id;
+    if (!requesterUserId || requestedId === undefined) {
+        return res.status(401).json({
+            success: false,
+            message: 'User not authenticated'
+        });
+    }
+    let isSelfAccess = requesterUserId === requestedId;
+    if (!isSelfAccess) {
+        try {
+            const requesterStaff = await staff_model_1.default.findByUserId(requesterUserId);
+            if (requesterStaff && requesterStaff.id === requestedId) {
+                isSelfAccess = true;
+            }
+        }
+        catch (err) {
+            console.error('[Backend Route] Failed to resolve requester staff for self-access check:', err);
+        }
+    }
+    if (isSelfAccess)
+        return next();
     return (0, auth_middleware_1.checkPermission)('staff:read')(req, res, next);
 }, staff_controller_1.getStaffById);
 router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.create'), staff_controller_1.createStaff);
@@ -93,21 +128,35 @@ router.put('/:userId', auth_middleware_1.authenticateJWT, validateNumericId, asy
     console.log('[Backend Route] req.numericId:', req.numericId);
     console.log('[Backend Route] req.currentUser.id:', req.currentUser?.id);
     console.log('========================================');
-    const requestedUserId = req.numericId;
-    if (req.currentUser?.id !== requestedUserId) {
-        console.log('[Backend Route] User trying to update another user\'s record');
-        console.log('[Backend Route] currentUser.id:', req.currentUser?.id);
-        console.log('[Backend Route] requestedUserId:', requestedUserId);
-        return (0, auth_middleware_1.checkPermission)('staff.update')(req, res, () => {
-            Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => {
-                return updateStaff(req, res);
-            });
+    const requestedId = req.numericId;
+    const requesterUserId = req.currentUser?.id;
+    if (!requesterUserId) {
+        return res.status(401).json({
+            success: false,
+            message: 'User not authenticated'
         });
     }
-    console.log('[Backend Route] User updating their own record');
-    Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => {
-        return updateStaff(req, res);
-    });
+    let isSelfUpdate = requesterUserId === requestedId;
+    if (!isSelfUpdate) {
+        try {
+            const requesterStaff = await staff_model_1.default.findByUserId(requesterUserId);
+            if (requesterStaff && requesterStaff.id === requestedId) {
+                isSelfUpdate = true;
+                console.log('[Backend Route] Self-update detected via staff.id (backward compatible)');
+            }
+        }
+        catch (err) {
+            console.error('[Backend Route] Failed to resolve requester staff for self-update check:', err);
+        }
+    }
+    if (!isSelfUpdate) {
+        console.log('[Backend Route] Cross-user update attempt (permission required)');
+        return (0, auth_middleware_1.checkPermission)('staff.update')(req, res, () => {
+            Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => updateStaff(req, res));
+        });
+    }
+    console.log('[Backend Route] Self-update allowed');
+    return Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => updateStaff(req, res));
 });
 router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.delete'), validateNumericId, staff_controller_1.deleteStaff);
 router.patch('/:id/terminate', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.terminate'), validateNumericId, staff_controller_1.terminateStaff);
@@ -118,11 +167,60 @@ router.put('/dynamic-fields/:id', auth_middleware_1.authenticateJWT, (0, auth_mi
 router.delete('/dynamic-fields/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.delete'), validateNumericIdParam('id'), staff_controller_1.deleteDynamicField);
 router.get('/dynamic-values/:staffId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff:read'), validateNumericIdParam('staffId'), staff_controller_1.getStaffDynamicValues);
 router.post('/dynamic-values/:staffId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.update'), validateNumericIdParam('staffId'), staff_controller_1.setStaffDynamicValues);
-router.post('/:id/upload-photo', auth_middleware_1.authenticateJWT, validateNumericId, (req, res, next) => {
-    if (req.currentUser?.id === req.numericId) {
+const resolveProfilePhotoTargetUserId = async (req, res, next) => {
+    if (!req.currentUser) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    const rawId = req.numericId ?? parseInt(String(req.params.id ?? ''), 10);
+    if (Number.isNaN(rawId)) {
+        return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+    const isSuperAdmin = req.currentUser.role_id === 1;
+    if (!isSuperAdmin) {
+        req.resolvedUserId = req.currentUser.id;
         return next();
     }
+    if (rawId === req.currentUser.id) {
+        req.resolvedUserId = rawId;
+        return next();
+    }
+    const idType = String(req.query.idType || req.query.id_type || '').toLowerCase();
+    if (idType === 'staff') {
+        const staff = await staff_model_1.default.findById(rawId);
+        if (!staff) {
+            return res.status(404).json({ success: false, message: 'Staff record not found for the provided staff ID' });
+        }
+        req.resolvedUserId = staff.user_id;
+        return next();
+    }
+    if (idType === 'user') {
+        const user = await user_model_1.default.findById(rawId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found for the provided user ID' });
+        }
+        req.resolvedUserId = rawId;
+        return next();
+    }
+    const [user, staffByStaffId] = await Promise.all([
+        user_model_1.default.findById(rawId),
+        staff_model_1.default.findById(rawId)
+    ]);
+    if (user && staffByStaffId && staffByStaffId.user_id !== rawId) {
+        return res.status(409).json({
+            success: false,
+            message: 'Ambiguous identifier: matches both a user ID and a staff ID. Retry with ?idType=user or ?idType=staff.'
+        });
+    }
+    req.resolvedUserId = staffByStaffId ? staffByStaffId.user_id : rawId;
+    return next();
+};
+router.post('/:id/upload-photo', auth_middleware_1.authenticateJWT, validateNumericId, (req, res, next) => {
+    if (!req.currentUser) {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    if (req.currentUser.role_id !== 1)
+        return next();
     return (0, auth_middleware_1.checkPermission)('staff.update')(req, res, next);
-}, staff_photo_controller_1.upload.single('profile_picture'), staff_photo_controller_1.uploadProfilePhoto);
+}, resolveProfilePhotoTargetUserId, staff_photo_controller_1.upload.single('profile_picture'), staff_photo_controller_1.uploadProfilePhoto);
 exports.default = router;
 //# sourceMappingURL=staff.route.js.map

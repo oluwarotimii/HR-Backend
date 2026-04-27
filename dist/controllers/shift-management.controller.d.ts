@@ -8,6 +8,7 @@ export declare const getAllEmployeeShiftAssignments: (req: Request, res: Respons
 export declare const getEmployeeShiftAssignmentById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const assignShiftToEmployee: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateEmployeeShiftAssignment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const deleteEmployeeShiftAssignment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const bulkAssignShifts: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const bulkAssignRecurringShifts: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const bulkAssignRecurringShiftsByBranch: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
