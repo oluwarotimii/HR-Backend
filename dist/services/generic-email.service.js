@@ -10,8 +10,9 @@ const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
 const sendGenericEmail = async ({ to, subject, html }) => {
     try {
         const defaultEmail = process.env.EMAIL_FROM || 'noreply@femtechaccess.com.ng';
+        const sender = `Femtech HR <${defaultEmail}>`;
         const { error } = await resend.emails.send({
-            from: defaultEmail,
+            from: sender,
             to: to,
             subject: subject,
             html: html

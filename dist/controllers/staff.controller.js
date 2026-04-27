@@ -359,7 +359,7 @@ const updateStaff = async (req, res) => {
         console.log('[Backend] Current user ID:', req.currentUser?.id);
         console.log('[Backend] Request body keys:', Object.keys(req.body));
         console.log('[Backend] Request body:', JSON.stringify(req.body, null, 2));
-        const requestedUserId = req.numericId ?? parseInt((req.params.userId || req.params.id || '').toString(), 10);
+        const requestedId = req.numericId ?? parseInt((req.params.userId || req.params.id || '').toString(), 10);
         const requesterUserId = req.currentUser?.id;
         if (!requesterUserId) {
             console.log('[Backend] ❌ User not authenticated');
@@ -368,25 +368,61 @@ const updateStaff = async (req, res) => {
                 message: 'User not authenticated'
             });
         }
-        if (isNaN(requestedUserId)) {
-            console.log('[Backend] ❌ Invalid requested user ID');
+        if (isNaN(requestedId)) {
+            console.log('[Backend] ❌ Invalid requested ID');
             return res.status(400).json({
                 success: false,
                 message: 'Invalid user ID'
             });
         }
         console.log('[Backend] ✅ User authenticated, requesterUserId:', requesterUserId);
-        console.log('[Backend] ✅ Requested target userId:', requestedUserId);
-        console.log('[Backend] Finding staff record by requested user_id:', requestedUserId);
-        const existingStaff = await staff_model_1.default.findByUserId(requestedUserId);
+        console.log('[Backend] ✅ Requested target ID:', requestedId);
+        console.log('[Backend] Resolving staff record for requested ID:', requestedId);
+        const staffByUserId = await staff_model_1.default.findByUserId(requestedId);
+        const staffByStaffId = await staff_model_1.default.findById(requestedId);
+        let resolvedUserId;
+        let existingStaff = null;
+        const hasCollision = !!staffByUserId &&
+            !!staffByStaffId &&
+            staffByUserId.user_id !== staffByStaffId.user_id;
+        if (hasCollision) {
+            if (requesterUserId === requestedId) {
+                existingStaff = staffByUserId;
+                resolvedUserId = requestedId;
+            }
+            else if (staffByStaffId?.user_id === requesterUserId) {
+                existingStaff = staffByStaffId;
+                resolvedUserId = staffByStaffId.user_id;
+                console.log('[Backend] ⚠️ Collision detected; resolving using staff.id self-update:', requestedId);
+            }
+            else {
+                console.log('[Backend] ❌ Ambiguous requested ID (matches both staff.id and staff.user_id):', requestedId);
+                return res.status(409).json({
+                    success: false,
+                    message: 'Ambiguous staff identifier. Please retry using the user ID for this endpoint.'
+                });
+            }
+        }
+        else if (staffByUserId) {
+            existingStaff = staffByUserId;
+            resolvedUserId = requestedId;
+        }
+        else if (staffByStaffId) {
+            existingStaff = staffByStaffId;
+            resolvedUserId = staffByStaffId.user_id;
+            console.log('[Backend] ⚠️ Requested ID matched staff.id (no collision); resolved user_id:', resolvedUserId);
+        }
+        else {
+            resolvedUserId = requestedId;
+        }
         if (!existingStaff) {
-            console.log('[Backend] ❌ Staff record not found for user_id:', requestedUserId);
+            console.log('[Backend] ❌ Staff record not found for requested ID:', requestedId);
             return res.status(404).json({
                 success: false,
                 message: 'Staff record not found. Please contact HR to complete your profile setup.'
             });
         }
-        console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', requestedUserId);
+        console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', resolvedUserId);
         console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
         const { employee_id, designation, department, branch_id, joining_date, employment_type, status, reporting_manager_id, work_mode, bank_name, bank_account_number, bank_ifsc_code, tax_identification_number, base_salary, pay_grade, pension_insurance_id, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, date_of_birth, gender, current_address, permanent_address, company_assets, primary_skills, education_certifications, employee_photo, probation_end_date, contract_end_date, weekly_working_hours, overtime_eligibility, medical_insurance_id, provident_fund_id, gratuity_applicable, notice_period_days, personal_email, phone_number, alternate_phone_number, marital_status, blood_group, religion, allergies, special_medical_notes, highest_qualification, university_school, year_of_graduation, professional_certifications, certifications_json, languages_known, notice_period_start_date, notice_period_end_date, relieving_date, experience_years, previous_company, resignation_date, last_working_date, reason_for_leaving, reference_check_status, background_verification_status, state_of_origin, lga, course_of_study, first_name, last_name, middle_name, nationality } = req.body;
         if (employee_id !== undefined) {
@@ -442,8 +478,7 @@ const updateStaff = async (req, res) => {
         if (primary_skills !== undefined) {
             updateData.primary_skills = normalizeTextListInput(primary_skills) ?? '';
         }
-        const requesterRole = req.user?.roleId;
-        const isSuperAdmin = requesterRole === 1;
+        const isSuperAdmin = req.currentUser?.role_id === 1;
         if (personal_email !== undefined) {
             if (isSuperAdmin) {
                 updateData.personal_email = personal_email;
@@ -540,7 +575,7 @@ const updateStaff = async (req, res) => {
         console.log('[Backend] Updated staff:', JSON.stringify(updatedStaff, null, 2));
         const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
         if (first_name !== undefined || last_name !== undefined || middle_name !== undefined) {
-            const [userRows] = await pool.execute('SELECT full_name FROM users WHERE id = ?', [requestedUserId]);
+            const [userRows] = await pool.execute('SELECT full_name FROM users WHERE id = ?', [resolvedUserId]);
             const currentUser = userRows[0];
             if (currentUser) {
                 const currentName = currentUser.full_name || '';
@@ -550,17 +585,17 @@ const updateStaff = async (req, res) => {
                 const newLastName = last_name !== undefined ? last_name : (nameParts[nameParts.length - 1] || '');
                 const newFullName = [newFirstName, newMiddleName, newLastName].filter(Boolean).join(' ').trim();
                 if (newFullName) {
-                    await pool.execute('UPDATE users SET full_name = ? WHERE id = ?', [newFullName, requestedUserId]);
+                    await pool.execute('UPDATE users SET full_name = ? WHERE id = ?', [newFullName, resolvedUserId]);
                     console.log('[Backend] ✅ Updated user full_name to:', newFullName);
                 }
             }
         }
         if (personal_email !== undefined && personal_email) {
-            await pool.execute('UPDATE users SET email = ? WHERE id = ?', [personal_email, requestedUserId]);
+            await pool.execute('UPDATE users SET email = ? WHERE id = ?', [personal_email, resolvedUserId]);
             console.log('[Backend] ✅ Updated user email to:', personal_email);
         }
         if (phone_number !== undefined && phone_number) {
-            await pool.execute('UPDATE users SET phone = ? WHERE id = ?', [phone_number, requestedUserId]);
+            await pool.execute('UPDATE users SET phone = ? WHERE id = ?', [phone_number, resolvedUserId]);
             console.log('[Backend] ✅ Updated user phone to:', phone_number);
         }
         if (current_address && current_address.trim() !== '') {
@@ -625,7 +660,7 @@ const updateStaff = async (req, res) => {
       LEFT JOIN branches b ON s.branch_id = b.id
       LEFT JOIN roles r ON u.role_id = r.id
       WHERE s.user_id = ?
-    `, [requestedUserId]);
+    `, [resolvedUserId]);
         console.log('[Backend] ✅ Staff update completed successfully');
         console.log('[Backend] ✅ Complete updated staff:', completeUpdatedStaff[0]);
         try {
@@ -635,7 +670,7 @@ const updateStaff = async (req, res) => {
             if (profileComplete) {
                 const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
                 await pool.execute(`UPDATE staff_invitations SET profile_completed = TRUE
-           WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`, [requestedUserId]);
+           WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`, [resolvedUserId]);
             }
         }
         catch (trackingErr) {

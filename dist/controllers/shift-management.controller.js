@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyShiftAssignments = exports.deleteRecurringShift = exports.updateRecurringShift = exports.getRecurringShifts = exports.bulkAssignRecurringShiftsByBranch = exports.bulkAssignRecurringShifts = exports.bulkAssignShifts = exports.updateEmployeeShiftAssignment = exports.assignShiftToEmployee = exports.getEmployeeShiftAssignmentById = exports.getAllEmployeeShiftAssignments = exports.deleteShiftTemplate = exports.updateShiftTemplate = exports.createShiftTemplate = exports.getShiftTemplateById = exports.getAllShiftTemplates = void 0;
+exports.getMyShiftAssignments = exports.deleteRecurringShift = exports.updateRecurringShift = exports.getRecurringShifts = exports.bulkAssignRecurringShiftsByBranch = exports.bulkAssignRecurringShifts = exports.bulkAssignShifts = exports.deleteEmployeeShiftAssignment = exports.updateEmployeeShiftAssignment = exports.assignShiftToEmployee = exports.getEmployeeShiftAssignmentById = exports.getAllEmployeeShiftAssignments = exports.deleteShiftTemplate = exports.updateShiftTemplate = exports.createShiftTemplate = exports.getShiftTemplateById = exports.getAllShiftTemplates = void 0;
 const database_1 = require("../config/database");
 const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const getAllShiftTemplates = async (req, res) => {
@@ -259,8 +259,14 @@ const updateShiftTemplate = async (req, res) => {
             params.push(Boolean(is_active));
         }
         updateFields.push('updated_at = NOW()');
-        params.push(id);
+        if (updateFields.length === 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'No fields provided for update'
+            });
+        }
         const query = `UPDATE shift_templates SET ${updateFields.join(', ')} WHERE id = ?`;
+        params.push(id);
         await database_1.pool.execute(query, params);
         const [updatedRows] = await database_1.pool.execute('SELECT * FROM shift_templates WHERE id = ?', [id]);
         return res.json({
@@ -765,16 +771,55 @@ const updateEmployeeShiftAssignment = async (req, res) => {
     }
     catch (error) {
         console.error('[ShiftManagement Controller] Error updating employee shift assignment:', error);
-        console.error('[ShiftManagement Controller] Error details:', error.message);
-        console.error('[ShiftManagement Controller] Stack trace:', error.stack);
         return res.status(500).json({
             success: false,
-            message: 'Internal server error during update',
-            error: error.message
+            message: 'Internal server error during update'
         });
     }
 };
 exports.updateEmployeeShiftAssignment = updateEmployeeShiftAssignment;
+const deleteEmployeeShiftAssignment = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [existingRows] = await database_1.pool.execute('SELECT * FROM employee_shift_assignments WHERE id = ?', [id]);
+        if (existingRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Employee shift assignment not found'
+            });
+        }
+        const assignment = existingRows[0];
+        await database_1.pool.execute('DELETE FROM employee_shift_assignments WHERE id = ?', [id]);
+        try {
+            const userId = assignment.user_id;
+            const startDate = new Date(assignment.effective_from);
+            const endDate = assignment.effective_to ? new Date(assignment.effective_to) : new Date();
+            if (!assignment.effective_to) {
+                endDate.setMonth(endDate.getMonth() + 1);
+            }
+            const date = new Date(startDate);
+            while (date <= endDate) {
+                await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(userId, date);
+                date.setDate(date.getDate() + 1);
+            }
+        }
+        catch (attendanceError) {
+            console.error('Error processing attendance after shift assignment deletion:', attendanceError);
+        }
+        return res.json({
+            success: true,
+            message: 'Employee shift assignment deleted successfully'
+        });
+    }
+    catch (error) {
+        console.error('Error deleting employee shift assignment:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error while deleting shift assignment'
+        });
+    }
+};
+exports.deleteEmployeeShiftAssignment = deleteEmployeeShiftAssignment;
 const bulkAssignShifts = async (req, res) => {
     try {
         console.log('[ShiftManagement Controller] Bulk assign shifts - Request body:', JSON.stringify(req.body, null, 2));

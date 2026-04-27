@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getNumberQueryParam } from '../utils/type-utils';
-import StaffModel, { StaffInput, StaffUpdate } from '../models/staff.model';
+import StaffModel, { Staff, StaffInput, StaffUpdate } from '../models/staff.model';
 import UserModel from '../models/user.model';
 import AuditLogModel from '../models/audit-log.model';
 import StaffDynamicFieldModel from '../models/staff-dynamic-field.model';
@@ -408,8 +408,9 @@ export const updateStaff = async (req: Request, res: Response) => {
     console.log('[Backend] Request body keys:', Object.keys(req.body));
     console.log('[Backend] Request body:', JSON.stringify(req.body, null, 2));
 
-    // IMPORTANT: The ID in the URL is the USER_ID (not staff.id)
-    const requestedUserId = req.numericId ?? parseInt((req.params.userId || req.params.id || '').toString(), 10);
+    // IMPORTANT: Prefer USER_ID (users.id) in the URL.
+    // Backward compatibility: some clients may still send staff.id. We resolve safely below.
+    const requestedId = req.numericId ?? parseInt((req.params.userId || req.params.id || '').toString(), 10);
     const requesterUserId = req.currentUser?.id;
 
     if (!requesterUserId) {
@@ -420,8 +421,8 @@ export const updateStaff = async (req: Request, res: Response) => {
       });
     }
 
-    if (isNaN(requestedUserId)) {
-      console.log('[Backend] ❌ Invalid requested user ID');
+    if (isNaN(requestedId)) {
+      console.log('[Backend] ❌ Invalid requested ID');
       return res.status(400).json({
         success: false,
         message: 'Invalid user ID'
@@ -429,22 +430,64 @@ export const updateStaff = async (req: Request, res: Response) => {
     }
 
     console.log('[Backend] ✅ User authenticated, requesterUserId:', requesterUserId);
-    console.log('[Backend] ✅ Requested target userId:', requestedUserId);
+    console.log('[Backend] ✅ Requested target ID:', requestedId);
 
     // Route-level middleware already enforces permissions for cross-user updates.
-    // Resolve target staff by requested user_id.
-    console.log('[Backend] Finding staff record by requested user_id:', requestedUserId);
-    const existingStaff = await StaffModel.findByUserId(requestedUserId);
+    // Resolve target staff deterministically and safely.
+    // This endpoint is designed for `users.id` (staff.user_id), but some older clients have sent `staff.id`.
+    // We prevent silent corruption by detecting collisions where `requestedId` matches BOTH:
+    // - an existing staff row's `user_id`, AND
+    // - another staff row's primary key `id`.
+    console.log('[Backend] Resolving staff record for requested ID:', requestedId);
+
+    const staffByUserId = await StaffModel.findByUserId(requestedId);
+    const staffByStaffId = await StaffModel.findById(requestedId);
+
+    let resolvedUserId: number;
+    let existingStaff: Staff | null = null;
+
+    const hasCollision =
+      !!staffByUserId &&
+      !!staffByStaffId &&
+      staffByUserId.user_id !== staffByStaffId.user_id;
+
+    if (hasCollision) {
+      // If caller is updating their own user id, treat it as user_id.
+      if (requesterUserId === requestedId) {
+        existingStaff = staffByUserId;
+        resolvedUserId = requestedId;
+      } else if (staffByStaffId?.user_id === requesterUserId) {
+        // Backward compatible self-update when caller supplied their own staff.id.
+        existingStaff = staffByStaffId;
+        resolvedUserId = staffByStaffId.user_id;
+        console.log('[Backend] ⚠️ Collision detected; resolving using staff.id self-update:', requestedId);
+      } else {
+        console.log('[Backend] ❌ Ambiguous requested ID (matches both staff.id and staff.user_id):', requestedId);
+        return res.status(409).json({
+          success: false,
+          message: 'Ambiguous staff identifier. Please retry using the user ID for this endpoint.'
+        });
+      }
+    } else if (staffByUserId) {
+      existingStaff = staffByUserId;
+      resolvedUserId = requestedId;
+    } else if (staffByStaffId) {
+      existingStaff = staffByStaffId;
+      resolvedUserId = staffByStaffId.user_id;
+      console.log('[Backend] ⚠️ Requested ID matched staff.id (no collision); resolved user_id:', resolvedUserId);
+    } else {
+      resolvedUserId = requestedId;
+    }
 
     if (!existingStaff) {
-      console.log('[Backend] ❌ Staff record not found for user_id:', requestedUserId);
+      console.log('[Backend] ❌ Staff record not found for requested ID:', requestedId);
       return res.status(404).json({
         success: false,
         message: 'Staff record not found. Please contact HR to complete your profile setup.'
       });
     }
 
-    console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', requestedUserId);
+    console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', resolvedUserId);
     console.log('[Backend] Existing staff data:', JSON.stringify(existingStaff, null, 2));
 
     const {
@@ -507,8 +550,7 @@ export const updateStaff = async (req: Request, res: Response) => {
 
     // SECURITY: EMAIL PROTECTION
     // staff cannot edit their own emails, only super admins can
-    const requesterRole = (req as any).user?.roleId;
-    const isSuperAdmin = requesterRole === 1;
+    const isSuperAdmin = req.currentUser?.role_id === 1;
 
     if (personal_email !== undefined) {
       if (isSuperAdmin) {
@@ -588,7 +630,7 @@ export const updateStaff = async (req: Request, res: Response) => {
     // Build full_name from parts if any name field was provided
     if (first_name !== undefined || last_name !== undefined || middle_name !== undefined) {
       // Get current user data to merge with new values
-      const [userRows]: any = await pool.execute('SELECT full_name FROM users WHERE id = ?', [requestedUserId]);
+      const [userRows]: any = await pool.execute('SELECT full_name FROM users WHERE id = ?', [resolvedUserId]);
       const currentUser = userRows[0];
       
       if (currentUser) {
@@ -605,7 +647,7 @@ export const updateStaff = async (req: Request, res: Response) => {
         const newFullName = [newFirstName, newMiddleName, newLastName].filter(Boolean).join(' ').trim();
         
         if (newFullName) {
-          await pool.execute('UPDATE users SET full_name = ? WHERE id = ?', [newFullName, requestedUserId]);
+          await pool.execute('UPDATE users SET full_name = ? WHERE id = ?', [newFullName, resolvedUserId]);
           console.log('[Backend] ✅ Updated user full_name to:', newFullName);
         }
       }
@@ -613,13 +655,13 @@ export const updateStaff = async (req: Request, res: Response) => {
 
     // Update user email if provided
     if (personal_email !== undefined && personal_email) {
-      await pool.execute('UPDATE users SET email = ? WHERE id = ?', [personal_email, requestedUserId]);
+      await pool.execute('UPDATE users SET email = ? WHERE id = ?', [personal_email, resolvedUserId]);
       console.log('[Backend] ✅ Updated user email to:', personal_email);
     }
 
     // Update user phone if provided
     if (phone_number !== undefined && phone_number) {
-      await pool.execute('UPDATE users SET phone = ? WHERE id = ?', [phone_number, requestedUserId]);
+      await pool.execute('UPDATE users SET phone = ? WHERE id = ?', [phone_number, resolvedUserId]);
       console.log('[Backend] ✅ Updated user phone to:', phone_number);
     }
     
@@ -722,7 +764,7 @@ export const updateStaff = async (req: Request, res: Response) => {
       LEFT JOIN branches b ON s.branch_id = b.id
       LEFT JOIN roles r ON u.role_id = r.id
       WHERE s.user_id = ?
-    `, [requestedUserId]);
+    `, [resolvedUserId]);
 
     console.log('[Backend] ✅ Staff update completed successfully');
     console.log('[Backend] ✅ Complete updated staff:', completeUpdatedStaff[0]);
@@ -738,7 +780,7 @@ export const updateStaff = async (req: Request, res: Response) => {
         await pool.execute(
           `UPDATE staff_invitations SET profile_completed = TRUE
            WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`,
-          [requestedUserId]
+          [resolvedUserId]
         );
       }
     } catch (trackingErr) {

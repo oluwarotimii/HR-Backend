@@ -54,6 +54,7 @@ router.get('/employee-shift-assignments/my', authenticateJWT, getMyShiftAssignme
 router.get('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:read'), getEmployeeShiftAssignmentById);
 router.post('/employee-shift-assignments', authenticateJWT, checkPermission('employee_shift_assignment:create'), assignShiftToEmployee);
 router.put('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), updateEmployeeShiftAssignment);
+router.delete('/employee-shift-assignments/:id', authenticateJWT, checkPermission('employee_shift_assignment:update'), deleteEmployeeShiftAssignment);
 router.post('/employee-shift-assignments/bulk', authenticateJWT, checkPermission('employee_shift_assignment:create'), bulkAssignShifts);
 
 // Recurring Shift Assignments Routes (for Resume Late / Close Early use cases)
