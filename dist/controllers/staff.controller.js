@@ -377,49 +377,22 @@ const updateStaff = async (req, res) => {
         }
         console.log('[Backend] ✅ User authenticated, requesterUserId:', requesterUserId);
         console.log('[Backend] ✅ Requested target ID:', requestedId);
-        console.log('[Backend] Resolving staff record for requested ID:', requestedId);
-        const staffByUserId = await staff_model_1.default.findByUserId(requestedId);
-        const staffByStaffId = await staff_model_1.default.findById(requestedId);
-        let resolvedUserId;
-        let existingStaff = null;
-        const hasCollision = !!staffByUserId &&
-            !!staffByStaffId &&
-            staffByUserId.user_id !== staffByStaffId.user_id;
-        if (hasCollision) {
-            if (requesterUserId === requestedId) {
-                existingStaff = staffByUserId;
-                resolvedUserId = requestedId;
-            }
-            else if (staffByStaffId?.user_id === requesterUserId) {
+        console.log('[Backend] Resolving staff record for user ID:', requestedId);
+        let resolvedUserId = requestedId;
+        let existingStaff = await staff_model_1.default.findByUserId(requestedId);
+        if (!existingStaff) {
+            const staffByStaffId = await staff_model_1.default.findById(requestedId);
+            if (staffByStaffId && staffByStaffId.user_id === requesterUserId) {
                 existingStaff = staffByStaffId;
                 resolvedUserId = staffByStaffId.user_id;
-                console.log('[Backend] ⚠️ Collision detected; resolving using staff.id self-update:', requestedId);
+                console.log('[Backend] ⚠️ Backward-compatible self-update via staff.id:', requestedId);
             }
-            else {
-                console.log('[Backend] ❌ Ambiguous requested ID (matches both staff.id and staff.user_id):', requestedId);
-                return res.status(409).json({
-                    success: false,
-                    message: 'Ambiguous staff identifier. Please retry using the user ID for this endpoint.'
-                });
-            }
-        }
-        else if (staffByUserId) {
-            existingStaff = staffByUserId;
-            resolvedUserId = requestedId;
-        }
-        else if (staffByStaffId) {
-            existingStaff = staffByStaffId;
-            resolvedUserId = staffByStaffId.user_id;
-            console.log('[Backend] ⚠️ Requested ID matched staff.id (no collision); resolved user_id:', resolvedUserId);
-        }
-        else {
-            resolvedUserId = requestedId;
         }
         if (!existingStaff) {
             console.log('[Backend] ❌ Staff record not found for requested ID:', requestedId);
             return res.status(404).json({
                 success: false,
-                message: 'Staff record not found. Please contact HR to complete your profile setup.'
+                message: 'Staff record not found for this user ID. Please contact HR to complete your profile setup.'
             });
         }
         console.log('[Backend] ✅ Found staff record:', existingStaff.id, 'for user:', resolvedUserId);
