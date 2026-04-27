@@ -433,57 +433,30 @@ export const updateStaff = async (req: Request, res: Response) => {
     console.log('[Backend] ✅ Requested target ID:', requestedId);
 
     // Route-level middleware already enforces permissions for cross-user updates.
-    // Resolve target staff deterministically and safely.
-    // This endpoint is designed for `users.id` (staff.user_id), but some older clients have sent `staff.id`.
-    // We prevent silent corruption by detecting collisions where `requestedId` matches BOTH:
-    // - an existing staff row's `user_id`, AND
-    // - another staff row's primary key `id`.
-    console.log('[Backend] Resolving staff record for requested ID:', requestedId);
+    // IMPORTANT: This endpoint treats the URL param as `users.id` (staff.user_id).
+    // Using `staff.id` here is unsafe because numeric overlap between `staff.id` and `staff.user_id`
+    // is normal and can cause silent cross-user updates. We only support a narrow backward-compatible
+    // fallback for SELF-updates when no `staff.user_id` match exists.
+    console.log('[Backend] Resolving staff record for user ID:', requestedId);
 
-    const staffByUserId = await StaffModel.findByUserId(requestedId);
-    const staffByStaffId = await StaffModel.findById(requestedId);
+    let resolvedUserId: number = requestedId;
+    let existingStaff: Staff | null = await StaffModel.findByUserId(requestedId);
 
-    let resolvedUserId: number;
-    let existingStaff: Staff | null = null;
-
-    const hasCollision =
-      !!staffByUserId &&
-      !!staffByStaffId &&
-      staffByUserId.user_id !== staffByStaffId.user_id;
-
-    if (hasCollision) {
-      // If caller is updating their own user id, treat it as user_id.
-      if (requesterUserId === requestedId) {
-        existingStaff = staffByUserId;
-        resolvedUserId = requestedId;
-      } else if (staffByStaffId?.user_id === requesterUserId) {
-        // Backward compatible self-update when caller supplied their own staff.id.
+    if (!existingStaff) {
+      // Backward compatibility: if someone sends staff.id, allow only if it maps to THEIR OWN staff row.
+      const staffByStaffId = await StaffModel.findById(requestedId);
+      if (staffByStaffId && staffByStaffId.user_id === requesterUserId) {
         existingStaff = staffByStaffId;
         resolvedUserId = staffByStaffId.user_id;
-        console.log('[Backend] ⚠️ Collision detected; resolving using staff.id self-update:', requestedId);
-      } else {
-        console.log('[Backend] ❌ Ambiguous requested ID (matches both staff.id and staff.user_id):', requestedId);
-        return res.status(409).json({
-          success: false,
-          message: 'Ambiguous staff identifier. Please retry using the user ID for this endpoint.'
-        });
+        console.log('[Backend] ⚠️ Backward-compatible self-update via staff.id:', requestedId);
       }
-    } else if (staffByUserId) {
-      existingStaff = staffByUserId;
-      resolvedUserId = requestedId;
-    } else if (staffByStaffId) {
-      existingStaff = staffByStaffId;
-      resolvedUserId = staffByStaffId.user_id;
-      console.log('[Backend] ⚠️ Requested ID matched staff.id (no collision); resolved user_id:', resolvedUserId);
-    } else {
-      resolvedUserId = requestedId;
     }
 
     if (!existingStaff) {
       console.log('[Backend] ❌ Staff record not found for requested ID:', requestedId);
       return res.status(404).json({
         success: false,
-        message: 'Staff record not found. Please contact HR to complete your profile setup.'
+        message: 'Staff record not found for this user ID. Please contact HR to complete your profile setup.'
       });
     }
 
