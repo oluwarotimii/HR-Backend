@@ -10,8 +10,9 @@ interface WelcomeEmailProps {
 export const sendWelcomeEmail = async ({ to, fullName }: WelcomeEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'onboarding@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
     const { error } = await resend.emails.send({
-      from: defaultEmail,
+      from: sender,
       to: to,
       subject: 'Welcome to Femtech HR Management System!',
       html: `
@@ -78,10 +79,11 @@ export const sendStaffInvitationEmail = async ({
 }: StaffInvitationEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'invitations@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
     const staffPortalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
 
     const { error } = await resend.emails.send({
-      from: defaultEmail,
+      from: sender,
       to: to,
       subject: 'Welcome to Femtech! Your Account Credentials',
       html: `
@@ -151,8 +153,9 @@ interface PayrollReadyEmailProps {
 export const sendPayrollReady = async ({ to, month, year }: PayrollReadyEmailProps): Promise<{success: boolean, error?: string}> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'payroll@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
     const { error } = await resend.emails.send({
-      from: defaultEmail,
+      from: sender,
       to: to,
       subject: `Your ${month} ${year} Payslip is Ready`,
       html: `
