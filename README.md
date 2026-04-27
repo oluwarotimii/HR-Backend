@@ -65,10 +65,38 @@ npm run dev
 - `npm run dev`: Start the development server with hot reload
 - `npm run build`: Compile TypeScript to JavaScript
 - `npm start`: Start the production server
+- `npm run pm2:start`: Start production server with PM2 (auto-restart on crash)
+- `npm run pm2:restart`: Restart PM2-managed server
+- `npm run pm2:logs`: View PM2 logs
+- `npm run pm2:status`: View PM2 status
+- `npm run pm2:save`: Persist PM2 process list (use with `pm2 startup`)
 - `npm run test`: Run tests
 - `npm run lint`: Check code for linting errors
 - `npm run lint:fix`: Fix linting errors automatically
 - `npm run format`: Format code with Prettier
+
+## PM2 (recommended for servers)
+
+1. Build the backend:
+```bash
+npm run build
+```
+
+2. Install PM2 (choose one):
+```bash
+npm i -g pm2
+```
+
+3. Start with PM2:
+```bash
+npm run pm2:start
+```
+
+4. Enable auto-start on reboot:
+```bash
+pm2 startup
+npm run pm2:save
+```
 
 ## Folder Structure
 
