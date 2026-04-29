@@ -3,42 +3,63 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const database_1 = require("../config/database");
 class AttendanceLocationModel {
     static tableName = 'attendance_locations';
+    static parseCoordinatesToWKT(input) {
+        console.log('📍 Parsing coordinates:', input, typeof input);
+        if (typeof input === 'object' && input !== null) {
+            if (typeof input.lat === 'number' && typeof input.lng === 'number') {
+                return `POINT(${input.lng} ${input.lat})`;
+            }
+        }
+        if (typeof input === 'string') {
+            const trimmed = input.trim();
+            if (trimmed.toUpperCase().startsWith('POINT')) {
+                return trimmed;
+            }
+            const parts = trimmed.split(/[,\s]+/).filter(p => p.trim());
+            if (parts.length === 2) {
+                const val1 = parseFloat(parts[0]);
+                const val2 = parseFloat(parts[1]);
+                if (!isNaN(val1) && !isNaN(val2)) {
+                    let lat, lng;
+                    if (val1 > 90 || val1 < -90) {
+                        lng = val1;
+                        lat = val2;
+                    }
+                    else if (val2 > 90 || val2 < -90) {
+                        lat = val1;
+                        lng = val2;
+                    }
+                    else {
+                        lat = val1;
+                        lng = val2;
+                    }
+                    console.log(`📍 Intelligent parse result: Lat=${lat}, Lng=${lng} -> POINT(${lng} ${lat})`);
+                    return `POINT(${lng} ${lat})`;
+                }
+            }
+        }
+        console.error('📍 Invalid coordinates format:', input);
+        throw new Error('Invalid coordinates format. Expected: {lat, lng}, "lat,lng", or "POINT(lng lat)"');
+    }
     static async findAll() {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, branch_id, is_active, created_by, created_at, updated_at FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`);
         return rows;
     }
     static async findById(id) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, branch_id, is_active, created_by, created_at, updated_at FROM ${this.tableName} WHERE id = ?`, [id]);
         return rows[0] || null;
     }
     static async findActiveLocations() {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, branch_id, is_active, created_by, created_at, updated_at FROM ${this.tableName} WHERE is_active = TRUE ORDER BY name`);
         return rows;
     }
     static async findByBranch(branchId) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE branch_id = ? AND is_active = TRUE ORDER BY name`, [branchId]);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, branch_id, is_active, created_by, created_at, updated_at FROM ${this.tableName} WHERE branch_id = ? AND is_active = TRUE ORDER BY name`, [branchId]);
         return rows;
     }
     static async create(locationData) {
         console.log('📍 Creating attendance location:', locationData);
-        let coordinatesValue = locationData.location_coordinates;
-        console.log('📍 Original coordinates:', coordinatesValue, typeof coordinatesValue);
-        if (typeof coordinatesValue === 'string' && !coordinatesValue.includes('POINT')) {
-            const parts = coordinatesValue.split(/[,\s]+/).filter(p => p.trim());
-            console.log('📍 Split parts:', parts);
-            if (parts.length === 2) {
-                const [lng, lat] = parts.map(p => parseFloat(p));
-                coordinatesValue = `POINT(${lng} ${lat})`;
-                console.log('📍 Converted to:', coordinatesValue);
-            }
-        }
-        else if (typeof coordinatesValue === 'string' && coordinatesValue.includes('POINT')) {
-            console.log('📍 Already in POINT format');
-        }
-        else {
-            console.error('📍 Invalid coordinates format:', coordinatesValue);
-            throw new Error('Invalid coordinates format. Expected: "POINT(lng lat)" or "lng,lat"');
-        }
+        const coordinatesValue = this.parseCoordinatesToWKT(locationData.location_coordinates);
         const [result] = await database_1.pool.execute(`INSERT INTO ${this.tableName} (name, location_coordinates, location_radius_meters, branch_id, is_active, created_by)
        VALUES (?, ST_GeomFromText(?), ?, ?, ?, ?)`, [
             locationData.name,
@@ -63,22 +84,9 @@ class AttendanceLocationModel {
             values.push(locationData.name);
         }
         if (locationData.location_coordinates !== undefined) {
-            let coordinatesValue = locationData.location_coordinates;
-            if (typeof coordinatesValue === 'string' && !coordinatesValue.includes('POINT')) {
-                const parts = coordinatesValue.split(/[,\s]+/).filter(p => p.trim());
-                if (parts.length === 2) {
-                    const [lng, lat] = parts.map(p => parseFloat(p));
-                    coordinatesValue = `POINT(${lng} ${lat})`;
-                }
-            }
-            if (typeof coordinatesValue === 'string' && coordinatesValue.startsWith('POINT')) {
-                updates.push('location_coordinates = ST_GeomFromText(?)');
-                values.push(coordinatesValue);
-            }
-            else {
-                updates.push('location_coordinates = ?');
-                values.push(coordinatesValue);
-            }
+            const coordinatesValue = this.parseCoordinatesToWKT(locationData.location_coordinates);
+            updates.push('location_coordinates = ST_GeomFromText(?)');
+            values.push(coordinatesValue);
         }
         if (locationData.location_radius_meters !== undefined) {
             updates.push('location_radius_meters = ?');

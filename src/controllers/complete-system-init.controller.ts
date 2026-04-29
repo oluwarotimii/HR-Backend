@@ -28,6 +28,21 @@ export const checkDatabaseSchema = async (): Promise<boolean> => {
   try {
     // Check if key tables exist
     const tablesToCheck = ['users', 'roles', 'branches'];
+
+    const hasRequiredColumns = async (table: string, requiredColumns: string[]): Promise<boolean> => {
+      const databaseName = dbConfig.database;
+      if (!databaseName) return false;
+
+      const [rows]: any = await pool.execute(
+        `SELECT COLUMN_NAME
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+        [databaseName, table]
+      );
+
+      const existing = new Set((rows || []).map((r: any) => r.COLUMN_NAME));
+      return requiredColumns.every((col) => existing.has(col));
+    };
     
     for (const table of tablesToCheck) {
       try {
@@ -40,6 +55,21 @@ export const checkDatabaseSchema = async (): Promise<boolean> => {
         throw error; // Re-throw if it's a different error
       }
     }
+
+    // Basic column completeness checks to avoid "tables exist but schema is incomplete" issues.
+    // This matters because we use a consolidated migration file with lots of ALTER TABLE statements.
+    const branchesRequiredColumns = [
+      'location_coordinates',
+      'location_radius_meters',
+      'attendance_mode',
+      'auto_mark_absent_enabled',
+      'auto_mark_absent_time',
+      'auto_mark_absent_timezone',
+      'attendance_lock_date'
+    ];
+
+    const branchesComplete = await hasRequiredColumns('branches', branchesRequiredColumns);
+    if (!branchesComplete) return false;
     
     return true;
   } catch (error) {

@@ -15,23 +15,23 @@ function locationToWKT(location) {
 class AttendanceModel {
     static tableName = 'attendance';
     static async findAll() {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} ORDER BY date DESC, created_at DESC`);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} ORDER BY date DESC, created_at DESC`);
         return rows;
     }
     static async findById(id) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE id = ?`, [id]);
         return rows[0] || null;
     }
     static async findByUserId(userId) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE user_id = ? ORDER BY date DESC`, [userId]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? ORDER BY date DESC`, [userId]);
         return rows;
     }
     static async findByUserIdAndDate(userId, date) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE user_id = ? AND date = ?`, [userId, date]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date = ?`, [userId, date]);
         return rows[0] || null;
     }
     static async findByDate(date) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE date = ? ORDER BY user_id`, [date]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE date = ? ORDER BY user_id`, [date]);
         return rows;
     }
     static async create(attendanceData) {
@@ -116,7 +116,7 @@ class AttendanceModel {
         return rows.length > 0;
     }
     static async findByDateRange(userId, startDate, endDate) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date`, [userId, startDate, endDate]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date`, [userId, startDate, endDate]);
         return rows;
     }
     static async getAttendancePercentage(userId, startDate, endDate) {

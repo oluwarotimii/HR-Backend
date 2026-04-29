@@ -14,7 +14,7 @@ export interface AttendanceLocation {
 
 export interface AttendanceLocationInput {
   name: string;
-  location_coordinates: string; // WKT format: "POINT(longitude latitude)"
+  location_coordinates: string | { lat: number; lng: number }; // WKT format: "POINT(longitude latitude)" or object
   location_radius_meters?: number;
   branch_id?: number | null;
   is_active?: boolean;
@@ -23,7 +23,7 @@ export interface AttendanceLocationInput {
 
 export interface AttendanceLocationUpdate {
   name?: string;
-  location_coordinates?: string; // WKT format: "POINT(longitude latitude)"
+  location_coordinates?: string | { lat: number; lng: number }; // WKT format: "POINT(longitude latitude)" or object
   location_radius_meters?: number;
   branch_id?: number | null;
   is_active?: boolean;
@@ -31,6 +31,75 @@ export interface AttendanceLocationUpdate {
 
 class AttendanceLocationModel {
   static tableName = 'attendance_locations';
+
+  /**
+   * Helper to safely parse coordinate inputs and return MySQL POINT WKT format: POINT(lng lat)
+   * Note: MySQL stores geometry as POINT(X Y) which maps to POINT(Longitude Latitude)
+   */
+  private static parseCoordinatesToWKT(input: string | { lat: number; lng: number }): string {
+    console.log('📍 Parsing coordinates:', input, typeof input);
+
+    // Case 1: Object input { lat, lng } - most explicit and safest
+    if (typeof input === 'object' && input !== null) {
+      if (typeof input.lat === 'number' && typeof input.lng === 'number') {
+        return `POINT(${input.lng} ${input.lat})`;
+      }
+    }
+
+    // Case 2: String input
+    if (typeof input === 'string') {
+      const trimmed = input.trim();
+
+      // 2a: Already in POINT(lng lat) format
+      if (trimmed.toUpperCase().startsWith('POINT')) {
+        return trimmed;
+      }
+
+      // 2b: Comma or space separated string (e.g. "6.45, 3.38" or "3.38 6.45")
+      const parts = trimmed.split(/[,\s]+/).filter(p => p.trim());
+      if (parts.length === 2) {
+        const val1 = parseFloat(parts[0]);
+        const val2 = parseFloat(parts[1]);
+
+        if (!isNaN(val1) && !isNaN(val2)) {
+          /**
+           * Smart detection logic:
+           * Latitude is always between -90 and 90.
+           * Longitude is between -180 and 180.
+           * 
+           * If one value is > 90 or < -90, that one MUST be Longitude.
+           * If both are within -90 to 90, we have to guess. 
+           * Common convention for humans is (Lat, Lng).
+           * MySQL expects POINT(Lng Lat).
+           */
+          
+          let lat: number, lng: number;
+
+          // If first val is definitely not latitude, it must be longitude
+          if (val1 > 90 || val1 < -90) {
+            lng = val1;
+            lat = val2;
+          } 
+          // If second val is definitely not latitude, it must be longitude
+          else if (val2 > 90 || val2 < -90) {
+            lat = val1;
+            lng = val2;
+          }
+          // Default: Assume human-readable (Lat, Lng) and convert to POINT(Lng Lat)
+          else {
+            lat = val1;
+            lng = val2;
+          }
+
+          console.log(`📍 Intelligent parse result: Lat=${lat}, Lng=${lng} -> POINT(${lng} ${lat})`);
+          return `POINT(${lng} ${lat})`;
+        }
+      }
+    }
+
+    console.error('📍 Invalid coordinates format:', input);
+    throw new Error('Invalid coordinates format. Expected: {lat, lng}, "lat,lng", or "POINT(lng lat)"');
+  }
 
   static async findAll(): Promise<AttendanceLocation[]> {
     const [rows] = await pool.execute(
@@ -65,29 +134,7 @@ class AttendanceLocationModel {
   static async create(locationData: AttendanceLocationInput): Promise<AttendanceLocation> {
     console.log('📍 Creating attendance location:', locationData);
     
-    // Convert coordinates to MySQL POINT format
-    // Expected format: "POINT(longitude latitude)" or use ST_GeomFromText
-    let coordinatesValue = locationData.location_coordinates;
-    
-    console.log('📍 Original coordinates:', coordinatesValue, typeof coordinatesValue);
-    
-    // If coordinates are sent as "lat,lng" or "lng,lat" format, convert to POINT
-    if (typeof coordinatesValue === 'string' && !coordinatesValue.includes('POINT')) {
-      // Assume format is "latitude,longitude" or "longitude latitude"
-      const parts = coordinatesValue.split(/[,\s]+/).filter(p => p.trim());
-      console.log('📍 Split parts:', parts);
-      if (parts.length === 2) {
-        const [lng, lat] = parts.map(p => parseFloat(p));
-        coordinatesValue = `POINT(${lng} ${lat})`;
-        console.log('📍 Converted to:', coordinatesValue);
-      }
-    } else if (typeof coordinatesValue === 'string' && coordinatesValue.includes('POINT')) {
-      // Already in POINT format, use as-is
-      console.log('📍 Already in POINT format');
-    } else {
-      console.error('📍 Invalid coordinates format:', coordinatesValue);
-      throw new Error('Invalid coordinates format. Expected: "POINT(lng lat)" or "lng,lat"');
-    }
+    const coordinatesValue = this.parseCoordinatesToWKT(locationData.location_coordinates);
 
     const [result]: any = await pool.execute(
       `INSERT INTO ${this.tableName} (name, location_coordinates, location_radius_meters, branch_id, is_active, created_by)
@@ -122,23 +169,9 @@ class AttendanceLocationModel {
     }
 
     if (locationData.location_coordinates !== undefined) {
-      // Convert coordinates to MySQL POINT format
-      let coordinatesValue = locationData.location_coordinates;
-      if (typeof coordinatesValue === 'string' && !coordinatesValue.includes('POINT')) {
-        const parts = coordinatesValue.split(/[,\s]+/).filter(p => p.trim());
-        if (parts.length === 2) {
-          const [lng, lat] = parts.map(p => parseFloat(p));
-          coordinatesValue = `POINT(${lng} ${lat})`;
-        }
-      }
-      // Don't wrap in ST_GeomFromText if already a POINT string
-      if (typeof coordinatesValue === 'string' && coordinatesValue.startsWith('POINT')) {
-        updates.push('location_coordinates = ST_GeomFromText(?)');
-        values.push(coordinatesValue);
-      } else {
-        updates.push('location_coordinates = ?');
-        values.push(coordinatesValue);
-      }
+      const coordinatesValue = this.parseCoordinatesToWKT(locationData.location_coordinates);
+      updates.push('location_coordinates = ST_GeomFromText(?)');
+      values.push(coordinatesValue);
     }
 
     if (locationData.location_radius_meters !== undefined) {

@@ -11,7 +11,9 @@ export interface Branch {
   phone: string;
   email: string;
   manager_user_id: number | null;
-  location_coordinates: string | null; // POINT data stored as WKT string: "POINT(longitude latitude)"
+  // Note: `branches.location_coordinates` is stored as a string (legacy/deprecated in favor of `attendance_locations`).
+  // Earlier migrations used a "latitude, longitude" string.
+  location_coordinates: string | null;
   location_radius_meters: number | null;
   attendance_mode: 'branch_based' | 'multiple_locations' | null;
   status: 'active' | 'inactive';
@@ -35,7 +37,7 @@ export interface BranchInput {
   phone: string;
   email: string;
   manager_user_id?: number | null;
-  location_coordinates?: string | null; // WKT format: "POINT(longitude latitude)"
+  location_coordinates?: string | null;
   location_radius_meters?: number;
   attendance_mode?: 'branch_based' | 'multiple_locations';
 }
@@ -66,13 +68,19 @@ class BranchModel {
   static tableName = 'branches';
 
   static async findAll(): Promise<Branch[]> {
-    const [rows] = await pool.execute(`SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at FROM ${this.tableName} ORDER BY created_at DESC`);
+    const [rows] = await pool.execute(
+      `SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       ORDER BY created_at DESC`
+    );
     return rows as Branch[];
   }
 
   static async findById(id: number): Promise<Branch | null> {
     const [rows] = await pool.execute(
-      `SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at FROM ${this.tableName} WHERE id = ?`,
+      `SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       WHERE id = ?`,
       [id]
     );
     return (rows as Branch[])[0] || null;
@@ -80,7 +88,9 @@ class BranchModel {
 
   static async findByCode(code: string): Promise<Branch | null> {
     const [rows] = await pool.execute(
-      `SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, ST_AsText(location_coordinates) AS location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at FROM ${this.tableName} WHERE code = ?`,
+      `SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       WHERE code = ?`,
       [code]
     );
     return (rows as Branch[])[0] || null;
@@ -89,7 +99,7 @@ class BranchModel {
   static async create(branchData: BranchInput): Promise<Branch> {
     const [result]: any = await pool.execute(
       `INSERT INTO ${this.tableName} (name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ST_GeomFromText(?), ?, ?, 'active')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
       [
         branchData.name,
         branchData.code,
@@ -166,13 +176,8 @@ class BranchModel {
     }
 
     if (branchData.location_coordinates !== undefined) {
-      if (branchData.location_coordinates && branchData.location_coordinates.startsWith('POINT')) {
-        updates.push('location_coordinates = ST_GeomFromText(?)');
-        values.push(branchData.location_coordinates);
-      } else {
-        updates.push('location_coordinates = ?');
-        values.push(branchData.location_coordinates);
-      }
+      updates.push('location_coordinates = ?');
+      values.push(branchData.location_coordinates);
     }
 
     if (branchData.location_radius_meters !== undefined) {
@@ -205,7 +210,7 @@ class BranchModel {
   }
 
   static async delete(id: number): Promise<boolean> {
-    const result: any = await pool.execute(
+    const [result]: any = await pool.execute(
       `UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`,
       [id]
     );
@@ -223,44 +228,20 @@ class BranchModel {
 
   // Method to check if coordinates are within branch location
   static async isWithinBranchLocation(branchId: number, lat: number, lng: number): Promise<boolean> {
-    const [rows] = await pool.execute(`
-      SELECT 
-        id,
-        ST_Distance_Sphere(
-          location_coordinates, 
-          ST_PointFromText('POINT(${lng} ${lat})')
-        ) AS distance_meters
-      FROM ${this.tableName} 
-      WHERE id = ? AND location_coordinates IS NOT NULL AND location_radius_meters IS NOT NULL
-    `, [branchId]) as [any[], any];
-
-    if (rows.length === 0) {
-      return false; // Branch doesn't have location coordinates set
-    }
-
-    const branch = rows[0];
-    const distance = branch.distance_meters;
-    const radius = branch.location_radius_meters;
-
-    return distance <= radius;
+    // Deprecated storage format; reliable geo queries should use `attendance_locations`.
+    void branchId;
+    void lat;
+    void lng;
+    return false;
   }
 
   // Method to find branches near a location
   static async findNearbyBranches(lat: number, lng: number, maxDistanceMeters: number = 1000): Promise<(Branch & { distance_meters: number })[]> {
-    const [rows] = await pool.execute(`
-      SELECT *,
-        ST_Distance_Sphere(
-          location_coordinates, 
-          ST_PointFromText('POINT(${lng} ${lat})')
-        ) AS distance_meters
-      FROM ${this.tableName} 
-      WHERE location_coordinates IS NOT NULL 
-        AND location_radius_meters IS NOT NULL
-        AND ST_Distance_Sphere(location_coordinates, ST_PointFromText('POINT(${lng} ${lat})')) <= ?
-      ORDER BY distance_meters ASC
-    `, [maxDistanceMeters]) as [any[], any];
-
-    return rows;
+    // Deprecated storage format; reliable geo queries should use `attendance_locations`.
+    void lat;
+    void lng;
+    void maxDistanceMeters;
+    return [];
   }
 }
 

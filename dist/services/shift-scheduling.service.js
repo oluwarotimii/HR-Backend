@@ -153,33 +153,44 @@ class ShiftSchedulingService {
                     };
                 }
             }
-            const [userBranch] = await database_1.pool.execute(`SELECT branch_id FROM staff WHERE user_id = ?`, [userId]);
-            if (userBranch.length > 0 && userBranch[0].branch_id) {
-                const branchId = userBranch[0].branch_id;
-                const dayOfWeek = date.getDay();
-                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const dayName = dayNames[dayOfWeek];
-                const [branchHours] = await database_1.pool.execute(`SELECT start_time, end_time, break_duration_minutes, is_working_day
-           FROM branch_working_days
-           WHERE branch_id = ? AND day_of_week = ?`, [branchId, dayName]);
-                if (branchHours.length > 0) {
-                    if (branchHours[0].is_working_day) {
-                        return {
-                            start_time: branchHours[0].start_time,
-                            end_time: branchHours[0].end_time,
-                            break_duration_minutes: branchHours[0].break_duration_minutes || 0,
-                            schedule_type: 'branch_default',
-                            schedule_note: `Standard ${dayName} hours for branch`
-                        };
-                    }
-                    else {
-                        return {
-                            start_time: null,
-                            end_time: null,
-                            break_duration_minutes: 0,
-                            schedule_type: 'non_working_day',
-                            schedule_note: `Branch is closed on ${dayName}`
-                        };
+            const [staffDetails] = await database_1.pool.execute(`SELECT branch_id, status FROM staff WHERE user_id = ?`, [userId]);
+            if (staffDetails.length > 0) {
+                const { branch_id, status } = staffDetails[0];
+                if (status === 'on_leave') {
+                    return {
+                        start_time: null,
+                        end_time: null,
+                        break_duration_minutes: 0,
+                        schedule_type: 'leave',
+                        schedule_note: 'Staff status set to On Leave'
+                    };
+                }
+                if (branch_id) {
+                    const dayOfWeek = date.getDay();
+                    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const dayName = dayNames[dayOfWeek];
+                    const [branchHours] = await database_1.pool.execute(`SELECT start_time, end_time, break_duration_minutes, is_working_day
+             FROM branch_working_days
+             WHERE branch_id = ? AND day_of_week = ?`, [branch_id, dayName]);
+                    if (branchHours.length > 0) {
+                        if (branchHours[0].is_working_day) {
+                            return {
+                                start_time: branchHours[0].start_time,
+                                end_time: branchHours[0].end_time,
+                                break_duration_minutes: branchHours[0].break_duration_minutes || 0,
+                                schedule_type: 'branch_default',
+                                schedule_note: `Standard ${dayName} hours for branch`
+                            };
+                        }
+                        else {
+                            return {
+                                start_time: null,
+                                end_time: null,
+                                break_duration_minutes: 0,
+                                schedule_type: 'non_working_day',
+                                schedule_note: `Branch is closed on ${dayName}`
+                            };
+                        }
                     }
                 }
             }
