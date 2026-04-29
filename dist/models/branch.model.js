@@ -4,15 +4,21 @@ const database_1 = require("../config/database");
 class BranchModel {
     static tableName = 'branches';
     static async findAll() {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} ORDER BY created_at DESC`);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       ORDER BY created_at DESC`);
         return rows;
     }
     static async findById(id) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       WHERE id = ?`, [id]);
         return rows[0] || null;
     }
     static async findByCode(code) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE code = ?`, [code]);
+        const [rows] = await database_1.pool.execute(`SELECT id, name, code, address, city, state, country, phone, email, manager_user_id, location_coordinates, location_radius_meters, attendance_mode, status, auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone, attendance_lock_date, created_at, updated_at
+       FROM ${this.tableName}
+       WHERE code = ?`, [code]);
         return rows[0] || null;
     }
     static async create(branchData) {
@@ -101,7 +107,7 @@ class BranchModel {
         return await this.findById(id);
     }
     static async delete(id) {
-        const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
+        const [result] = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
         return result.affectedRows > 0;
     }
     static async findActive() {
@@ -109,38 +115,16 @@ class BranchModel {
         return rows;
     }
     static async isWithinBranchLocation(branchId, lat, lng) {
-        const [rows] = await database_1.pool.execute(`
-      SELECT 
-        id,
-        ST_Distance_Sphere(
-          location_coordinates, 
-          ST_PointFromText('POINT(${lng} ${lat})')
-        ) AS distance_meters
-      FROM ${this.tableName} 
-      WHERE id = ? AND location_coordinates IS NOT NULL AND location_radius_meters IS NOT NULL
-    `, [branchId]);
-        if (rows.length === 0) {
-            return false;
-        }
-        const branch = rows[0];
-        const distance = branch.distance_meters;
-        const radius = branch.location_radius_meters;
-        return distance <= radius;
+        void branchId;
+        void lat;
+        void lng;
+        return false;
     }
     static async findNearbyBranches(lat, lng, maxDistanceMeters = 1000) {
-        const [rows] = await database_1.pool.execute(`
-      SELECT *,
-        ST_Distance_Sphere(
-          location_coordinates, 
-          ST_PointFromText('POINT(${lng} ${lat})')
-        ) AS distance_meters
-      FROM ${this.tableName} 
-      WHERE location_coordinates IS NOT NULL 
-        AND location_radius_meters IS NOT NULL
-        AND ST_Distance_Sphere(location_coordinates, ST_PointFromText('POINT(${lng} ${lat})')) <= ?
-      ORDER BY distance_meters ASC
-    `, [maxDistanceMeters]);
-        return rows;
+        void lat;
+        void lng;
+        void maxDistanceMeters;
+        return [];
     }
 }
 exports.default = BranchModel;

@@ -29,6 +29,16 @@ exports.isSystemInitialized = isSystemInitialized;
 const checkDatabaseSchema = async () => {
     try {
         const tablesToCheck = ['users', 'roles', 'branches'];
+        const hasRequiredColumns = async (table, requiredColumns) => {
+            const databaseName = database_1.dbConfig.database;
+            if (!databaseName)
+                return false;
+            const [rows] = await database_1.pool.execute(`SELECT COLUMN_NAME
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`, [databaseName, table]);
+            const existing = new Set((rows || []).map((r) => r.COLUMN_NAME));
+            return requiredColumns.every((col) => existing.has(col));
+        };
         for (const table of tablesToCheck) {
             try {
                 await database_1.pool.execute(`SELECT 1 FROM ${table} LIMIT 1`);
@@ -40,6 +50,18 @@ const checkDatabaseSchema = async () => {
                 throw error;
             }
         }
+        const branchesRequiredColumns = [
+            'location_coordinates',
+            'location_radius_meters',
+            'attendance_mode',
+            'auto_mark_absent_enabled',
+            'auto_mark_absent_time',
+            'auto_mark_absent_timezone',
+            'attendance_lock_date'
+        ];
+        const branchesComplete = await hasRequiredColumns('branches', branchesRequiredColumns);
+        if (!branchesComplete)
+            return false;
         return true;
     }
     catch (error) {

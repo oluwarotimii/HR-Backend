@@ -11,7 +11,10 @@ export interface AttendanceLocation {
 }
 export interface AttendanceLocationInput {
     name: string;
-    location_coordinates: string;
+    location_coordinates: string | {
+        lat: number;
+        lng: number;
+    };
     location_radius_meters?: number;
     branch_id?: number | null;
     is_active?: boolean;
@@ -19,13 +22,17 @@ export interface AttendanceLocationInput {
 }
 export interface AttendanceLocationUpdate {
     name?: string;
-    location_coordinates?: string;
+    location_coordinates?: string | {
+        lat: number;
+        lng: number;
+    };
     location_radius_meters?: number;
     branch_id?: number | null;
     is_active?: boolean;
 }
 declare class AttendanceLocationModel {
     static tableName: string;
+    private static parseCoordinatesToWKT;
     static findAll(): Promise<AttendanceLocation[]>;
     static findById(id: number): Promise<AttendanceLocation | null>;
     static findActiveLocations(): Promise<AttendanceLocation[]>;
