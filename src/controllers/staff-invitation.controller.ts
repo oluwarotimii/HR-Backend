@@ -354,13 +354,9 @@ export const getAvailableDepartments = async (req: Request, res: Response) => {
 // Get all invitations
 export const getAllInvitations = async (req: Request, res: Response) => {
   try {
-    // Dynamically determine which tracking columns exist
-    const [cols]: any = await pool.execute(`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
-        AND COLUMN_NAME IN ('first_login_at','first_login_ip','profile_completed','last_activity_at','declined_at')
-    `);
-    const availableCols = new Set(cols.map((c: any) => c.COLUMN_NAME));
+    // Dynamically determine which tracking columns exist - use SHOW COLUMNS as it's more reliable
+    const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations');
+    const availableCols = new Set(columns.map((c: any) => c.Field));
 
     const selectFields = `
         si.id,
@@ -761,13 +757,9 @@ export const declineInvitation = async (req: Request, res: Response) => {
 // Get invitation statistics / analytics
 export const getInvitationStats = async (req: Request, res: Response) => {
   try {
-    // Dynamically determine which tracking columns exist
-    const [cols]: any = await pool.execute(`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
-        AND COLUMN_NAME IN ('first_login_at','profile_completed')
-    `);
-    const availableCols = new Set(cols.map((c: any) => c.COLUMN_NAME));
+    // Dynamically determine which tracking columns exist - use SHOW COLUMNS as it's more reliable
+    const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations');
+    const availableCols = new Set(columns.map((c: any) => c.Field));
 
     // Overall counts by status
     const [statusCounts]: any = await pool.execute(
