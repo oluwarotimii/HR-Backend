@@ -112,13 +112,9 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
     try {
       const { pool } = await import('../config/database');
 
-      // Check available columns first to be defensive
-      const [cols]: any = await pool.execute(`
-        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
-          AND COLUMN_NAME IN ('first_login_at', 'first_login_ip', 'profile_completed', 'last_activity_at', 'accepted_at')
-      `);
-      const availableCols = new Set(cols.map((c: any) => c.COLUMN_NAME));
+      // Check available columns first to be defensive - use SHOW COLUMNS as it's more reliable
+      const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations');
+      const availableCols = new Set(columns.map((c: any) => c.Field));
 
       // Step 1: Auto-accept any pending invitation for this user
       const [pendingRows]: any = await pool.execute(
@@ -151,37 +147,41 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
           updateParams
         );
         console.log(`[Invite Tracking] Auto-accepted invitation for user ${user.id} (${user.email}) on first login`);
-      } else if (availableCols.has('first_login_at')) {
-        // Step 2: Track first login for already-accepted invitations
-        const [acceptedRows]: any = await pool.execute(
-          `SELECT si.id FROM staff_invitations si
-           WHERE si.user_id = ? AND si.status = 'accepted' AND si.first_login_at IS NULL
-           LIMIT 1`,
-          [user.id]
-        );
-
-        if (acceptedRows.length > 0) {
-          const updateFields: string[] = ["first_login_at = NOW()"];
-          const updateParams: any[] = [];
-
-          if (availableCols.has('first_login_ip')) {
-            updateFields.push("first_login_ip = ?");
-            updateParams.push(ip);
-          }
-          if (availableCols.has('profile_completed')) {
-            updateFields.push("profile_completed = ?");
-            updateParams.push(!!user.phone ? 1 : 0);
-          }
-          
-          updateParams.push(acceptedRows[0].id);
-
-          await pool.execute(
-            `UPDATE staff_invitations SET ${updateFields.join(', ')} WHERE id = ?`,
-            updateParams
+      } else {
+        // Step 2: Track first login for already-accepted invitations (only if column exists)
+        if (availableCols.has('first_login_at')) {
+          const [acceptedRows]: any = await pool.execute(
+            `SELECT si.id FROM staff_invitations si
+             WHERE si.user_id = ? AND si.status = 'accepted' AND si.first_login_at IS NULL
+             LIMIT 1`,
+            [user.id]
           );
-          console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
-        } else if (!needsPasswordChange && availableCols.has('last_activity_at')) {
-          // Step 3: Update last_activity for returning users
+
+          if (acceptedRows.length > 0) {
+            const updateFields: string[] = ["first_login_at = NOW()"];
+            const updateParams: any[] = [];
+
+            if (availableCols.has('first_login_ip')) {
+              updateFields.push("first_login_ip = ?");
+              updateParams.push(ip);
+            }
+            if (availableCols.has('profile_completed')) {
+              updateFields.push("profile_completed = ?");
+              updateParams.push(!!user.phone ? 1 : 0);
+            }
+            
+            updateParams.push(acceptedRows[0].id);
+
+            await pool.execute(
+              `UPDATE staff_invitations SET ${updateFields.join(', ')} WHERE id = ?`,
+              updateParams
+            );
+            console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
+          }
+        }
+        
+        // Step 3: Update last_activity for returning users (only if column exists)
+        if (!needsPasswordChange && availableCols.has('last_activity_at')) {
           await pool.execute(
             `UPDATE staff_invitations SET last_activity_at = NOW()
              WHERE user_id = ? AND status = 'accepted'`,

@@ -752,13 +752,9 @@ export const updateStaff = async (req: Request, res: Response) => {
         const { pool } = await import('../config/database');
         
         // Check if column exists first
-        const [cols]: any = await pool.execute(`
-          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
-            AND COLUMN_NAME = 'profile_completed'
-        `);
+        const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations LIKE "profile_completed"');
 
-        if (cols.length > 0) {
+        if (columns.length > 0) {
           await pool.execute(
             `UPDATE staff_invitations SET profile_completed = TRUE
              WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`,
