@@ -761,22 +761,31 @@ export const declineInvitation = async (req: Request, res: Response) => {
 // Get invitation statistics / analytics
 export const getInvitationStats = async (req: Request, res: Response) => {
   try {
+    // Dynamically determine which tracking columns exist
+    const [cols]: any = await pool.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
+        AND COLUMN_NAME IN ('first_login_at','profile_completed')
+    `);
+    const availableCols = new Set(cols.map((c: any) => c.COLUMN_NAME));
+
     // Overall counts by status
     const [statusCounts]: any = await pool.execute(
       `SELECT status, COUNT(*) as count FROM staff_invitations GROUP BY status`
     );
 
     // Accepted invitations tracking
-    const [acceptedTracking]: any = await pool.execute(
-      `SELECT
+    const trackingQuery = `
+      SELECT
         COUNT(*) as total_accepted,
-        SUM(CASE WHEN first_login_at IS NOT NULL THEN 1 ELSE 0 END) as first_logged_in,
-        SUM(CASE WHEN first_login_at IS NULL AND accepted_at IS NOT NULL THEN 1 ELSE 0 END) as accepted_not_logged_in,
-        SUM(CASE WHEN profile_completed = TRUE THEN 1 ELSE 0 END) as profile_completed_count,
-        SUM(CASE WHEN profile_completed = FALSE AND first_login_at IS NOT NULL THEN 1 ELSE 0 END) as logged_in_not_completed
+        ${availableCols.has('first_login_at') ? 'SUM(CASE WHEN first_login_at IS NOT NULL THEN 1 ELSE 0 END)' : '0'} as first_logged_in,
+        ${availableCols.has('first_login_at') ? 'SUM(CASE WHEN first_login_at IS NULL AND accepted_at IS NOT NULL THEN 1 ELSE 0 END)' : 'COUNT(*)'} as accepted_not_logged_in,
+        ${availableCols.has('profile_completed') ? 'SUM(CASE WHEN profile_completed = TRUE THEN 1 ELSE 0 END)' : '0'} as profile_completed_count,
+        ${availableCols.has('profile_completed') && availableCols.has('first_login_at') ? 'SUM(CASE WHEN profile_completed = FALSE AND first_login_at IS NOT NULL THEN 1 ELSE 0 END)' : '0'} as logged_in_not_completed
       FROM staff_invitations
-      WHERE status = 'accepted'`
-    );
+      WHERE status = 'accepted'`;
+    
+    const [acceptedTracking]: any = await pool.execute(trackingQuery);
 
     // Recent invitations (last 7 days)
     const [recent]: any = await pool.execute(

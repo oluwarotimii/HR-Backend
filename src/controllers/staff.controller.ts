@@ -750,11 +750,21 @@ export const updateStaff = async (req: Request, res: Response) => {
 
       if (profileComplete) {
         const { pool } = await import('../config/database');
-        await pool.execute(
-          `UPDATE staff_invitations SET profile_completed = TRUE
-           WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`,
-          [resolvedUserId]
-        );
+        
+        // Check if column exists first
+        const [cols]: any = await pool.execute(`
+          SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
+            AND COLUMN_NAME = 'profile_completed'
+        `);
+
+        if (cols.length > 0) {
+          await pool.execute(
+            `UPDATE staff_invitations SET profile_completed = TRUE
+             WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`,
+            [resolvedUserId]
+          );
+        }
       }
     } catch (trackingErr) {
       console.error('Profile completion tracking error (non-critical):', trackingErr);

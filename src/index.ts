@@ -71,6 +71,7 @@ import leaveCleanupRoutes from './api/leave-cleanup.route';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust the first proxy (e.g. Nginx, Render)
 const PORT = process.env.PORT || 3000;
 let server: ReturnType<typeof app.listen> | null = null;
 
