@@ -878,7 +878,7 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
     // Fetch branch-specific settings
     let settings: any = {
       require_check_in: true,
-      enable_location_verification: branch.attendance_mode !== 'flexible',
+      enable_location_verification: branch.attendance_mode !== 'branch_based',
       strict_location_mode: false,
       grace_period_minutes: 0
     };

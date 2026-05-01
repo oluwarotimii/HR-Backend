@@ -642,8 +642,11 @@ const updateStaff = async (req, res) => {
             const profileComplete = hasPhone && hasDOB;
             if (profileComplete) {
                 const { pool } = await Promise.resolve().then(() => __importStar(require('../config/database')));
-                await pool.execute(`UPDATE staff_invitations SET profile_completed = TRUE
-           WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`, [resolvedUserId]);
+                const [columns] = await pool.execute('SHOW COLUMNS FROM staff_invitations LIKE "profile_completed"');
+                if (columns.length > 0) {
+                    await pool.execute(`UPDATE staff_invitations SET profile_completed = TRUE
+             WHERE user_id = ? AND status = 'accepted' AND (profile_completed IS NULL OR profile_completed = FALSE)`, [resolvedUserId]);
+                }
             }
         }
         catch (trackingErr) {

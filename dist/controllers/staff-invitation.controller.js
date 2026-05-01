@@ -261,12 +261,8 @@ const getAvailableDepartments = async (req, res) => {
 exports.getAvailableDepartments = getAvailableDepartments;
 const getAllInvitations = async (req, res) => {
     try {
-        const [cols] = await database_1.pool.execute(`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_invitations'
-        AND COLUMN_NAME IN ('first_login_at','first_login_ip','profile_completed','last_activity_at','declined_at')
-    `);
-        const availableCols = new Set(cols.map((c) => c.COLUMN_NAME));
+        const [columns] = await database_1.pool.execute('SHOW COLUMNS FROM staff_invitations');
+        const availableCols = new Set(columns.map((c) => c.Field));
         const selectFields = `
         si.id,
         si.email,
@@ -563,15 +559,19 @@ const declineInvitation = async (req, res) => {
 exports.declineInvitation = declineInvitation;
 const getInvitationStats = async (req, res) => {
     try {
+        const [columns] = await database_1.pool.execute('SHOW COLUMNS FROM staff_invitations');
+        const availableCols = new Set(columns.map((c) => c.Field));
         const [statusCounts] = await database_1.pool.execute(`SELECT status, COUNT(*) as count FROM staff_invitations GROUP BY status`);
-        const [acceptedTracking] = await database_1.pool.execute(`SELECT
+        const trackingQuery = `
+      SELECT
         COUNT(*) as total_accepted,
-        SUM(CASE WHEN first_login_at IS NOT NULL THEN 1 ELSE 0 END) as first_logged_in,
-        SUM(CASE WHEN first_login_at IS NULL AND accepted_at IS NOT NULL THEN 1 ELSE 0 END) as accepted_not_logged_in,
-        SUM(CASE WHEN profile_completed = TRUE THEN 1 ELSE 0 END) as profile_completed_count,
-        SUM(CASE WHEN profile_completed = FALSE AND first_login_at IS NOT NULL THEN 1 ELSE 0 END) as logged_in_not_completed
+        ${availableCols.has('first_login_at') ? 'SUM(CASE WHEN first_login_at IS NOT NULL THEN 1 ELSE 0 END)' : '0'} as first_logged_in,
+        ${availableCols.has('first_login_at') ? 'SUM(CASE WHEN first_login_at IS NULL AND accepted_at IS NOT NULL THEN 1 ELSE 0 END)' : 'COUNT(*)'} as accepted_not_logged_in,
+        ${availableCols.has('profile_completed') ? 'SUM(CASE WHEN profile_completed = TRUE THEN 1 ELSE 0 END)' : '0'} as profile_completed_count,
+        ${availableCols.has('profile_completed') && availableCols.has('first_login_at') ? 'SUM(CASE WHEN profile_completed = FALSE AND first_login_at IS NOT NULL THEN 1 ELSE 0 END)' : '0'} as logged_in_not_completed
       FROM staff_invitations
-      WHERE status = 'accepted'`);
+      WHERE status = 'accepted'`;
+        const [acceptedTracking] = await database_1.pool.execute(trackingQuery);
         const [recent] = await database_1.pool.execute(`SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'pending' AND expires_at > NOW() THEN 1 ELSE 0 END) as pending,
