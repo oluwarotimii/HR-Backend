@@ -215,18 +215,33 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
         const userCoords = parseLocationCoordinates(location_coordinates);
         const debug = process.env.ATTENDANCE_DEBUG === 'true';
         if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: 'Unauthorized: No user information'
-            });
+            return res.status(401).json({ success: false, message: 'Unauthorized: No user information' });
         }
         if (!date || !check_in_time) {
-            return res.status(400).json({
-                success: false,
-                message: 'Date and check_in_time are required'
-            });
+            return res.status(400).json({ success: false, message: 'Date and check_in_time are required' });
         }
         const requestedDate = new Date(date);
+        let attendanceRecord = await attendance_model_1.default.findByUserIdAndDate(userId, requestedDate);
+        if (attendanceRecord) {
+            if (attendanceRecord.check_in_time) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'You have already checked in for this date. Multiple check-ins are not allowed.'
+                });
+            }
+            if (attendanceRecord.is_locked) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Attendance for this date has been locked by your branch.'
+                });
+            }
+            if (attendanceRecord.status === 'leave' || attendanceRecord.status === 'holiday') {
+                return res.status(403).json({
+                    success: false,
+                    message: `Attendance is marked as ${attendanceRecord.status}. Clock-in is not allowed.`
+                });
+            }
+        }
         const effectiveSchedule = await shift_scheduling_service_1.ShiftSchedulingService.getEffectiveScheduleForDate(userId, requestedDate);
         if (effectiveSchedule?.schedule_type === 'leave' || (await isOnApprovedLeave(userId, requestedDate))) {
             return res.status(403).json({
@@ -236,17 +251,15 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             });
         }
         if (!effectiveSchedule || !effectiveSchedule.start_time) {
-            if (effectiveSchedule?.schedule_type !== 'holiday') {
-                const leaveCheck = await database_1.pool.execute(`SELECT id FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved'`, [userId, new Date(date)]);
-                if (leaveCheck[0].length === 0) {
-                    const scheduleNote = effectiveSchedule?.schedule_note || 'Scheduled Day Off';
-                    return res.status(403).json({
-                        success: false,
-                        message: `Today is a non-working day (${scheduleNote}). You do not have an active shift assigned for this date.`,
-                        data: { non_working_day: true }
-                    });
-                }
+            const isHoliday = await holiday_model_1.default.isHoliday(requestedDate);
+            if (isHoliday || effectiveSchedule?.schedule_type === 'holiday') {
+                return res.status(403).json({ success: false, message: 'Today is a holiday. Clock-in not allowed.' });
             }
+            return res.status(403).json({
+                success: false,
+                message: `Today is a non-working day (${effectiveSchedule?.schedule_note || 'Off'}).`,
+                data: { non_working_day: true }
+            });
         }
         else {
             const [startHours, startMinutes] = effectiveSchedule.start_time.split(':').map(Number);
@@ -258,341 +271,80 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             if (isToday && serverTime > cutoffTime) {
                 return res.status(403).json({
                     success: false,
-                    message: `Your scheduled shift started at ${effectiveSchedule.start_time}, and the 4-hour check-in window has now closed. Please contact your supervisor.`,
-                    data: { cutoff_exceeded: true, scheduled_start: effectiveSchedule.start_time }
+                    message: `Your shift started at ${effectiveSchedule.start_time}. The 4-hour check-in window is closed.`,
+                    data: { cutoff_exceeded: true }
                 });
             }
         }
-        let attendanceRecord = await attendance_model_1.default.findByUserIdAndDate(userId, requestedDate);
-        if (attendanceRecord) {
-            if (attendanceRecord.status === 'leave' || attendanceRecord.status === 'holiday') {
-                return res.status(403).json({
-                    success: false,
-                    message: attendanceRecord.status === 'leave'
-                        ? 'Attendance is marked as leave for this date. Clock-in is not allowed.'
-                        : 'Attendance is marked as holiday for this date. Clock-in is not allowed.',
-                    data: { status: attendanceRecord.status }
-                });
-            }
-            if (attendanceRecord.is_locked) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Attendance for this date has been locked by your branch. You cannot check in after the auto-mark time has passed.',
-                    data: { locked: true, locked_at: attendanceRecord.locked_at }
-                });
-            }
-            if (attendanceRecord.check_in_time) {
-                return res.status(409).json({
-                    success: false,
-                    message: 'You have already checked in today. Multiple check-ins are not allowed.'
-                });
-            }
-            let locationVerified = false;
-            const staffRecord = await staff_model_1.default.findByUserId(userId);
-            if (!staffRecord) {
-                return res.status(404).json({ success: false, message: 'Staff record not found' });
-            }
-            let branchId = staffRecord.branch_id;
-            if (!branchId) {
-                return res.status(400).json({ success: false, message: 'No branch assigned' });
-            }
-            if (userCoords) {
-                const nearbyLocations = await attendance_location_model_1.default.getLocationsNearby(userCoords.latitude, userCoords.longitude, 1000);
-                const assignedLocationIds = getAssignedLocationIds(staffRecord);
-                if (assignedLocationIds.length > 0 && nearbyLocations.length > 0) {
-                    const atAssignedLocation = nearbyLocations.some(loc => assignedLocationIds.includes(loc.id) && loc.branch_id);
-                    if (atAssignedLocation) {
-                        const locationBranch = nearbyLocations.find(loc => loc.branch_id)?.branch_id;
-                        if (locationBranch) {
-                            branchId = locationBranch;
-                            console.log(`✅ Using location's branch ${branchId} for attendance verification`);
-                        }
-                    }
-                }
-            }
-            const branch = await branch_model_1.default.findById(branchId);
-            if (!branch) {
-                return res.status(404).json({ success: false, message: 'Branch not found' });
-            }
-            let settings = {
-                require_check_in: true,
-                require_check_out: true,
-                grace_period_minutes: 0,
-                enable_location_verification: branch.attendance_mode === 'multiple_locations'
-                    ? true
-                    : branch.attendance_mode === 'branch_based'
-                        ? !!branch.location_coordinates
-                        : false,
-                strict_location_mode: false
-            };
-            try {
-                const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]);
-                if (branchSettings && branchSettings.length > 0) {
-                    settings = { ...settings, ...branchSettings[0] };
-                }
-            }
-            catch (error) {
-                console.log('Using default attendance settings');
-            }
-            const strictMode = !!settings.strict_location_mode;
-            if (debug) {
-                console.log('[Attendance][CheckIn] Verify start', {
-                    userId,
-                    date,
-                    branchId,
-                    attendance_mode: branch.attendance_mode,
-                    enable_location_verification: settings.enable_location_verification,
-                    strict_location_mode: strictMode,
-                    assigned_location_id: staffRecord.assigned_location_id,
-                    location_assignments: staffRecord.location_assignments,
-                    userCoords
-                });
-            }
-            const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
-            locationVerified = verifyResult.verified;
-            if (debug) {
-                console.log('[Attendance][CheckIn] Verify result', verifyResult);
-            }
-            if (settings.enable_location_verification && !locationVerified) {
-                let locationRequiredMessage = 'Location verification failed.';
-                if (verifyResult.verified === false) {
-                    if (verifyResult.reason === 'no_coords') {
-                        locationRequiredMessage =
-                            'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
-                    }
-                    else if (verifyResult.reason === 'no_assignment') {
-                        locationRequiredMessage =
-                            'No attendance location has been assigned to you yet. Please contact HR to assign your check-in location(s).';
-                    }
-                    else {
-                        locationRequiredMessage =
-                            'Location verification failed. You must be within the allowed radius of your assigned location to check in.';
-                    }
-                }
-                return res.status(403).json({
-                    success: false,
-                    message: locationRequiredMessage,
-                    data: {
-                        distance_check_failed: !!userCoords,
-                        location_permission_required: !userCoords
-                    }
-                });
-            }
-            const updateData = {
-                check_in_time: new Date(`1970-01-01T${check_in_time}`),
-                location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
-                location_verified: locationVerified,
-                location_address: location_address || null
-            };
-            if (providedStatus) {
-                updateData.status = providedStatus;
-            }
-            const updatedAttendance = await attendance_model_1.default.update(attendanceRecord.id, updateData);
-            return res.status(200).json({
-                success: true,
-                message: 'Check-in time recorded successfully',
-                data: { attendance: updatedAttendance }
+        const staffRecord = await staff_model_1.default.findByUserId(userId);
+        if (!staffRecord || !staffRecord.branch_id) {
+            return res.status(404).json({ success: false, message: 'Staff branch assignment not found.' });
+        }
+        const branch = await branch_model_1.default.findById(staffRecord.branch_id);
+        if (!branch)
+            return res.status(404).json({ success: false, message: 'Branch not found' });
+        let settings = {
+            require_check_in: true,
+            enable_location_verification: branch.attendance_mode !== 'branch_based',
+            strict_location_mode: false,
+            grace_period_minutes: 0
+        };
+        try {
+            const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branch.id]);
+            if (branchSettings.length > 0)
+                settings = { ...settings, ...branchSettings[0] };
+        }
+        catch (e) {
+            if (debug)
+                console.log('Falling back to default settings');
+        }
+        const verifyResult = await verifyUserLocation({
+            branch,
+            staffRecord,
+            userCoords,
+            strictLocationMode: !!settings.strict_location_mode
+        });
+        if (settings.enable_location_verification && !verifyResult.verified) {
+            return res.status(403).json({
+                success: false,
+                message: 'Location verification failed. You are outside the allowed radius.'
             });
+        }
+        const attendanceUpdate = {
+            check_in_time: new Date(`1970-01-01T${check_in_time}`),
+            location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
+            location_verified: verifyResult.verified,
+            location_address: location_address || null,
+            status: providedStatus || 'present'
+        };
+        let result;
+        if (attendanceRecord) {
+            result = await attendance_model_1.default.update(attendanceRecord.id, attendanceUpdate);
         }
         else {
-            const isHoliday = await holiday_model_1.default.isHoliday(new Date(date));
-            if (isHoliday) {
-                const attendanceData = {
-                    user_id: userId,
-                    date: new Date(date),
-                    status: 'holiday',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'Holiday - no attendance required'
-                };
-                const newAttendance = await attendance_model_1.default.create(attendanceData);
-                return res.status(201).json({
-                    success: true,
-                    message: 'Holiday attendance recorded successfully',
-                    data: { attendance: newAttendance }
-                });
-            }
-            const [leaveHistory] = await database_1.pool.execute(`SELECT id, start_date, end_date, status FROM leave_history WHERE user_id = ? AND ? BETWEEN start_date AND end_date`, [userId, requestedDate]);
-            const approvedLeaves = leaveHistory.filter((l) => l.status === 'approved');
-            if (approvedLeaves.length > 0) {
-                const attendanceData = {
-                    user_id: userId,
-                    date: new Date(date),
-                    status: 'leave',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'On approved leave'
-                };
-                const newAttendance = await attendance_model_1.default.create(attendanceData);
-                return res.status(201).json({
-                    success: true,
-                    message: 'Leave attendance recorded successfully',
-                    data: { attendance: newAttendance }
-                });
-            }
-            const [leaveRequests] = await database_1.pool.execute(`SELECT id, start_date, end_date, status, cancelled_by, cancelled_at FROM leave_requests
-         WHERE user_id = ?
-           AND ? BETWEEN start_date AND end_date
-           AND status = 'approved'
-           AND (cancelled_by IS NULL OR cancelled_at IS NULL)`, [userId, requestedDate]);
-            if (leaveRequests.length > 0) {
-                const attendanceData = {
-                    user_id: userId,
-                    date: new Date(date),
-                    status: 'leave',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'On approved leave'
-                };
-                const newAttendance = await attendance_model_1.default.create(attendanceData);
-                return res.status(201).json({
-                    success: true,
-                    message: 'Leave attendance recorded successfully',
-                    data: { attendance: newAttendance }
-                });
-            }
-            const staffRecord = await staff_model_1.default.findByUserId(userId);
-            if (!staffRecord) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Staff record not found for user'
-                });
-            }
-            const branchId = staffRecord.branch_id;
-            if (!branchId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Staff record does not have a branch assigned'
-                });
-            }
-            const branch = await branch_model_1.default.findById(branchId);
-            if (!branch) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Branch not found for staff'
-                });
-            }
-            if (branch.attendance_lock_date) {
-                const today = new Date().toISOString().split('T')[0];
-                const lockDate = new Date(branch.attendance_lock_date).toISOString().split('T')[0];
-                if (lockDate >= today) {
-                    return res.status(403).json({
-                        success: false,
-                        message: 'Attendance for today has been locked by your branch. You cannot check in after the auto-mark time has passed.',
-                        data: { locked: true, lock_date: branch.attendance_lock_date }
-                    });
-                }
-            }
-            let settings = {
-                require_check_in: true,
-                require_check_out: true,
-                grace_period_minutes: 0,
-                enable_location_verification: branch.attendance_mode === 'multiple_locations'
-                    ? true
-                    : branch.attendance_mode === 'branch_based'
-                        ? !!branch.location_coordinates
-                        : false,
-                strict_location_mode: false
-            };
-            try {
-                const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]);
-                if (branchSettings && branchSettings.length > 0) {
-                    settings = { ...settings, ...branchSettings[0] };
-                }
-            }
-            catch (error) {
-                console.log('Using default attendance settings (table may not exist)');
-            }
-            if (settings.require_check_in === false) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Check-in is not required for this branch'
-                });
-            }
-            const strictMode = !!settings.strict_location_mode;
-            if (debug) {
-                console.log('[Attendance][CheckIn] (create) Verify start', {
-                    userId,
-                    date,
-                    branchId,
-                    attendance_mode: branch.attendance_mode,
-                    enable_location_verification: settings.enable_location_verification,
-                    strict_location_mode: strictMode,
-                    assigned_location_id: staffRecord.assigned_location_id,
-                    location_assignments: staffRecord.location_assignments,
-                    userCoords
-                });
-            }
-            const verifyResult = await verifyUserLocation({ branch, staffRecord, userCoords, strictLocationMode: strictMode });
-            const locationVerified = verifyResult.verified;
-            if (debug) {
-                console.log('[Attendance][CheckIn] (create) Verify result', verifyResult);
-            }
-            if (settings.enable_location_verification && !locationVerified) {
-                let locationRequiredMessage = 'Location verification failed.';
-                if (verifyResult.verified === false) {
-                    if (verifyResult.reason === 'no_coords') {
-                        locationRequiredMessage =
-                            'Location permission is required to check in. Please allow location access in your browser or app settings and try again.';
-                    }
-                    else if (verifyResult.reason === 'no_assignment') {
-                        locationRequiredMessage =
-                            'No attendance location has been assigned to you yet. Please contact HR to assign your check-in location(s).';
-                    }
-                    else {
-                        locationRequiredMessage =
-                            'Location verification failed. You must be within the allowed radius of your assigned location to check in.';
-                    }
-                }
-                return res.status(403).json({
-                    success: false,
-                    message: locationRequiredMessage,
-                    data: {
-                        distance_check_failed: !!userCoords,
-                        location_permission_required: !userCoords
-                    }
-                });
-            }
-            const attendanceData = {
+            result = await attendance_model_1.default.create({
                 user_id: userId,
-                date: new Date(date),
-                status: 'present',
-                check_in_time: new Date(`1970-01-01T${check_in_time}`),
+                date: requestedDate,
+                ...attendanceUpdate,
                 check_out_time: null,
-                location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
-                location_verified: locationVerified,
-                location_address: location_address || null,
                 notes: null
-            };
-            const newAttendance = await attendance_model_1.default.create(attendanceData);
-            try {
-                await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(newAttendance.id, userId, new Date(date), settings.grace_period_minutes || 0);
-            }
-            catch (shiftError) {
-                console.error('Failed to update attendance with shift info:', shiftError);
-            }
-            return res.status(201).json({
-                success: true,
-                message: 'Check-in recorded successfully',
-                data: { attendance: newAttendance }
             });
         }
+        try {
+            await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(result.id, userId, requestedDate, settings.grace_period_minutes || 0);
+        }
+        catch (err) {
+            console.error('Failed to update attendance schedule info:', err);
+        }
+        return res.status(attendanceRecord ? 200 : 201).json({
+            success: true,
+            message: 'Check-in recorded successfully',
+            data: { attendance: result }
+        });
     }
     catch (error) {
         console.error('Check-in error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
+        return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) => {

@@ -103,6 +103,7 @@ const leave_cleanup_worker_1 = __importDefault(require("./workers/leave-cleanup.
 const leave_cleanup_route_1 = __importDefault(require("./api/leave-cleanup.route"));
 dotenv.config();
 const app = (0, express_1.default)();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
 let server = null;
 const shutdown = (reason, error) => {
