@@ -78,9 +78,11 @@ class AttendanceModel {
   }
 
   static async findByUserIdAndDate(userId: number, date: Date): Promise<Attendance | null> {
+    // Format the date to 'YYYY-MM-DD' to ensure correct comparison with the DATE column type in the database.
+    const formattedDate = date.toISOString().split('T')[0];
     const [rows] = await pool.execute(
-      `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date = ?`,
-      [userId, date]
+      `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`,
+      [userId, formattedDate]
     );
     return (rows as Attendance[])[0] || null;
   }
