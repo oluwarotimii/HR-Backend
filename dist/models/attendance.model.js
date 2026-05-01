@@ -27,7 +27,8 @@ class AttendanceModel {
         return rows;
     }
     static async findByUserIdAndDate(userId, date) {
-        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date = ?`, [userId, date]);
+        const formattedDate = date.toISOString().split('T')[0];
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`, [userId, formattedDate]);
         return rows[0] || null;
     }
     static async findByDate(date) {
