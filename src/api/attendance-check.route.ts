@@ -794,11 +794,20 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
     if (attendanceRecord) {
       // THE FIX: If check_in_time exists, this is a duplicate request. 
       // The first check-in of the day is already saved; ignore this one.
-      if (attendanceRecord.check_in_time) {
-        return res.status(409).json({
-          success: false,
-          message: 'You have already checked in for this date. Multiple check-ins are not allowed.'
-        });
+      if (attendanceRecord.check_in_time || (attendanceRecord.status && attendanceRecord.status !== 'absent' && attendanceRecord.status !== 'leave' && attendanceRecord.status !== 'holiday' && attendanceRecord.status !== 'weekend')) {
+         // Check if it's an already marked leave or holiday
+         if (attendanceRecord.status === 'leave' || attendanceRecord.status === 'holiday') {
+            return res.status(403).json({
+              success: false,
+              message: 'Attendance is marked as leave for this date. Clock-in is not allowed.',
+              data: { status: attendanceRecord.status }
+            });
+          }
+         // If check_in_time is already set, OR if status is already present/late/half_day, reject.
+         return res.status(409).json({
+           success: false,
+           message: 'You have already checked in for this date. Multiple check-ins are not allowed.'
+         });
       }
 
       // Block if administrative locks are active
