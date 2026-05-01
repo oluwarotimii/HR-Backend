@@ -223,7 +223,14 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
         const requestedDate = new Date(date);
         let attendanceRecord = await attendance_model_1.default.findByUserIdAndDate(userId, requestedDate);
         if (attendanceRecord) {
-            if (attendanceRecord.check_in_time) {
+            if (attendanceRecord.check_in_time || (attendanceRecord.status && attendanceRecord.status !== 'absent' && attendanceRecord.status !== 'leave' && attendanceRecord.status !== 'holiday' && attendanceRecord.status !== 'weekend')) {
+                if (attendanceRecord.status === 'leave' || attendanceRecord.status === 'holiday') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Attendance is marked as leave for this date. Clock-in is not allowed.',
+                        data: { status: attendanceRecord.status }
+                    });
+                }
                 return res.status(409).json({
                     success: false,
                     message: 'You have already checked in for this date. Multiple check-ins are not allowed.'
