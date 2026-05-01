@@ -5,6 +5,8 @@ export interface Staff {
   user_id: number;
   full_name: string;  // Added from joined user table
   email: string;      // Added from joined user table
+  phone?: string;     // Added from joined user table
+  must_change_password?: boolean | number; // Added from joined user table
   employee_id?: string;
   designation?: string;
   department?: string;
@@ -236,7 +238,7 @@ class StaffModel {
     status?: string,
     search?: string
   ): Promise<{staff: Staff[], totalCount: number}> {
-    let query = `SELECT s.*, u.full_name, u.email, b.name as branch_name
+    let query = `SELECT s.*, u.full_name, u.email, u.phone, u.must_change_password, b.name as branch_name
                  FROM ${this.tableName} s
                  LEFT JOIN users u ON s.user_id = u.id
                  LEFT JOIN branches b ON s.branch_id = b.id`;
@@ -300,7 +302,7 @@ class StaffModel {
 
   static async findById(id: number): Promise<Staff | null> {
     const [rows] = await pool.execute(
-      `SELECT s.*, u.full_name, u.email, b.name as branch_name
+      `SELECT s.*, u.full_name, u.email, u.phone, u.must_change_password, b.name as branch_name
        FROM ${this.tableName} s
        LEFT JOIN users u ON s.user_id = u.id
        LEFT JOIN branches b ON s.branch_id = b.id
@@ -312,7 +314,7 @@ class StaffModel {
 
   static async findByUserId(userId: number): Promise<Staff | null> {
     const [rows] = await pool.execute(
-      `SELECT s.*, u.full_name, u.email, b.name as branch_name
+      `SELECT s.*, u.full_name, u.email, u.phone, u.must_change_password, b.name as branch_name
        FROM ${this.tableName} s
        LEFT JOIN users u ON s.user_id = u.id
        LEFT JOIN branches b ON s.branch_id = b.id
@@ -326,7 +328,7 @@ class StaffModel {
 
   static async findByEmployeeId(employeeId: string): Promise<Staff | null> {
     const [rows] = await pool.execute(
-      `SELECT s.*, u.full_name, u.email
+      `SELECT s.*, u.full_name, u.email, u.phone, u.must_change_password
        FROM ${this.tableName} s
        LEFT JOIN users u ON s.user_id = u.id
        WHERE s.employee_id = ?`,
