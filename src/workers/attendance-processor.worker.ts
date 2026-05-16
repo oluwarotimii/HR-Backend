@@ -17,13 +17,16 @@ import StaffModel from '../models/staff.model';
 class AttendanceProcessorWorker {
   private static isRunning = false;
   private static lastCheckTime: Date | null = null;
-  private static processedDates = new Set<string>();
+  private static processedBranchDates = new Set<string>();
 
   /**
    * Process attendance for all staff members for a specific date
    */
   static async processAttendanceForDate(date: Date, branchId?: number) {
-    const dateStr = date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     const logPrefix = branchId ? `[Branch ${branchId}]` : '[All Branches]';
     
     console.log(`${logPrefix} Starting attendance processing for date: ${dateStr}`);
@@ -232,14 +235,14 @@ class AttendanceProcessorWorker {
     try {
       this.isRunning = true;
       const now = new Date();
-      const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      const todayStr = now.toISOString().split('T')[0];
-
-      // Skip if we already processed today
-      if (this.processedDates.has(todayStr)) {
-        console.log(`[Auto-Mark] Already processed for ${todayStr}, skipping`);
-        return;
-      }
+      
+      // Use HH:mm format for comparison
+      const currentTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
 
       console.log(`[Auto-Mark] Checking for branches with auto-mark time: ${currentTime}`);
 
@@ -259,6 +262,14 @@ class AttendanceProcessorWorker {
       console.log(`[Auto-Mark] Found ${branches.length} branch(es) scheduled for auto-mark at ${currentTime}`);
 
       for (const branch of branches) {
+        const branchKey = `${branch.id}-${todayStr}`;
+        
+        // Skip if this branch was already processed for today
+        if (this.processedBranchDates.has(branchKey)) {
+          console.log(`[Auto-Mark] Branch ${branch.name} already processed for ${todayStr}, skipping`);
+          continue;
+        }
+
         try {
           console.log(`[Auto-Mark] Processing branch: ${branch.name} (${branch.code})`);
 
@@ -271,15 +282,25 @@ class AttendanceProcessorWorker {
           // Lock the attendance immediately after processing
           await this.lockAttendanceForDate(branch.id, today, 1, 'Auto-mark absent');
 
+          // Mark this branch as processed for today
+          this.processedBranchDates.add(branchKey);
+
           console.log(`[Auto-Mark] Completed for ${branch.name}: ${result.absent} marked absent`);
         } catch (error) {
           console.error(`[Auto-Mark] Error processing branch ${branch.name}:`, error);
         }
       }
 
-      // Mark today as processed
-      this.processedDates.add(todayStr);
       this.lastCheckTime = now;
+
+      // Clean up old keys from the set periodically (e.g., keys not from today)
+      if (this.processedBranchDates.size > 1000) {
+        for (const key of this.processedBranchDates) {
+          if (!key.endsWith(todayStr)) {
+            this.processedBranchDates.delete(key);
+          }
+        }
+      }
 
     } catch (error) {
       console.error('[Auto-Mark] Error:', error);
@@ -292,7 +313,10 @@ class AttendanceProcessorWorker {
    * Lock attendance for a specific branch and date
    */
   static async lockAttendanceForDate(branchId: number, date: Date, lockedBy: number, reason?: string) {
-    const dateStr = date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
     try {
       // Lock all attendance records for that branch/date
@@ -347,10 +371,6 @@ class AttendanceProcessorWorker {
       console.error('Error in initial yesterday attendance processing:', error);
     }
 
-    // Mark today as processed if we're starting mid-day (to avoid immediate processing)
-    const todayStr = new Date().toISOString().split('T')[0];
-    this.processedDates.add(todayStr);
-
     // Start the minute-by-minute check for auto-mark times
     console.log('[Auto-Mark] Starting minute-by-minute check...');
     setInterval(async () => {
@@ -372,7 +392,7 @@ class AttendanceProcessorWorker {
     return {
       isRunning: this.isRunning,
       lastCheckTime: this.lastCheckTime,
-      processedDates: Array.from(this.processedDates)
+      processedBranchDates: Array.from(this.processedBranchDates)
     };
   }
 }
