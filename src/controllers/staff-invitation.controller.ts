@@ -738,9 +738,9 @@ export const declineInvitation = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: `Invitation has already been ${invitation.status}` });
     }
 
-    if (new Date(invitation.expires_at) < new Date()) {
-      return res.status(400).json({ success: false, message: 'Invitation has expired' });
-    }
+    // if (new Date(invitation.expires_at) < new Date()) {
+    //   return res.status(400).json({ success: false, message: 'Invitation has expired' });
+    // }
 
     await pool.execute(
       'UPDATE staff_invitations SET status = "declined", declined_at = NOW() WHERE id = ?',
