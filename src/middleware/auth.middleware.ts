@@ -92,26 +92,17 @@ export const checkPermission = (permission: string) => {
     try {
       // Check JWT authentication
       if (req.currentUser) {
-        // Try both permission formats (dots and colons) for backwards compatibility
-        const permissionFormats = [
-          permission,
-          permission.replace('.', ':'),  // staff.update -> staff:update
-          permission.replace(':', '.')   // staff:read -> staff.read
-        ];
-        
-        let hasAccess = false;
-        let permissionResult;
-        
-        // Check each format
-        for (const permFormat of permissionFormats) {
-          permissionResult = await PermissionService.hasPermission(req.currentUser.id, permFormat);
-          if (permissionResult.hasPermission) {
-            hasAccess = true;
-            break;
-          }
-        }
+        // Check all 3 permission formats in a single query
+        const permissionResult = await PermissionService.hasPermissionAny(
+          req.currentUser.id,
+          [
+            permission,
+            permission.replace('.', ':'),
+            permission.replace(':', '.')
+          ]
+        );
 
-        if (!hasAccess) {
+        if (!permissionResult.hasPermission) {
           return res.status(403).json({
             success: false,
             message: `Insufficient permissions. Required: ${permission}`,

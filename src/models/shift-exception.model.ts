@@ -53,9 +53,14 @@ export interface ShiftExceptionUpdate {
 class ShiftExceptionModel {
   static tableName = 'shift_exceptions';
 
-  static async findAll(): Promise<ShiftException[]> {
-    const [rows] = await pool.execute(`SELECT * FROM ${this.tableName} ORDER BY created_at DESC`);
-    return rows as ShiftException[];
+  static async findAll(): Promise<any[]> {
+    const [rows] = await pool.execute(
+      `SELECT se.*, u.full_name as user_name
+       FROM ${this.tableName} se
+       LEFT JOIN users u ON se.user_id = u.id
+       ORDER BY se.created_at DESC`
+    );
+    return rows as any[];
   }
 
   static async findById(id: number): Promise<ShiftException | null> {
@@ -66,12 +71,16 @@ class ShiftExceptionModel {
     return (rows as ShiftException[])[0] || null;
   }
 
-  static async findByUserId(userId: number): Promise<ShiftException[]> {
+  static async findByUserId(userId: number): Promise<any[]> {
     const [rows] = await pool.execute(
-      `SELECT * FROM ${this.tableName} WHERE user_id = ? ORDER BY exception_date DESC`,
+      `SELECT se.*, u.full_name as user_name
+       FROM ${this.tableName} se
+       LEFT JOIN users u ON se.user_id = u.id
+       WHERE se.user_id = ?
+       ORDER BY se.exception_date DESC`,
       [userId]
     );
-    return rows as ShiftException[];
+    return rows as any[];
   }
 
   static async findByDate(userId: number, date: Date): Promise<ShiftException | null> {
@@ -82,14 +91,16 @@ class ShiftExceptionModel {
     return (rows as ShiftException[])[0] || null;
   }
 
-  static async findByDateRange(userId: number, startDate: Date, endDate: Date): Promise<ShiftException[]> {
+  static async findByDateRange(userId: number, startDate: Date, endDate: Date): Promise<any[]> {
     const [rows] = await pool.execute(
-      `SELECT * FROM ${this.tableName}
-       WHERE user_id = ? AND exception_date BETWEEN ? AND ? AND status = 'active'
-       ORDER BY exception_date DESC`,
+      `SELECT se.*, u.full_name as user_name
+       FROM ${this.tableName} se
+       LEFT JOIN users u ON se.user_id = u.id
+       WHERE se.user_id = ? AND se.exception_date BETWEEN ? AND ? AND se.status = 'active'
+       ORDER BY se.exception_date DESC`,
       [userId, startDate, endDate]
     );
-    return rows as ShiftException[];
+    return rows as any[];
   }
 
   static async create(exceptionData: ShiftExceptionInput): Promise<ShiftException> {

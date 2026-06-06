@@ -1,86 +1,139 @@
-import UserModel from '../models/user.model';
-import RoleModel from '../models/role.model';
-import UserPermissionModel from '../models/user-permission.model';
-import RolePermissionModel from '../models/role-permission.model';
+import { pool } from '../config/database';
 import { CacheService } from './cache.service';
 
 interface PermissionCheckResult {
   hasPermission: boolean;
-  source: 'user' | 'role' | 'none'; // Where the permission came from
-  allowDeny: 'allow' | 'deny' | null; // Whether it was explicitly allowed or denied
+  source: 'user' | 'role' | 'none';
+  allowDeny: 'allow' | 'deny' | null;
 }
 
 class PermissionService {
   /**
-   * Checks if a user has a specific permission
+   * Checks if a user has a specific permission (single JOIN query replaces 4 separate queries)
    * User-specific permissions take precedence over role-based permissions
    */
   static async hasPermission(userId: number, permission: string): Promise<PermissionCheckResult> {
-    // First, check if the user has an explicit permission
-    const userPermission = await UserPermissionModel.findByUserAndPermission(userId, permission);
+    const [rows]: any = await pool.execute(
+      `SELECT
+        up.allow_deny AS user_perm_allow_deny,
+        rp.allow_deny AS role_perm_allow_deny,
+        r.permissions AS role_wildcard
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN user_permissions up ON up.user_id = u.id AND up.permission = ?
+      LEFT JOIN roles_permissions rp ON rp.role_id = u.role_id AND rp.permission = ?
+      WHERE u.id = ?`,
+      [permission, permission, userId]
+    );
 
-    if (userPermission) {
-      // User has an explicit permission, return it
+    const row = (rows as any[])[0];
+
+    if (!row) {
+      return { hasPermission: false, source: 'none', allowDeny: null };
+    }
+
+    // User-specific permission takes precedence
+    if (row.user_perm_allow_deny) {
       return {
-        hasPermission: userPermission.allow_deny === 'allow',
+        hasPermission: row.user_perm_allow_deny === 'allow',
         source: 'user',
-        allowDeny: userPermission.allow_deny
+        allowDeny: row.user_perm_allow_deny
       };
     }
 
-    // If no user-specific permission, check the user's role
-    const user = await UserModel.findById(userId);
-    if (!user) {
-      return {
-        hasPermission: false,
-        source: 'none',
-        allowDeny: null
-      };
+    // Check if role has wildcard '*'
+    if (row.role_wildcard && row.role_wildcard.includes('*')) {
+      return { hasPermission: true, source: 'role', allowDeny: 'allow' };
     }
 
-    // Check if the user's role has the '*' (all permissions) wildcard
-    const role = await RoleModel.findById(user.role_id);
-    if (role && role.permissions && role.permissions.includes('*')) {
+    // Role-based permission
+    if (row.role_perm_allow_deny) {
       return {
-        hasPermission: true,
+        hasPermission: row.role_perm_allow_deny === 'allow',
         source: 'role',
-        allowDeny: 'allow'
+        allowDeny: row.role_perm_allow_deny
       };
     }
 
-    // Get the role's specific permission
-    const rolePermission = await RolePermissionModel.findByRoleAndPermission(user.role_id, permission);
+    return { hasPermission: false, source: 'none', allowDeny: null };
+  }
 
-    if (rolePermission) {
-      // Role has the permission
-      return {
-        hasPermission: rolePermission.allow_deny === 'allow',
-        source: 'role',
-        allowDeny: rolePermission.allow_deny
-      };
+  /**
+   * Checks multiple permission formats in a single query (used by auth middleware for backward compatibility)
+   */
+  static async hasPermissionAny(userId: number, permissions: string[]): Promise<PermissionCheckResult> {
+    const placeholders = permissions.map(() => '?').join(',');
+    const [rows]: any = await pool.execute(
+      `SELECT
+        up.permission AS user_perm,
+        up.allow_deny AS user_perm_allow_deny,
+        rp.permission AS role_perm,
+        rp.allow_deny AS role_perm_allow_deny,
+        r.permissions AS role_wildcard
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN user_permissions up ON up.user_id = u.id AND up.permission IN (${placeholders})
+      LEFT JOIN roles_permissions rp ON rp.role_id = u.role_id AND rp.permission IN (${placeholders})
+      WHERE u.id = ?`,
+      [...permissions, ...permissions, userId]
+    );
+
+    const results = rows as any[];
+
+    if (results.length === 0) {
+      return { hasPermission: false, source: 'none', allowDeny: null };
     }
 
-    // No permission found anywhere
-    return {
-      hasPermission: false,
-      source: 'none',
-      allowDeny: null
-    };
+    const firstRow = results[0];
+
+    // Check wildcard first (fastest path)
+    if (firstRow.role_wildcard && firstRow.role_wildcard.includes('*')) {
+      return { hasPermission: true, source: 'role', allowDeny: 'allow' };
+    }
+
+    // Check user-specific permissions (take precedence)
+    for (const row of results) {
+      if (row.user_perm_allow_deny) {
+        return {
+          hasPermission: row.user_perm_allow_deny === 'allow',
+          source: 'user',
+          allowDeny: row.user_perm_allow_deny
+        };
+      }
+    }
+
+    // Check role-based permissions
+    for (const row of results) {
+      if (row.role_perm_allow_deny) {
+        return {
+          hasPermission: row.role_perm_allow_deny === 'allow',
+          source: 'role',
+          allowDeny: row.role_perm_allow_deny
+        };
+      }
+    }
+
+    return { hasPermission: false, source: 'none', allowDeny: null };
   }
 
   /**
    * Gets all permissions for a user (combining role and user-specific permissions)
    */
   static async getAllUserPermissions(userId: number): Promise<{permission: string, source: 'user' | 'role', allowDeny: 'allow' | 'deny'}[]> {
-    const user = await UserModel.findById(userId);
-    if (!user) {
+    const [rows]: any = await pool.execute(
+      `SELECT r.permissions AS role_wildcard FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    const userRow = (rows as any[])[0];
+    if (!userRow) {
       return [];
     }
 
     // Check if the user's role has the '*' (all permissions) wildcard
-    const role = await RoleModel.findById(user.role_id);
-    if (role && role.permissions && role.permissions.includes('*')) {
-      // If role has '*' permission, return a special indicator
+    if (userRow.role_wildcard && userRow.role_wildcard.includes('*')) {
       return [{
         permission: '*',
         source: 'role' as const,
@@ -88,19 +141,28 @@ class PermissionService {
       }];
     }
 
-    // Get user-specific permissions
-    const userPermissions = await UserPermissionModel.getUserPermissions(userId);
-    const userPermList = userPermissions.map(perm => ({
+    // Get user-specific and role permissions in 2 parallel queries
+    const [userPermissions]: any = await pool.execute(
+      `SELECT permission, allow_deny FROM user_permissions WHERE user_id = ?`,
+      [userId]
+    );
+
+    const [rolePermissions]: any = await pool.execute(
+      `SELECT rp.permission, rp.allow_deny FROM roles_permissions rp
+       INNER JOIN users u ON u.role_id = rp.role_id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    const userPermList = (userPermissions as any[]).map(perm => ({
       permission: perm.permission,
       source: 'user' as const,
       allowDeny: perm.allow_deny
     }));
 
-    // Get role-based permissions
-    const rolePermissions = await RolePermissionModel.getRolePermissions(user.role_id);
-    const rolePermList = rolePermissions
-      .filter(rp => !userPermList.some(up => up.permission === rp.permission)) // Exclude if already defined in user perms
-      .map(perm => ({
+    const rolePermList = (rolePermissions as any[])
+      .filter((rp: any) => !userPermList.some(up => up.permission === rp.permission))
+      .map((perm: any) => ({
         permission: perm.permission,
         source: 'role' as const,
         allowDeny: perm.allow_deny
@@ -122,20 +184,23 @@ class PermissionService {
       return cachedManifest;
     }
 
-    const user = await UserModel.findById(userId);
-    if (!user) {
+    // Single query to check user exists and role wildcard
+    const [rows]: any = await pool.execute(
+      `SELECT r.permissions AS role_wildcard FROM users u
+       LEFT JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ?`,
+      [userId]
+    );
+
+    const userRow = (rows as any[])[0];
+    if (!userRow) {
       return {};
     }
 
     // Check if the user's role has the '*' (all permissions) wildcard
-    const role = await RoleModel.findById(user.role_id);
-    if (role && role.permissions && role.permissions.includes('*')) {
-      // If role has '*' permission, return a special manifest indicating all permissions
+    if (userRow.role_wildcard && userRow.role_wildcard.includes('*')) {
       const manifest = { '*': true };
-
-      // Cache the result for 1 hour (3600 seconds)
       await CacheService.set(cacheKey, manifest, 3600);
-
       return manifest;
     }
 

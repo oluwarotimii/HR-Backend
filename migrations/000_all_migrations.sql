@@ -1518,7 +1518,7 @@ CREATE TABLE IF NOT EXISTS report_cache (
   report_template_id INT NOT NULL,
   cache_key VARCHAR(500) NOT NULL, -- Unique identifier for cached report (includes parameters)
   cached_result JSON NOT NULL, -- Cached report data
-  expires_at TIMESTAMP NOT NULL, -- When the cache expires
+  expires_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- When the cache expires
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
   FOREIGN KEY (report_template_id) REFERENCES report_templates(id),
@@ -1581,7 +1581,7 @@ CREATE TABLE IF NOT EXISTS report_exports (
   export_status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
   export_error TEXT, -- Error message if export failed
   exported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  expires_at TIMESTAMP, -- When the export file will be cleaned up
+  expires_at TIMESTAMP NULL DEFAULT NULL, -- When the export file will be cleaned up
 
   FOREIGN KEY (report_template_id) REFERENCES report_templates(id),
   FOREIGN KEY (exported_by) REFERENCES users(id),
@@ -2209,7 +2209,7 @@ CREATE TABLE staff_invitations (
   branch_id INT,
   department_id INT,
   status ENUM('pending', 'accepted', 'declined', 'expired') DEFAULT 'pending',
-  expires_at DATETIME NOT NULL,
+  expires_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   accepted_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -3647,3 +3647,52 @@ MODIFY COLUMN status ENUM('present', 'absent', 'late', 'half_day', 'leave', 'hol
 
 ALTER TABLE staff
 ADD COLUMN IF NOT EXISTS religion VARCHAR(100) NULL AFTER blood_group;
+
+-- ============================================================================
+-- Migration: 113_add_unique_constraint_to_attendance.sql
+-- ============================================================================
+
+-- Migration: Add unique constraint to attendance
+-- Description: Prevents multiple attendance records for the same user on the same date
+
+-- Before applying the unique constraint, ensure there are no existing duplicates.
+-- (The repair script handles this, but this migration will fail if duplicates still exist)
+
+ALTER TABLE attendance ADD CONSTRAINT UNIQUE_USER_DATE UNIQUE (user_id, date);
+
+
+-- ============================================================================
+-- Migration: 114_add_performance_indexes.sql
+-- ============================================================================
+
+-- Migration: Add missing indexes for query performance
+
+-- users: index on status and created_at (frequently filtered/sorted)
+CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_users_created_at ON users(created_at);
+
+-- staff: index on joining_date and created_at
+CREATE INDEX idx_staff_joining_date ON staff(joining_date);
+CREATE INDEX idx_staff_created_at ON staff(created_at);
+
+-- attendance: index on created_at
+CREATE INDEX idx_attendance_created_at ON attendance(created_at);
+
+-- leave_requests: index on created_at
+CREATE INDEX idx_leave_requests_created_at ON leave_requests(created_at);
+
+-- leave_history: index on leave_type_id (CRITICAL - missing FK, no auto-index) and created_at
+CREATE INDEX idx_leave_history_leave_type_id ON leave_history(leave_type_id);
+CREATE INDEX idx_leave_history_created_at ON leave_history(created_at);
+
+-- leave_allocations: index on created_at
+CREATE INDEX idx_leave_allocations_created_at ON leave_allocations(created_at);
+
+-- kpi_assignments: index on cycle dates
+CREATE INDEX idx_kpi_assignments_cycle_dates ON kpi_assignments(cycle_start_date, cycle_end_date);
+
+-- performance_scores: index on period_start, period_end
+CREATE INDEX idx_performance_scores_period ON performance_scores(period_start, period_end);
+
+-- targets: index on period_start, period_end
+CREATE INDEX idx_targets_period ON targets(period_start, period_end);
