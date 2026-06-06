@@ -232,10 +232,17 @@ class LeaveAllocationModel {
   }
 
   static async delete(id: number): Promise<boolean> {
+    // Get existing allocation before deleting to know cache keys
+    const existingAllocation = await this.findById(id);
     const result: any = await pool.execute(
       `DELETE FROM ${this.tableName} WHERE id = ?`,
       [id]
     );
+
+    if (result.affectedRows > 0 && existingAllocation) {
+      await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}`);
+      await CacheService.del(`leave_allocations:user:${existingAllocation.user_id}:type:${existingAllocation.leave_type_id}`);
+    }
 
     return result.affectedRows > 0;
   }

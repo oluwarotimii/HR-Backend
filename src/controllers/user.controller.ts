@@ -3,6 +3,7 @@ import { getNumberQueryParam, getStringQueryParam } from '../utils/type-utils';
 import UserModel, { UserInput, UserUpdate } from '../models/user.model';
 import UserPermissionModel from '../models/user-permission.model';
 import RoleModel from '../models/role.model';
+import PermissionService from '../services/permission.service';
 import { generateTemporaryPassword } from '../utils/password-utils';
 import { sendPasswordResetEmail } from '../services/email.service';
 
@@ -18,6 +19,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const branchId = req.query.branchId ? getNumberQueryParam(req, 'branchId') : undefined;
     const status = getStringQueryParam(req, 'status');
     const roleId = req.query.roleId ? getNumberQueryParam(req, 'roleId') : undefined;
+    const search = getStringQueryParam(req, 'search');
 
     // Validate pagination parameters
     if (page < 1) {
@@ -34,7 +36,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
       });
     }
 
-    const { users, totalCount } = await UserModel.findAllWithFilters(limit, offset, branchId, status, roleId);
+    const { users, totalCount } = await UserModel.findAllWithFilters(limit, offset, branchId, status, roleId, search);
 
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -134,6 +136,9 @@ export const updateUserRole = async (req: Request, res: Response) => {
     if (!updatedUser) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    // Invalidate permission cache since role changed
+    await PermissionService.invalidateUserPermissionCache(userId);
 
     const { password_hash, ...userWithoutPassword } = updatedUser as any;
     return res.json({
@@ -267,6 +272,11 @@ export const updateUser = async (req: Request, res: Response) => {
     if (must_change_password !== undefined) updateData.must_change_password = must_change_password;
 
     const updatedUser = await UserModel.update(userId, updateData);
+
+    // Invalidate permission cache if role_id changed
+    if (role_id !== undefined) {
+      await PermissionService.invalidateUserPermissionCache(userId);
+    }
 
     // Don't return the password hash
     if (updatedUser) {
@@ -438,6 +448,9 @@ export const addUserPermission = async (req: Request, res: Response) => {
 
     const newPermission = await UserPermissionModel.create(permissionData);
 
+    // Invalidate permission cache so this permission takes effect immediately
+    await PermissionService.invalidateUserPermissionCache(userId);
+
     return res.status(201).json({
       success: true,
       message: 'User permission added successfully',
@@ -481,6 +494,9 @@ export const removeUserPermission = async (req: Request, res: Response) => {
         message: 'User permission not found'
       });
     }
+
+    // Invalidate permission cache so removal takes effect immediately
+    await PermissionService.invalidateUserPermissionCache(userId);
 
     return res.json({
       success: true,

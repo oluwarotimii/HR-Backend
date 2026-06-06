@@ -22,11 +22,10 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
 
-// Helper function to copy profile images
+// Helper function to create placeholder images
 async function setupProfileImages() {
-  console.log('🖼️  Setting up profile images...');
+  console.log('🖼️  Setting up placeholder images...');
 
-  const imgDir = path.join(process.cwd(), '..', 'images');
   const uploadDir = path.join(process.cwd(), 'uploads', 'profile-photos');
   const attachmentDir = path.join(process.cwd(), 'uploads', 'leave-requests');
   const staffDocDir = path.join(process.cwd(), 'uploads', 'staff-documents');
@@ -38,54 +37,28 @@ async function setupProfileImages() {
     }
   }
 
-  // Get all image files from the images folder
-  const allImages = fs.readdirSync(imgDir).filter(f => /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(f));
-  console.log(`   Found ${allImages.length} images in images/ folder`);
+  // Generate a minimal valid 1x1 white PNG
+  const placeholderBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
-  // Copy profile images (first 12 for staff profile pictures)
-  const profileImages = allImages.slice(0, 12);
-  let copiedProfileCount = 0;
-  for (const imgFile of profileImages) {
-    const srcPath = path.join(imgDir, imgFile);
-    const destPath = path.join(uploadDir, imgFile);
+  const profileNames = Array.from({ length: 12 }, (_, i) => `profile_${i + 1}.png`);
+  const attachmentNames = Array.from({ length: 15 }, (_, i) => `attachment_${i + 1}.png`);
+  const staffDocNames = Array.from({ length: 10 }, (_, i) => `doc_${i + 1}.png`);
 
-    if (fs.existsSync(srcPath)) {
-      fs.copyFileSync(srcPath, destPath);
-      copiedProfileCount++;
-      console.log(`   ✓ Profile: ${imgFile}`);
-    }
+  let createdCount = 0;
+  for (const name of profileNames) {
+    fs.writeFileSync(path.join(uploadDir, name), placeholderBuffer);
+    createdCount++;
+  }
+  for (const name of attachmentNames) {
+    fs.writeFileSync(path.join(attachmentDir, name), placeholderBuffer);
+    createdCount++;
+  }
+  for (const name of staffDocNames) {
+    fs.writeFileSync(path.join(staffDocDir, name), placeholderBuffer);
+    createdCount++;
   }
 
-  // Copy attachment images (next 15 for leave requests / form attachments)
-  const attachmentImages = allImages.slice(12, 27);
-  let copiedAttachCount = 0;
-  for (const imgFile of attachmentImages) {
-    const srcPath = path.join(imgDir, imgFile);
-    const destPath = path.join(attachmentDir, imgFile);
-
-    if (fs.existsSync(srcPath)) {
-      fs.copyFileSync(srcPath, destPath);
-      copiedAttachCount++;
-      console.log(`   ✓ Attachment: ${imgFile}`);
-    }
-  }
-
-  // Copy staff document images (next 10 for guarantor/staff docs)
-  const staffDocImages = allImages.slice(27, 37);
-  let copiedStaffDocCount = 0;
-  for (const imgFile of staffDocImages) {
-    const srcPath = path.join(imgDir, imgFile);
-    const destPath = path.join(staffDocDir, imgFile);
-
-    if (fs.existsSync(srcPath)) {
-      fs.copyFileSync(srcPath, destPath);
-      copiedStaffDocCount++;
-      console.log(`   ✓ Staff Doc: ${imgFile}`);
-    }
-  }
-
-  const totalCopied = copiedProfileCount + copiedAttachCount + copiedStaffDocCount;
-  console.log(`✅ Images copied: ${totalCopied}/${allImages.length} (${copiedProfileCount} profile, ${copiedAttachCount} attachment, ${copiedStaffDocCount} staff doc)\n`);
+  console.log(`✅ Created ${createdCount} placeholder images (12 profile, 15 attachment, 10 staff doc)\n`);
 }
 
 // Configuration
@@ -461,10 +434,8 @@ async function seedUsersAndStaff() {
 
     const userId = userResult.insertId;
 
-    // Assign profile picture (cycle through available images from images/ folder)
-    const imgDir = path.join(process.cwd(), '..', 'images');
-    const allImages = fs.readdirSync(imgDir).filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f));
-    const profileImage = allImages[i % allImages.length];
+    // Assign profile picture (cycle through available placeholder images)
+    const profileImage = `profile_${(i % 12) + 1}.png`;
     await pool.execute(
       `UPDATE users SET profile_picture = ? WHERE id = ?`,
       [`/uploads/profile-photos/${profileImage}`, userId]
@@ -1446,18 +1417,13 @@ async function seedFormSubmissions() {
 
       submissionCount++;
 
-      // Add attachments to some submissions (40% chance) — use actual copied images
+      // Add attachments to some submissions (40% chance)
       if (Math.random() < 0.4) {
         const submissionId = submissionResult.insertId;
         const numAttachments = Math.floor(Math.random() * 3) + 1;
 
-        // Get available attachment images
-        const attachmentDir = path.join(process.cwd(), '..', 'images');
-        const attachImages = fs.readdirSync(attachmentDir).filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)).slice(12, 27);
-
         for (let j = 0; j < numAttachments; j++) {
-          const imgFile = attachImages[j % attachImages.length];
-          const ext = imgFile.split('.').pop();
+          const imgFile = `attachment_${((j + submissionId) % 15) + 1}.png`;
 
           await pool.execute(
             `INSERT INTO form_attachments
@@ -1466,10 +1432,10 @@ async function seedFormSubmissions() {
             [
               submissionId,
               Math.floor(Math.random() * 5) + 1,
-              `form_${submissionId}_attach_${j + 1}.${ext}`,
+              `form_${submissionId}_attach_${j + 1}.png`,
               `/uploads/leave-requests/${imgFile}`,
-              fs.statSync(path.join(attachmentDir, imgFile)).size,
-              `image/${ext === 'jpg' ? 'jpeg' : ext}`
+              128,
+              'image/png'
             ]
           );
         }
@@ -1489,18 +1455,13 @@ async function seedLeaveRequestAttachments() {
 
   let attachmentCount = 0;
 
-  // Get available attachment images from the images/ folder
-  const imgDir = path.join(process.cwd(), '..', 'images');
-  const attachImages = fs.readdirSync(imgDir).filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)).slice(12, 27);
-
   // ALL leave requests MUST have at least one attachment
   for (const request of leaveRequests) {
     // Every leave request gets 1-3 attachments (REQUIRED)
     const numAttachments = Math.floor(Math.random() * 3) + 1;
 
     for (let i = 0; i < numAttachments; i++) {
-      const imgFile = attachImages[i % attachImages.length];
-      const ext = imgFile.split('.').pop();
+      const imgFile = `attachment_${((i + request.id) % 15) + 1}.png`;
 
       await pool.execute(
         `INSERT INTO form_attachments
@@ -1508,10 +1469,10 @@ async function seedLeaveRequestAttachments() {
          VALUES (?, ?, ?, ?, ?)`,
         [
           request.id,
-          `leave_${request.id}_attach_${i + 1}.${ext}`,
+          `leave_${request.id}_attach_${i + 1}.png`,
           `/uploads/leave-requests/${imgFile}`,
-          fs.statSync(path.join(imgDir, imgFile)).size,
-          `image/${ext === 'jpg' ? 'jpeg' : ext}`
+          128,
+          'image/png'
         ]
       );
 
@@ -1822,7 +1783,7 @@ async function seedGuarantors() {
 async function printSummary() {
   console.log('📈 Database Summary:\n');
 
-  console.log('   Profile Pictures         : 10 images from DONE/img folder');
+  console.log('   Profile Pictures         : 12 placeholder images (generated)');
   console.log('   Users                    : All staff have profile pictures assigned');
   console.log('');
 

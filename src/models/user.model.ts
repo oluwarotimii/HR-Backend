@@ -53,7 +53,8 @@ class UserModel {
     offset: number = 0,
     branchId?: number,
     status?: string,
-    roleId?: number
+    roleId?: number,
+    search?: string
   ): Promise<{users: User[], totalCount: number}> {
     let query = `SELECT * FROM ${this.tableName}`;
     const params: any[] = [];
@@ -74,6 +75,14 @@ class UserModel {
       params.push(roleId);
     }
 
+    if (search && search.trim()) {
+      conditions.push('(full_name LIKE ? OR email LIKE ?)');
+      const searchPattern = `%${search.trim()}%`;
+      params.push(searchPattern, searchPattern);
+    }
+
+    const paramsForConditions = params.length;
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
@@ -90,7 +99,7 @@ class UserModel {
       countQuery += ' WHERE ' + conditions.join(' AND ');
     }
 
-    const [countResult] = await pool.execute(countQuery, params.slice(0, conditions.length));
+    const [countResult] = await pool.execute(countQuery, params.slice(0, paramsForConditions));
     const totalCount = (countResult as any)[0].count;
 
     return {
@@ -249,19 +258,37 @@ class UserModel {
   }
 
   static async delete(id: number): Promise<boolean> {
+    // Fetch current user data to know email for cache invalidation
+    const user = await this.findById(id);
     const result: any = await pool.execute(
       `UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`,
       [id]
     );
 
+    if (result.affectedRows > 0) {
+      await CacheService.del(`user:${id}`);
+      if (user?.email) {
+        await CacheService.del(`user:email:${user.email}`);
+      }
+    }
+
     return result.affectedRows > 0;
   }
 
   static async softDelete(id: number): Promise<boolean> {
+    // Fetch current user data to know email for cache invalidation
+    const user = await this.findById(id);
     const result: any = await pool.execute(
       `UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`,
       [id]
     );
+
+    if (result.affectedRows > 0) {
+      await CacheService.del(`user:${id}`);
+      if (user?.email) {
+        await CacheService.del(`user:email:${user.email}`);
+      }
+    }
 
     return result.affectedRows > 0;
   }
