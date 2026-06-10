@@ -984,7 +984,7 @@ export const getCurrentUserStaffDetails = async (req: Request, res: Response) =>
     const { pool } = await import('../config/database');
     const [rows]: any = await pool.execute(
       `SELECT s.*, 
-              u.full_name, u.email, u.phone, u.profile_picture,
+              u.full_name, u.email, u.phone, u.profile_picture, u.must_change_password,
               ca.street_address as current_address,
               pa.street_address as permanent_address
        FROM staff s
