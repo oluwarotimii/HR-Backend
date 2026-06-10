@@ -5,8 +5,8 @@ dotenv.config();
 
 const JWT_SECRET: string = process.env.JWT_SECRET || 'fallback_jwt_secret';
 const JWT_REFRESH_SECRET: string = process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret';
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '2h';
-const JWT_REFRESH_EXPIRES_IN: string = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '90d';
+const JWT_REFRESH_EXPIRES_IN: string = process.env.JWT_REFRESH_EXPIRES_IN || '90d';
 
 interface TokenPayload {
   userId: number;
