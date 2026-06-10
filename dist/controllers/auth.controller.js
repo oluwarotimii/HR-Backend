@@ -122,7 +122,7 @@ const login = async (req, res) => {
                 tokens: {
                     accessToken,
                     refreshToken,
-                    expiresIn: process.env.JWT_EXPIRES_IN || '2h'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '90d'
                 }
             }
         });
@@ -184,7 +184,7 @@ const refreshToken = async (req, res) => {
                     tokens: {
                         accessToken: newAccessToken,
                         refreshToken: newRefreshToken,
-                        expiresIn: process.env.JWT_EXPIRES_IN || '2h'
+                        expiresIn: process.env.JWT_EXPIRES_IN || '90d'
                     }
                 }
             });
