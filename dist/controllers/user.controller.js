@@ -79,17 +79,26 @@ const resetUserPassword = async (req, res) => {
         const tempPassword = (0, password_utils_1.generateTemporaryPassword)();
         await user_model_1.default.update(userId, { password: tempPassword, must_change_password: true });
         const requestedBy = req.currentUser.full_name || req.currentUser.email || `User ${req.currentUser.id}`;
-        await (0, email_service_1.sendPasswordResetEmail)({
-            to: user.email,
-            fullName: user.full_name,
-            loginEmail: user.email,
-            temporaryPassword: tempPassword,
-            requestedBy
-        });
+        let emailSent = false;
+        try {
+            await (0, email_service_1.sendPasswordResetEmail)({
+                to: user.email,
+                fullName: user.full_name,
+                loginEmail: user.email,
+                temporaryPassword: tempPassword,
+                requestedBy
+            });
+            emailSent = true;
+        }
+        catch (emailError) {
+            console.error('Password reset email failed to send, but password was changed:', emailError);
+        }
         return res.json({
             success: true,
-            message: 'Temporary password generated and sent successfully',
-            data: { user: { id: user.id, email: user.email } }
+            message: emailSent
+                ? 'Temporary password generated and sent successfully'
+                : 'Temporary password generated but email failed to send. Please check email settings and try again.',
+            data: { user: { id: user.id, email: user.email }, emailSent }
         });
     }
     catch (error) {
