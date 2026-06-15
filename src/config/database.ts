@@ -4,6 +4,10 @@ import { redisService } from '../services/redis.service';
 
 dotenv.config();
 
+// Lock Node.js timezone to Nigeria (UTC+1, no DST)
+// This ensures all Date operations use Nigeria time consistently
+process.env.TZ = 'Africa/Lagos';
+
 // Parse connection string if provided (e.g., from TiDB Cloud)
 // Format: mysql://user:password@host:port/database
 const parseConnectionString = (connectionString?: string) => {
@@ -19,6 +23,7 @@ const parseConnectionString = (connectionString?: string) => {
       user: url.username,
       password: decodeURIComponent(url.password),
       database: url.pathname.slice(1), // Remove leading '/'
+      timezone: '+01:00',
       waitForConnections: true,
       connectionLimit: 30,
       queueLimit: 50,
@@ -43,6 +48,7 @@ const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'hr_management_system',
+  timezone: '+01:00',
   waitForConnections: true,
   connectionLimit: 30,
   queueLimit: 50,

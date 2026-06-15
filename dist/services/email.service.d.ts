@@ -20,6 +20,12 @@ interface PasswordResetEmailProps {
     requestedBy: string;
 }
 export declare const sendPasswordResetEmail: ({ to, fullName, loginEmail, temporaryPassword, requestedBy }: PasswordResetEmailProps) => Promise<void>;
+interface ForgotPasswordEmailProps {
+    to: string;
+    fullName: string;
+    resetLink: string;
+}
+export declare const sendForgotPasswordEmail: ({ to, fullName, resetLink }: ForgotPasswordEmailProps) => Promise<void>;
 interface PayrollReadyEmailProps {
     to: string;
     month: string;

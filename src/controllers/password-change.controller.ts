@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import UserModel from '../models/user.model';
-import bcrypt from 'bcryptjs';
 
 export const changePasswordAfterFirstLogin = async (req: Request, res: Response) => {
   try {
@@ -47,17 +46,11 @@ export const changePasswordAfterFirstLogin = async (req: Request, res: Response)
       });
     }
 
-    // Hash the new password
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update the user's password
-    const [result] = await require('../config/database').pool.execute(
-      `UPDATE ${UserModel.tableName} SET password_hash = ? WHERE id = ?`,
-      [hashedNewPassword, req.currentUser.id]
-    );
-
-    // Remove the must_change_password flag
-    await UserModel.setPasswordChangeRequirement(req.currentUser.id, false);
+    // Update the user's password and clear the must_change_password flag
+    await UserModel.update(req.currentUser.id, {
+      password: newPassword,
+      must_change_password: false
+    });
 
     return res.json({
       success: true,
