@@ -10,7 +10,7 @@ interface WelcomeEmailProps {
 export const sendWelcomeEmail = async ({ to, fullName }: WelcomeEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'onboarding@femtechaccess.com.ng';
-    const sender = defaultEmail;
+    const sender = `Femtech HR <${defaultEmail}>`;
     const { error } = await resend.emails.send({
       from: sender,
       to: to,
@@ -79,7 +79,7 @@ export const sendStaffInvitationEmail = async ({
 }: StaffInvitationEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'invitations@femtechaccess.com.ng';
-    const sender = defaultEmail;
+    const sender = `Femtech HR <${defaultEmail}>`;
     const staffPortalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
 
     const { error } = await resend.emails.send({
@@ -161,7 +161,7 @@ export const sendPasswordResetEmail = async ({
 }: PasswordResetEmailProps): Promise<void> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'support@femtechaccess.com.ng';
-    const sender = defaultEmail;
+    const sender = `Femtech HR <${defaultEmail}>`;
     const staffPortalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
 
     const { error } = await resend.emails.send({
@@ -214,6 +214,59 @@ export const sendPasswordResetEmail = async ({
   }
 };
 
+interface ForgotPasswordEmailProps {
+  to: string;
+  fullName: string;
+  resetLink: string;
+}
+
+export const sendForgotPasswordEmail = async ({
+  to,
+  fullName,
+  resetLink
+}: ForgotPasswordEmailProps): Promise<void> => {
+  try {
+    const defaultEmail = process.env.EMAIL_FROM || 'support@femtechaccess.com.ng';
+    const sender = `Femtech HR <${defaultEmail}>`;
+    const { error } = await resend.emails.send({
+      from: sender,
+      to: to,
+      subject: 'Reset Your Femtech HR Password',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #2c3e50;">Password Reset Request</h1>
+          <p>Hello ${fullName || ''},</p>
+          <p>We received a request to reset your password for your Femtech HR account.</p>
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}"
+               style="background-color: #3498db; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              Reset Password
+            </a>
+          </p>
+          <p style="text-align: center; margin: 10px 0;">
+            <a href="${resetLink}" style="color: #3498db; font-size: 12px;">${resetLink}</a>
+          </p>
+          <p>This link will expire in 1 hour. If you did not request a password reset, please ignore this email.</p>
+          <hr style="margin-top: 30px; border: none; height: 1px; background-color: #ecf0f1;" />
+          <p style="font-size: 12px; color: #7f8c8d;">
+            This email was sent to ${to} because a password reset was requested for your Femtech HR account.
+          </p>
+        </div>
+      `
+    });
+
+    if (error) {
+      console.error('Error sending forgot password email:', error);
+      throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
+
+    console.log(`Forgot password email sent successfully to ${to}`);
+  } catch (error) {
+    console.error('Unexpected error sending forgot password email:', error);
+    throw error;
+  }
+};
+
 interface PayrollReadyEmailProps {
   to: string;
   month: string;
@@ -223,7 +276,7 @@ interface PayrollReadyEmailProps {
 export const sendPayrollReady = async ({ to, month, year }: PayrollReadyEmailProps): Promise<{success: boolean, error?: string}> => {
   try {
     const defaultEmail = process.env.EMAIL_FROM || 'payroll@femtechaccess.com.ng';
-    const sender = defaultEmail;
+    const sender = `Femtech HR <${defaultEmail}>`;
     const { error } = await resend.emails.send({
       from: sender,
       to: to,

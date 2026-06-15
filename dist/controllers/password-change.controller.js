@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.forcePasswordChange = exports.changePasswordAfterFirstLogin = void 0;
 const user_model_1 = __importDefault(require("../models/user.model"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const changePasswordAfterFirstLogin = async (req, res) => {
     try {
         if (!req.currentUser) {
@@ -41,9 +40,10 @@ const changePasswordAfterFirstLogin = async (req, res) => {
                 message: 'New password must be at least 8 characters long'
             });
         }
-        const hashedNewPassword = await bcryptjs_1.default.hash(newPassword, 10);
-        const [result] = await require('../config/database').pool.execute(`UPDATE ${user_model_1.default.tableName} SET password_hash = ? WHERE id = ?`, [hashedNewPassword, req.currentUser.id]);
-        await user_model_1.default.setPasswordChangeRequirement(req.currentUser.id, false);
+        await user_model_1.default.update(req.currentUser.id, {
+            password: newPassword,
+            must_change_password: false
+        });
         return res.json({
             success: true,
             message: 'Password changed successfully'

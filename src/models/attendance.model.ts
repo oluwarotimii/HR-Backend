@@ -56,6 +56,11 @@ export interface AttendanceUpdate {
 class AttendanceModel {
   static tableName = 'attendance';
 
+  // Format a Date to 'YYYY-MM-DD' using local time parts to avoid timezone shift from .toISOString().
+  private static fmtDate(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   static async findAll(): Promise<Attendance[]> {
     const [rows] = await pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} ORDER BY date DESC, created_at DESC`);
     return rows as Attendance[];
@@ -78,16 +83,9 @@ class AttendanceModel {
   }
 
   static async findByUserIdAndDate(userId: number, date: Date): Promise<Attendance | null> {
-    // Format the date to 'YYYY-MM-DD' using local time parts to ensure correct comparison with the DATE column.
-    // toISOString() can shift the date to the previous day if the time is early and the timezone is positive.
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const formattedDate = `${year}-${month}-${day}`;
-    
     const [rows] = await pool.execute(
       `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`,
-      [userId, formattedDate]
+      [userId, AttendanceModel.fmtDate(date)]
     );
     return (rows as Attendance[])[0] || null;
   }
@@ -95,7 +93,7 @@ class AttendanceModel {
   static async findByDate(date: Date): Promise<Attendance[]> {
     const [rows] = await pool.execute(
       `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE date = ? ORDER BY user_id`,
-      [date]
+      [AttendanceModel.fmtDate(date)]
     );
     return rows as Attendance[];
   }
@@ -218,7 +216,7 @@ class AttendanceModel {
   static async findByDateRange(userId: number, startDate: Date, endDate: Date): Promise<Attendance[]> {
     const [rows] = await pool.execute(
       `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date`,
-      [userId, startDate, endDate]
+      [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]
     );
     return rows as Attendance[];
   }
@@ -232,7 +230,7 @@ class AttendanceModel {
         SUM(CASE WHEN status IN ('present', 'late', 'half_day', 'early_departure') THEN 1 ELSE 0 END) as working_days
        FROM ${this.tableName}
        WHERE user_id = ? AND date BETWEEN ? AND ?`,
-      [userId, startDate, endDate]
+      [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]
     ) as [any[], any];
 
     const result = Array.isArray(rows) && rows.length > 0 ? rows[0] as { total_days: number; working_days: number } : { total_days: 0, working_days: 0 };
@@ -260,7 +258,7 @@ class AttendanceModel {
         SUM(CASE WHEN status = 'early_departure' THEN 1 ELSE 0 END) as early_departure_days
        FROM ${this.tableName}
        WHERE user_id = ? AND date BETWEEN ? AND ?`,
-      [userId, startDate, endDate]
+      [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]
     ) as [any[], any];
 
     const result = Array.isArray(rows) && rows.length > 0 ? rows[0] as any : {};
