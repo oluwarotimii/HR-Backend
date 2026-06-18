@@ -5,6 +5,7 @@ declare const dbConfig: {
     user: string;
     password: string;
     database: string;
+    timezone: string;
     waitForConnections: boolean;
     connectionLimit: number;
     queueLimit: number;

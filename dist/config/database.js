@@ -9,6 +9,7 @@ const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const redis_service_1 = require("../services/redis.service");
 dotenv_1.default.config();
+process.env.TZ = 'Africa/Lagos';
 const parseConnectionString = (connectionString) => {
     if (!connectionString) {
         return null;
@@ -21,6 +22,7 @@ const parseConnectionString = (connectionString) => {
             user: url.username,
             password: decodeURIComponent(url.password),
             database: url.pathname.slice(1),
+            timezone: '+01:00',
             waitForConnections: true,
             connectionLimit: 30,
             queueLimit: 50,
@@ -44,6 +46,7 @@ const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'hr_management_system',
+    timezone: '+01:00',
     waitForConnections: true,
     connectionLimit: 30,
     queueLimit: 50,

@@ -178,18 +178,10 @@ router.post('/manual', authenticateJWT, async (req: Request, res: Response) => {
     }
 
     // Determine status based on check-in time vs shift time if not provided
+    // This is a redundant pre-check; updateAttendanceWithScheduleInfo below
+    // does the authoritative late determination. Keep as fallback for the initial status.
     if (!status) {
-      const shift = await ShiftTimingModel.findCurrentShiftForUser(requestingUserId, new Date(date));
-      if (shift && check_in_time) {
-        const shiftStartTime = new Date(`1970-01-01T${shift.start_time}`);
-        const checkInTime = new Date(`1970-01-01T${check_in_time}`);
-
-        if (checkInTime.getTime() > shiftStartTime.getTime()) {
-          attendanceStatus = 'late';
-        } else {
-          attendanceStatus = 'present';
-        }
-      } else if (check_in_time) {
+      if (check_in_time) {
         attendanceStatus = 'present';
       }
     }
@@ -199,8 +191,8 @@ router.post('/manual', authenticateJWT, async (req: Request, res: Response) => {
       user_id: requestingUserId,
       date: new Date(date),
       status: attendanceStatus,
-      check_in_time: check_in_time ? new Date(`1970-01-01T${check_in_time}`) : null,
-      check_out_time: check_out_time ? new Date(`1970-01-01T${check_out_time}`) : null,
+      check_in_time: check_in_time || null,
+      check_out_time: check_out_time || null,
       location_coordinates: location_coordinates ?
         `POINT(${location_coordinates.longitude} ${location_coordinates.latitude})` : null,
       location_verified: locationVerified,

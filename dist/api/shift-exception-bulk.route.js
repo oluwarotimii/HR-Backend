@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const shift_exception_model_1 = __importDefault(require("../models/shift-exception.model"));
+const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const router = (0, express_1.Router)();
 router.post('/bulk', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('shift:create'), async (req, res) => {
     try {
@@ -70,6 +71,12 @@ router.post('/bulk', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.ch
                 };
                 const created = await shift_exception_model_1.default.create(exceptionData);
                 createdExceptions.push(created);
+                try {
+                    await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(exc.user_id, new Date(exc.exception_date));
+                }
+                catch (err) {
+                    console.error(`Failed to re-process attendance for user ${exc.user_id} on ${exc.exception_date}:`, err);
+                }
             }
             catch (error) {
                 console.error('[Shift Exceptions] Error creating exception:', error);
@@ -170,6 +177,12 @@ async function createBulkExceptions(exceptions, createdBy) {
             };
             const created = await shift_exception_model_1.default.create(exceptionData);
             createdExceptions.push(created);
+            try {
+                await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(exc.user_id, new Date(exc.exception_date));
+            }
+            catch (err) {
+                console.error(`Failed to re-process attendance for user ${exc.user_id} on ${exc.exception_date}:`, err);
+            }
         }
         catch (error) {
             errors.push({

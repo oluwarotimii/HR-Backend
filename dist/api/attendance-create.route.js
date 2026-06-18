@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const attendance_model_1 = __importDefault(require("../models/attendance.model"));
-const shift_timing_model_1 = __importDefault(require("../models/shift-timing.model"));
 const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const holiday_model_1 = __importDefault(require("../models/holiday.model"));
 const attendance_location_model_1 = __importDefault(require("../models/attendance-location.model"));
@@ -137,18 +136,7 @@ router.post('/manual', auth_middleware_1.authenticateJWT, async (req, res) => {
             }
         }
         if (!status) {
-            const shift = await shift_timing_model_1.default.findCurrentShiftForUser(requestingUserId, new Date(date));
-            if (shift && check_in_time) {
-                const shiftStartTime = new Date(`1970-01-01T${shift.start_time}`);
-                const checkInTime = new Date(`1970-01-01T${check_in_time}`);
-                if (checkInTime.getTime() > shiftStartTime.getTime()) {
-                    attendanceStatus = 'late';
-                }
-                else {
-                    attendanceStatus = 'present';
-                }
-            }
-            else if (check_in_time) {
+            if (check_in_time) {
                 attendanceStatus = 'present';
             }
         }
@@ -156,8 +144,8 @@ router.post('/manual', auth_middleware_1.authenticateJWT, async (req, res) => {
             user_id: requestingUserId,
             date: new Date(date),
             status: attendanceStatus,
-            check_in_time: check_in_time ? new Date(`1970-01-01T${check_in_time}`) : null,
-            check_out_time: check_out_time ? new Date(`1970-01-01T${check_out_time}`) : null,
+            check_in_time: check_in_time || null,
+            check_out_time: check_out_time || null,
             location_coordinates: location_coordinates ?
                 `POINT(${location_coordinates.longitude} ${location_coordinates.latitude})` : null,
             location_verified: locationVerified,
