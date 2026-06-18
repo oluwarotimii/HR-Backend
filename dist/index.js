@@ -90,6 +90,7 @@ const holiday_duty_roster_route_1 = __importDefault(require("./api/holiday-duty-
 const reporting_analytics_route_1 = __importDefault(require("./api/reporting-analytics.route"));
 const branch_working_days_route_1 = __importDefault(require("./api/branch-working-days.route"));
 const shift_timing_route_1 = __importDefault(require("./api/shift-timing.route"));
+const floating_day_route_1 = __importDefault(require("./api/floating-day.route"));
 const attendance_location_route_1 = __importDefault(require("./api/attendance-location.route"));
 const staff_document_route_1 = __importDefault(require("./api/staff-document.route"));
 const staff_location_assignment_route_1 = __importDefault(require("./api/staff-location-assignment.route"));
@@ -257,6 +258,7 @@ const bootstrap = async () => {
     app.use('/api/departments', department_management_route_1.default);
     app.use('/api/branch-working-days', branch_working_days_route_1.default);
     app.use('/api/shift-timings', shift_timing_route_1.default);
+    app.use('/api/floating-days', floating_day_route_1.default);
     app.use('/api/notifications', notification_route_1.default);
     app.use('/api/job-postings', job_posting_route_1.default);
     app.use('/api/job-applications', application_submission_route_1.default);
