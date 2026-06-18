@@ -199,6 +199,13 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'time_off_bank:update', category: 'Shift Management', description: 'Update time off banks' },
   { key: 'time_off_bank:delete', category: 'Shift Management', description: 'Delete time off banks' },
 
+  // Floating Day Off Permissions
+  { key: 'floating_day:request', category: 'Attendance', description: 'Request a floating/compensatory day off' },
+  { key: 'floating_day:clear', category: 'Attendance', description: 'Clear/recommend floating day requests (manager step)' },
+  { key: 'floating_day:approve', category: 'Attendance', description: 'Approve floating day requests (HR step)' },
+  { key: 'floating_day:reject', category: 'Attendance', description: 'Reject floating day requests' },
+  { key: 'floating_day:read', category: 'Attendance', description: 'View all floating day requests' },
+
   // Form Submission Permissions
   { key: 'form_submission:read', category: 'Form Management', description: 'View form submissions' },
   { key: 'form_submission:create', category: 'Form Management', description: 'Create form submissions' },
