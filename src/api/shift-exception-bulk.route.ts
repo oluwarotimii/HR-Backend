@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import ShiftExceptionModel from '../models/shift-exception.model';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 
 const router = Router();
 
@@ -86,6 +87,16 @@ router.post('/bulk', authenticateJWT, checkPermission('shift:create'), async (re
 
         const created = await ShiftExceptionModel.create(exceptionData);
         createdExceptions.push(created);
+
+        // Re-process attendance to apply the new exception schedule
+        try {
+          await ShiftSchedulingService.processAttendanceForDate(
+            exc.user_id,
+            new Date(exc.exception_date)
+          );
+        } catch (err) {
+          console.error(`Failed to re-process attendance for user ${exc.user_id} on ${exc.exception_date}:`, err);
+        }
 
       } catch (error: any) {
         console.error('[Shift Exceptions] Error creating exception:', error);
@@ -209,6 +220,16 @@ async function createBulkExceptions(exceptions: any[], createdBy?: number) {
 
       const created = await ShiftExceptionModel.create(exceptionData);
       createdExceptions.push(created);
+
+      // Re-process attendance to apply the new exception schedule
+      try {
+        await ShiftSchedulingService.processAttendanceForDate(
+          exc.user_id,
+          new Date(exc.exception_date)
+        );
+      } catch (err) {
+        console.error(`Failed to re-process attendance for user ${exc.user_id} on ${exc.exception_date}:`, err);
+      }
 
     } catch (error: any) {
       errors.push({

@@ -44,6 +44,7 @@ export interface AttendanceUpdate {
 }
 declare class AttendanceModel {
     static tableName: string;
+    private static fmtDate;
     static findAll(): Promise<Attendance[]>;
     static findById(id: number): Promise<Attendance | null>;
     static findByUserId(userId: number): Promise<Attendance[]>;

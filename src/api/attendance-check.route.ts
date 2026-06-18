@@ -919,7 +919,7 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
      * If not, we create a new one.
      */
     const attendanceUpdate = {
-      check_in_time: new Date(`1970-01-01T${check_in_time}`),
+      check_in_time: check_in_time,
       location_coordinates: locationToWKT(location_coordinates),
       location_verified: verifyResult.verified,
       location_address: location_address || null,
@@ -941,11 +941,13 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       });
     }
 
-    // Background task: process late status and shift mapping
+    // Process late status and shift mapping, then re-fetch the updated record
     try {
       await ShiftSchedulingService.updateAttendanceWithScheduleInfo(
         result.id, userId, requestedDate, settings.grace_period_minutes || 0
       );
+      const updated = await AttendanceModel.findById(result.id);
+      if (updated) result = updated;
     } catch (err) {
       console.error('Failed to update attendance schedule info:', err);
     }
@@ -1181,13 +1183,13 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
 
     // Update the attendance record with check-out time
     const updateData = {
-      check_out_time: new Date(`1970-01-01T${check_out_time}`),
+      check_out_time: check_out_time,
       location_coordinates: locationToWKT(location_coordinates),
       location_verified: locationVerified,
       location_address: location_address || null
     };
 
-    const updatedAttendance = await AttendanceModel.update(attendanceRecord.id, updateData);
+    let updatedAttendance = await AttendanceModel.update(attendanceRecord.id, updateData);
 
     // Update attendance with shift schedule information (recalculates working hours)
     // Pass grace period from branch settings
@@ -1198,6 +1200,8 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
         new Date(date),
         settings.grace_period_minutes || 0
       );
+      const refetched = await AttendanceModel.findById(attendanceRecord.id);
+      if (refetched) updatedAttendance = refetched;
     } catch (shiftError) {
       console.error('Failed to update attendance with shift info:', shiftError);
       // Don't fail the check-out if shift update fails

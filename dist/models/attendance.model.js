@@ -14,6 +14,9 @@ function locationToWKT(location) {
 }
 class AttendanceModel {
     static tableName = 'attendance';
+    static fmtDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
     static async findAll() {
         const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} ORDER BY date DESC, created_at DESC`);
         return rows;
@@ -27,15 +30,11 @@ class AttendanceModel {
         return rows;
     }
     static async findByUserIdAndDate(userId, date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const formattedDate = `${year}-${month}-${day}`;
-        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`, [userId, formattedDate]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`, [userId, AttendanceModel.fmtDate(date)]);
         return rows[0] || null;
     }
     static async findByDate(date) {
-        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE date = ? ORDER BY user_id`, [date]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE date = ? ORDER BY user_id`, [AttendanceModel.fmtDate(date)]);
         return rows;
     }
     static async create(attendanceData) {
@@ -120,7 +119,7 @@ class AttendanceModel {
         return rows.length > 0;
     }
     static async findByDateRange(userId, startDate, endDate) {
-        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date`, [userId, startDate, endDate]);
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date`, [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]);
         return rows;
     }
     static async getAttendancePercentage(userId, startDate, endDate) {
@@ -128,7 +127,7 @@ class AttendanceModel {
         COUNT(*) as total_days,
         SUM(CASE WHEN status IN ('present', 'late', 'half_day', 'early_departure') THEN 1 ELSE 0 END) as working_days
        FROM ${this.tableName}
-       WHERE user_id = ? AND date BETWEEN ? AND ?`, [userId, startDate, endDate]);
+       WHERE user_id = ? AND date BETWEEN ? AND ?`, [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]);
         const result = Array.isArray(rows) && rows.length > 0 ? rows[0] : { total_days: 0, working_days: 0 };
         if (!result || result.total_days === 0)
             return 0;
@@ -143,7 +142,7 @@ class AttendanceModel {
         SUM(CASE WHEN status = 'half_day' THEN 1 ELSE 0 END) as half_day_days,
         SUM(CASE WHEN status = 'early_departure' THEN 1 ELSE 0 END) as early_departure_days
        FROM ${this.tableName}
-       WHERE user_id = ? AND date BETWEEN ? AND ?`, [userId, startDate, endDate]);
+       WHERE user_id = ? AND date BETWEEN ? AND ?`, [userId, AttendanceModel.fmtDate(startDate), AttendanceModel.fmtDate(endDate)]);
         const result = Array.isArray(rows) && rows.length > 0 ? rows[0] : {};
         return {
             total_days: result.total_days || 0,

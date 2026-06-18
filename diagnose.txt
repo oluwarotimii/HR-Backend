@@ -1,0 +1,1136 @@
+-- ============================================================ -- DIAGNOSE LATE ATTENDANCE ISSUE -- -- Run these queries in order and share ALL output. -- ============================================================ -- 1. LATE ATTENDANCE RECORDS SELECT a.id, a.user_id, u.full_name AS employee, a.date, a.check_in_time, a.scheduled_start_time, a.is_late, a.status FROM attendance a JOIN users u ON u.id = a.user_id WHERE a.status = 'late' AND a.date BETWEEN '2026-06-01' AND '2026-06-17' ORDER BY a.date DESC, u.full_name LIMIT 50;
+[ Edit inline ] [ Edit ] [ Create PHP code ]
+id
+user_id
+employee
+date Descending 1
+check_in_time
+scheduled_start_time
+is_late
+status
+6406
+70
+AbdulAfeez Eniola Balogun
+2026-06-17
+08:11:13
+08:00:00
+1
+late
+6410
+48
+Adejumo Lekan
+2026-06-17
+08:28:34
+08:00:00
+1
+late
+6424
+17
+Aderibigbe Victoria
+2026-06-17
+09:52:17
+08:00:00
+1
+late
+6423
+18
+Adio Timilehin
+2026-06-17
+09:49:49
+08:00:00
+1
+late
+6409
+5
+Aduragbemi Adebomi
+2026-06-17
+08:25:33
+08:00:00
+1
+late
+6422
+19
+Bello Abdul lateef
+2026-06-17
+09:20:58
+08:00:00
+1
+late
+6407
+109
+Damaris Ojo Ifeoluwa
+2026-06-17
+08:12:16
+08:00:00
+1
+late
+6404
+29
+Emmanuel Kolade
+2026-06-17
+08:04:52
+08:00:00
+1
+late
+6401
+57
+Emmanuel Samuel
+2026-06-17
+08:02:40
+08:00:00
+1
+late
+6425
+118
+Margret Afolayan
+2026-06-17
+09:54:35
+08:00:00
+1
+late
+6414
+135
+Maryam Mobolaji Lawal
+2026-06-17
+08:49:44
+08:00:00
+1
+late
+6408
+128
+Nojeeb Akinoso
+2026-06-17
+08:12:26
+08:00:00
+1
+late
+6405
+28
+Odeleye David
+2026-06-17
+08:09:15
+08:00:00
+1
+late
+6402
+44
+Olanisebe Yinka Festus
+2026-06-17
+08:02:41
+08:00:00
+1
+late
+6403
+56
+Olutayo Opeyemi Victoria
+2026-06-17
+08:04:11
+08:00:00
+1
+late
+6421
+2
+Oluwarotimi Adewumi
+2026-06-17
+09:19:35
+08:00:00
+1
+late
+6426
+42
+Owolabi Josephine
+2026-06-17
+09:58:22
+08:00:00
+1
+late
+6427
+16
+Oyinyade Mary
+2026-06-17
+10:18:41
+08:00:00
+1
+late
+6412
+26
+Shobowale Joshua Ayomikun
+2026-06-17
+08:40:14
+08:00:00
+1
+late
+6284
+90
+Abiodun Shukurat Omolabi
+2026-06-16
+09:58:11
+08:00:00
+1
+late
+6286
+54
+Aina Florence
+2026-06-16
+10:49:32
+08:00:00
+1
+late
+6268
+110
+Alex Femi Imuzei
+2026-06-16
+08:01:02
+08:00:00
+1
+late
+6271
+23
+Ayo Samuel
+2026-06-16
+08:16:29
+08:00:00
+1
+late
+6282
+20
+Babatunde Tolulope
+2026-06-16
+09:55:44
+08:00:00
+1
+late
+6283
+109
+Damaris Ojo Ifeoluwa
+2026-06-16
+09:58:05
+08:00:00
+1
+late
+6270
+135
+Maryam Mobolaji Lawal
+2026-06-16
+08:13:11
+08:00:00
+1
+late
+6269
+111
+Moshood Haruna
+2026-06-16
+08:08:01
+08:00:00
+1
+late
+6280
+131
+Nurudeen Abdulazeez
+2026-06-16
+09:51:50
+08:00:00
+1
+late
+6281
+15
+Ogunkunle Toyin Micheal
+2026-06-16
+09:51:59
+08:00:00
+1
+late
+6285
+8
+Okunlola Kehinde
+2026-06-16
+10:37:54
+08:00:00
+1
+late
+6272
+2
+Oluwarotimi Adewumi
+2026-06-16
+08:21:16
+08:00:00
+1
+late
+6279
+26
+Shobowale Joshua Ayomikun
+2026-06-16
+09:42:40
+08:00:00
+1
+late
+6134
+5
+Aduragbemi Adebomi
+2026-06-15
+08:27:46
+08:00:00
+1
+late
+6145
+38
+Bolorunduro Tolulope
+2026-06-15
+09:58:55
+09:00:00
+1
+late
+6147
+78
+Christianah Faniyi
+2026-06-15
+10:53:51
+09:00:00
+1
+late
+6143
+119
+Funsho Usman
+2026-06-15
+09:48:19
+08:00:00
+1
+late
+6131
+133
+Ibrahim Ahmed
+2026-06-15
+08:07:35
+08:00:00
+1
+late
+6138
+135
+Maryam Mobolaji Lawal
+2026-06-15
+08:42:26
+08:00:00
+1
+late
+6146
+111
+Moshood Haruna
+2026-06-15
+10:06:11
+08:00:00
+1
+late
+6130
+128
+Nojeeb Akinoso
+2026-06-15
+08:07:06
+08:00:00
+1
+late
+6132
+15
+Ogunkunle Toyin Micheal
+2026-06-15
+08:16:27
+08:00:00
+1
+late
+6144
+2
+Oluwarotimi Adewumi
+2026-06-15
+09:56:41
+08:00:00
+1
+late
+6128
+114
+Oluwaseun Ogunwale
+2026-06-15
+08:03:17
+08:00:00
+1
+late
+6133
+16
+Oyinyade Mary
+2026-06-15
+08:24:06
+08:00:00
+1
+late
+6141
+108
+Ridwan Ayomide Ademola
+2026-06-15
+08:53:07
+08:00:00
+1
+late
+6136
+26
+Shobowale Joshua Ayomikun
+2026-06-15
+08:36:56
+08:00:00
+1
+late
+6129
+124
+Yusuf Olawale Oladejo
+2026-06-15
+08:03:50
+08:00:00
+1
+late
+5838
+61
+Abdulganiyu Jamiu
+2026-06-13
+09:26:00
+09:00:00
+1
+late
+5835
+47
+Abdulrasheed Akeem
+2026-06-13
+09:16:20
+08:00:00
+1
+late
+5826
+90
+Abiodun Shukurat Omolabi
+2026-06-13
+09:07:39
+09:00:00
+1
+late
+Query results operations
+    
+ Current selection does not contain a unique column. Grid edit, checkbox, Edit, Copy and Delete features are not available. Documentation
+ Showing rows 0 - 18 (19 total, Query took 0.0008 seconds.) [exception_date: 2026-06-17... - 2026-06-05...]
+-- 2. SHIFT EXCEPTIONS for same period SELECT se.user_id, u.full_name AS employee, se.exception_date, se.exception_type, se.new_start_time, se.new_end_time, se.status AS exc_status FROM shift_exceptions se JOIN users u ON u.id = se.user_id WHERE se.exception_date BETWEEN '2026-06-01' AND '2026-06-17' AND se.status = 'active' ORDER BY se.exception_date DESC, u.full_name;
+[ Edit inline ] [ Edit ] [ Create PHP code ]
+ Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+user_id
+employee
+exception_date Descending 1
+exception_type
+new_start_time
+new_end_time
+exc_status
+18
+Adio Timilehin
+2026-06-17
+late_start
+08:00:00
+10:00:00
+active
+16
+Oyinyade Mary
+2026-06-16
+late_start
+10:00:00
+12:00:00
+active
+17
+Aderibigbe Victoria
+2026-06-15
+late_start
+10:00:00
+18:00:00
+active
+20
+Babatunde Tolulope
+2026-06-15
+late_start
+10:00:00
+06:30:00
+active
+15
+Ogunkunle Toyin Micheal
+2026-06-15
+late_start
+10:00:00
+06:30:00
+active
+18
+Adio Timilehin
+2026-06-14
+late_start
+10:00:00
+18:30:00
+active
+8
+Okunlola Kehinde
+2026-06-14
+late_start
+10:00:00
+18:30:00
+active
+2
+Oluwarotimi Adewumi
+2026-06-14
+late_start
+10:00:00
+18:30:00
+active
+5
+Aduragbemi Adebomi
+2026-06-12
+late_start
+10:00:00
+01:00:00
+active
+6
+Ishola Joseph
+2026-06-12
+late_start
+10:00:00
+01:00:00
+active
+12
+Oyeniran Toye Babatunde
+2026-06-12
+late_start
+10:00:00
+21:41:00
+active
+8
+Okunlola Kehinde
+2026-06-11
+09:00:00
+17:00:00
+active
+9
+Ademola Opeyemi Hammed
+2026-06-10
+late_start
+10:00:00
+18:00:00
+active
+3
+Ogunniyi Busayo
+2026-06-10
+late_start
+10:00:00
+18:00:00
+active
+98
+Olajide Babalola
+2026-06-10
+09:00:00
+18:30:00
+active
+10
+Temilola Omolola
+2026-06-10
+late_start
+10:00:00
+18:00:00
+active
+50
+Dada Ezekiel
+2026-06-05
+day_off
+09:00:00
+17:00:00
+active
+34
+Jacob Tayo
+2026-06-05
+day_off
+09:00:00
+17:00:00
+active
+11
+Raji Sadiq
+2026-06-05
+special_schedule
+12:00:00
+18:30:00
+active
+ Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+Query results operations
+    
+ Current selection does not contain a unique column. Grid edit, checkbox, Edit, Copy and Delete features are not available. Documentation
+ Showing rows 0 - 24 (223 total, Query took 0.0049 seconds.) [date: 2026-06-17... - 2026-06-16...]
+-- 3. USERS WHO HAVE EXCEPTIONS BUT ARE MARKED LATE (side-by-side) SELECT a.date, a.user_id, u.full_name AS employee, a.check_in_time, a.scheduled_start_time, a.status AS att_status, a.is_late, se.exception_type, se.new_start_time, se.new_end_time, se.status AS exc_status FROM attendance a JOIN users u ON a.user_id = u.id LEFT JOIN shift_exceptions se ON se.user_id = a.user_id AND se.exception_date = a.date AND se.status = 'active' WHERE a.status = 'late' AND a.date BETWEEN '2026-06-01' AND '2026-06-17' ORDER BY a.date DESC, u.full_name;
+[ Edit inline ] [ Edit ] [ Create PHP code ]
+
+1
+|	 Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+date Descending 1
+user_id
+employee
+check_in_time
+scheduled_start_time
+att_status
+is_late
+exception_type
+new_start_time
+new_end_time
+exc_status
+2026-06-17
+70
+AbdulAfeez Eniola Balogun
+08:11:13
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+48
+Adejumo Lekan
+08:28:34
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+17
+Aderibigbe Victoria
+09:52:17
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+18
+Adio Timilehin
+09:49:49
+08:00:00
+late
+1
+late_start
+08:00:00
+10:00:00
+active
+2026-06-17
+5
+Aduragbemi Adebomi
+08:25:33
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+19
+Bello Abdul lateef
+09:20:58
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+109
+Damaris Ojo Ifeoluwa
+08:12:16
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+29
+Emmanuel Kolade
+08:04:52
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+57
+Emmanuel Samuel
+08:02:40
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+118
+Margret Afolayan
+09:54:35
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+135
+Maryam Mobolaji Lawal
+08:49:44
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+128
+Nojeeb Akinoso
+08:12:26
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+28
+Odeleye David
+08:09:15
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+44
+Olanisebe Yinka Festus
+08:02:41
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+56
+Olutayo Opeyemi Victoria
+08:04:11
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+2
+Oluwarotimi Adewumi
+09:19:35
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+42
+Owolabi Josephine
+09:58:22
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+16
+Oyinyade Mary
+10:18:41
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-17
+26
+Shobowale Joshua Ayomikun
+08:40:14
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+90
+Abiodun Shukurat Omolabi
+09:58:11
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+54
+Aina Florence
+10:49:32
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+110
+Alex Femi Imuzei
+08:01:02
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+23
+Ayo Samuel
+08:16:29
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+20
+Babatunde Tolulope
+09:55:44
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+2026-06-16
+109
+Damaris Ojo Ifeoluwa
+09:58:05
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+NULL
+
+1
+|	 Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+Query results operations
+    
+ MySQL returned an empty result set (i.e. zero rows). (Query took 0.0009 seconds.)
+-- 4. USER SHIFT ASSIGNMENTS (to see their recurring schedules) SELECT esa.user_id, u.full_name AS employee, st.name AS template_name, st.start_time, st.end_time, esa.custom_start_time, esa.custom_end_time, esa.effective_from, esa.effective_to, esa.status AS assignment_status FROM employee_shift_assignments esa JOIN users u ON u.id = esa.user_id LEFT JOIN shift_templates st ON st.id = esa.shift_template_id WHERE esa.user_id IN ( SELECT DISTINCT user_id FROM attendance WHERE status = 'late' AND date BETWEEN '2026-06-01' AND '2026-06-17' ) ORDER BY u.full_name, esa.effective_from DESC;
+[ Edit inline ] [ Edit ] [ Create PHP code ]
+user_id
+employee
+template_name
+start_time
+end_time
+custom_start_time
+custom_end_time
+effective_from
+effective_to
+assignment_status
+Query results operations
+ Current selection does not contain a unique column. Grid edit, checkbox, Edit, Copy and Delete features are not available. Documentation
+ Showing rows 0 - 24 (34 total, Query took 0.0011 seconds.) [date: 2026-06-17... - 2026-06-05...]
+-- 5. SPECIFIC EXAMPLE: Aderibigbe Victoria (if name contains "Aderibigbe") SELECT a.date, u.full_name AS employee, a.check_in_time, a.scheduled_start_time, a.status, a.is_late, se.exception_type, se.new_start_time, se.new_end_time FROM attendance a JOIN users u ON u.id = a.user_id LEFT JOIN shift_exceptions se ON se.user_id = a.user_id AND se.exception_date = a.date AND se.status = 'active' WHERE u.full_name LIKE '%Aderibigbe%' AND a.date BETWEEN '2026-06-01' AND '2026-06-17' ORDER BY a.date DESC;
+[ Edit inline ] [ Edit ] [ Create PHP code ]
+
+1
+|	 Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+date Descending 1
+employee
+check_in_time
+scheduled_start_time
+status
+is_late
+exception_type
+new_start_time
+new_end_time
+2026-06-17
+Aderibigbe Elizabeth
+07:46:18
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-17
+Aderibigbe Victoria
+09:52:17
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+2026-06-16
+Aderibigbe Elizabeth
+07:49:18
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-16
+Aderibigbe Victoria
+NULL
+NULL
+leave
+NULL
+NULL
+NULL
+NULL
+2026-06-15
+Aderibigbe Elizabeth
+08:00:44
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-15
+Aderibigbe Victoria
+NULL
+NULL
+absent
+NULL
+late_start
+10:00:00
+18:00:00
+2026-06-14
+Aderibigbe Elizabeth
+NULL
+NULL
+weekend
+NULL
+NULL
+NULL
+NULL
+2026-06-14
+Aderibigbe Victoria
+NULL
+NULL
+weekend
+NULL
+NULL
+NULL
+NULL
+2026-06-13
+Aderibigbe Victoria
+08:55:09
+09:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-13
+Aderibigbe Elizabeth
+09:26:23
+10:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-12
+Aderibigbe Victoria
+07:55:14
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-12
+Aderibigbe Elizabeth
+07:50:26
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-11
+Aderibigbe Victoria
+07:52:22
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-11
+Aderibigbe Elizabeth
+07:53:29
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-10
+Aderibigbe Victoria
+09:15:36
+08:00:00
+late
+1
+NULL
+NULL
+NULL
+2026-06-10
+Aderibigbe Elizabeth
+07:39:38
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-09
+Aderibigbe Elizabeth
+07:49:34
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-09
+Aderibigbe Victoria
+07:47:56
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-08
+Aderibigbe Elizabeth
+07:53:17
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-08
+Aderibigbe Victoria
+07:50:05
+08:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-07
+Aderibigbe Elizabeth
+NULL
+NULL
+weekend
+NULL
+NULL
+NULL
+NULL
+2026-06-07
+Aderibigbe Victoria
+NULL
+NULL
+weekend
+NULL
+NULL
+NULL
+NULL
+2026-06-06
+Aderibigbe Elizabeth
+09:02:58
+09:00:00
+late
+1
+NULL
+NULL
+NULL
+2026-06-06
+Aderibigbe Victoria
+08:49:29
+09:00:00
+present
+0
+NULL
+NULL
+NULL
+2026-06-05
+Aderibigbe Elizabeth
+07:46:58
+08:00:00
+present
+0
+NULL
+NULL
+NULL

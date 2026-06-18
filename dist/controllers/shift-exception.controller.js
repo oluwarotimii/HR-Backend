@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteShiftException = exports.updateShiftException = exports.getShiftExceptionById = exports.getMyShiftExceptions = exports.getAllShiftExceptions = exports.createShiftException = void 0;
 const shift_exception_model_1 = __importDefault(require("../models/shift-exception.model"));
 const staff_model_1 = __importDefault(require("../models/staff.model"));
+const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 class ShiftExceptionController {
     static async create(req, res) {
         try {
@@ -81,6 +82,12 @@ class ShiftExceptionController {
                 status: 'active'
             };
             const newException = await shift_exception_model_1.default.create(exceptionData);
+            try {
+                await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(newException.user_id, new Date(newException.exception_date));
+            }
+            catch (err) {
+                console.error('Failed to re-process attendance after exception creation:', err);
+            }
             return res.status(201).json({
                 success: true,
                 message: 'Shift exception created successfully',
@@ -226,6 +233,26 @@ class ShiftExceptionController {
                 }
             }
             const updatedException = await shift_exception_model_1.default.update(id, updateData);
+            const oldDateStr = existingException.exception_date instanceof Date
+                ? existingException.exception_date.toISOString().split('T')[0]
+                : String(existingException.exception_date).split('T')[0];
+            const datesToProcess = new Set([oldDateStr]);
+            if (updateData.exception_date) {
+                const newDateStr = typeof updateData.exception_date === 'string'
+                    ? updateData.exception_date.split('T')[0]
+                    : updateData.exception_date.toISOString().split('T')[0];
+                if (newDateStr !== oldDateStr) {
+                    datesToProcess.add(newDateStr);
+                }
+            }
+            for (const dateStr of datesToProcess) {
+                try {
+                    await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(existingException.user_id, new Date(dateStr + 'T00:00:00Z'));
+                }
+                catch (err) {
+                    console.error(`Failed to re-process attendance for user ${existingException.user_id} on ${dateStr}:`, err);
+                }
+            }
             return res.status(200).json({
                 success: true,
                 message: 'Shift exception updated successfully',
@@ -264,9 +291,15 @@ class ShiftExceptionController {
                 }
             }
             await shift_exception_model_1.default.delete(id);
+            try {
+                await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(existingException.user_id, new Date(existingException.exception_date));
+            }
+            catch (err) {
+                console.error('Failed to re-process attendance after exception deletion:', err);
+            }
             return res.status(200).json({
                 success: true,
-                message: 'Shift exception deleted successfully'
+                message: 'Shift exception deleted successfully',
             });
         }
         catch (error) {

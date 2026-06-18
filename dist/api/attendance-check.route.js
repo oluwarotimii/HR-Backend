@@ -318,7 +318,7 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             });
         }
         const attendanceUpdate = {
-            check_in_time: new Date(`1970-01-01T${check_in_time}`),
+            check_in_time: check_in_time,
             location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
             location_verified: verifyResult.verified,
             location_address: location_address || null,
@@ -339,6 +339,9 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
         }
         try {
             await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(result.id, userId, requestedDate, settings.grace_period_minutes || 0);
+            const updated = await attendance_model_1.default.findById(result.id);
+            if (updated)
+                result = updated;
         }
         catch (err) {
             console.error('Failed to update attendance schedule info:', err);
@@ -519,14 +522,17 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
             });
         }
         const updateData = {
-            check_out_time: new Date(`1970-01-01T${check_out_time}`),
+            check_out_time: check_out_time,
             location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
             location_verified: locationVerified,
             location_address: location_address || null
         };
-        const updatedAttendance = await attendance_model_1.default.update(attendanceRecord.id, updateData);
+        let updatedAttendance = await attendance_model_1.default.update(attendanceRecord.id, updateData);
         try {
             await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(attendanceRecord.id, userId, new Date(date), settings.grace_period_minutes || 0);
+            const refetched = await attendance_model_1.default.findById(attendanceRecord.id);
+            if (refetched)
+                updatedAttendance = refetched;
         }
         catch (shiftError) {
             console.error('Failed to update attendance with shift info:', shiftError);
