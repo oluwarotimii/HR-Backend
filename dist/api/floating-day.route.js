@@ -85,9 +85,10 @@ router.get('/pending-for-me', auth_middleware_1.authenticateJWT, (0, auth_middle
 });
 router.get('/cleared', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('floating_day:approve'), async (req, res) => {
     try {
-        const [rows] = await database_1.pool.execute(`SELECT fdr.*, u.full_name as user_name, clr.full_name as cleared_by_name
+        const [rows] = await database_1.pool.execute(`SELECT fdr.*, tob.program_name, u.full_name as user_name, clr.full_name as cleared_by_name
        FROM floating_day_requests fdr
        JOIN users u ON fdr.user_id = u.id
+       LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
        LEFT JOIN users clr ON fdr.cleared_by = clr.id
        WHERE fdr.status = 'cleared'
        ORDER BY fdr.cleared_at ASC`);
@@ -101,9 +102,12 @@ router.get('/cleared', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.
 router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('floating_day:request'), async (req, res) => {
     try {
         const userId = req.currentUser.id;
-        const { date, reason } = req.body;
+        const { time_off_bank_id, date, reason } = req.body;
         if (!date) {
             return res.status(400).json({ success: false, message: 'Date is required' });
+        }
+        if (!time_off_bank_id) {
+            return res.status(400).json({ success: false, message: 'Day-off type (time_off_bank_id) is required' });
         }
         const dt = new Date(date + 'T00:00:00Z');
         const today = new Date();
@@ -111,14 +115,19 @@ router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkP
         if (dt < today) {
             return res.status(400).json({ success: false, message: 'Cannot request a date in the past' });
         }
-        const [bankRows] = await database_1.pool.execute(`SELECT SUM(available_days) as total_available
+        const [bankRows] = await database_1.pool.execute(`SELECT id, program_name, available_days
        FROM time_off_banks
-       WHERE user_id = ? AND valid_to >= CURDATE()`, [userId]);
-        const available = Number(bankRows[0]?.total_available || 0);
-        if (available < 1) {
+       WHERE id = ? AND user_id = ? AND valid_to >= CURDATE()`, [time_off_bank_id, userId]);
+        if (bankRows.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: 'No floating days available. Please contact HR.'
+                message: 'Selected day-off type not found or expired'
+            });
+        }
+        if (Number(bankRows[0].available_days) < 1) {
+            return res.status(400).json({
+                success: false,
+                message: `No days available for ${bankRows[0].program_name}`
             });
         }
         const [existing] = await database_1.pool.execute(`SELECT id FROM floating_day_requests
@@ -131,6 +140,7 @@ router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkP
         }
         const request = await floating_day_request_model_1.default.create({
             user_id: userId,
+            time_off_bank_id,
             date: date,
             reason: reason || null,
             created_by: userId
@@ -236,8 +246,7 @@ router.put('/:id/approve', auth_middleware_1.authenticateJWT, (0, auth_middlewar
         }
         const [bankResult] = await database_1.pool.execute(`UPDATE time_off_banks
        SET used_days = used_days + 1
-       WHERE user_id = ? AND valid_to >= CURDATE() AND available_days >= 1
-       LIMIT 1`, [request.user_id]);
+       WHERE id = ? AND user_id = ? AND available_days >= 1`, [request.time_off_bank_id, request.user_id]);
         if (bankResult.affectedRows === 0) {
             return res.status(400).json({
                 success: false,

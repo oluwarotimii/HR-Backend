@@ -48,8 +48,7 @@ router.get('/', authenticateJWT, async (req: Request, res: Response) => {
 // GET /api/floating-days/pending-for-me — Requests pending my clearance (manager view)
 router.get('/pending-for-me', authenticateJWT, checkPermission('floating_day:clear'), async (req: Request, res: Response) => {
   try {
-    const managerId = (req as any).currentUser.id;
-    const requests = await FloatingDayRequestModel.findPendingForManager(managerId);
+    const requests = await FloatingDayRequestModel.findPendingForManager();
     return res.json({ success: true, data: { requests } });
   } catch (error) {
     console.error('Error fetching pending requests:', error);
@@ -61,9 +60,10 @@ router.get('/pending-for-me', authenticateJWT, checkPermission('floating_day:cle
 router.get('/cleared', authenticateJWT, checkPermission('floating_day:approve'), async (req: Request, res: Response) => {
   try {
     const [rows]: any = await pool.execute(
-      `SELECT fdr.*, u.full_name as user_name, clr.full_name as cleared_by_name
+      `SELECT fdr.*, tob.program_name, u.full_name as user_name, clr.full_name as cleared_by_name
        FROM floating_day_requests fdr
        JOIN users u ON fdr.user_id = u.id
+       LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
        LEFT JOIN users clr ON fdr.cleared_by = clr.id
        WHERE fdr.status = 'cleared'
        ORDER BY fdr.cleared_at ASC`
@@ -76,13 +76,17 @@ router.get('/cleared', authenticateJWT, checkPermission('floating_day:approve'),
 });
 
 // POST /api/floating-days — Create a new request
-router.post('/', authenticateJWT, checkPermission('floating_day:request'), async (req: Request, res: Response) => {
+router.post('/', authenticateJWT, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).currentUser.id;
-    const { date, reason } = req.body;
+    const { time_off_bank_id, date, reason } = req.body;
 
     if (!date) {
       return res.status(400).json({ success: false, message: 'Date is required' });
+    }
+
+    if (!time_off_bank_id) {
+      return res.status(400).json({ success: false, message: 'Day-off type (time_off_bank_id) is required' });
     }
 
     // Check that date is not in the past
@@ -93,19 +97,25 @@ router.post('/', authenticateJWT, checkPermission('floating_day:request'), async
       return res.status(400).json({ success: false, message: 'Cannot request a date in the past' });
     }
 
-    // Check time_off_banks balance
+    // Verify the selected bank belongs to user and has available days
     const [bankRows]: any = await pool.execute(
-      `SELECT SUM(available_days) as total_available
+      `SELECT id, program_name, available_days
        FROM time_off_banks
-       WHERE user_id = ? AND valid_to >= CURDATE()`,
-      [userId]
+       WHERE id = ? AND user_id = ? AND valid_to >= CURDATE()`,
+      [time_off_bank_id, userId]
     );
 
-    const available = Number(bankRows[0]?.total_available || 0);
-    if (available < 1) {
+    if (bankRows.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No floating days available. Please contact HR.'
+        message: 'Selected day-off type not found or expired'
+      });
+    }
+
+    if (Number(bankRows[0].available_days) < 1) {
+      return res.status(400).json({
+        success: false,
+        message: `No days available for ${bankRows[0].program_name}`
       });
     }
 
@@ -125,6 +135,7 @@ router.post('/', authenticateJWT, checkPermission('floating_day:request'), async
 
     const request = await FloatingDayRequestModel.create({
       user_id: userId,
+      time_off_bank_id,
       date: date,
       reason: reason || null,
       created_by: userId
@@ -262,13 +273,12 @@ router.put('/:id/approve', authenticateJWT, checkPermission('floating_day:approv
       });
     }
 
-    // Deduct from time_off_banks
+    // Deduct from the specific time_off_bank this request was created for
     const [bankResult]: any = await pool.execute(
       `UPDATE time_off_banks
        SET used_days = used_days + 1
-       WHERE user_id = ? AND valid_to >= CURDATE() AND available_days >= 1
-       LIMIT 1`,
-      [request.user_id]
+       WHERE id = ? AND user_id = ? AND available_days >= 1`,
+      [request.time_off_bank_id, request.user_id]
     );
 
     if (bankResult.affectedRows === 0) {

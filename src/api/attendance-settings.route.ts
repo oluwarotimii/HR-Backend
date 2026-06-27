@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import BranchModel from '../models/branch.model';
 import { pool } from '../config/database';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 
 const router = Router();
 
@@ -344,6 +345,7 @@ router.get('/global', authenticateJWT, checkPermission('attendance:manage'), asy
       notify_supervisors_daily_summary: true,
       enable_weekend_attendance: false,
       enable_holiday_attendance: false,
+      last_saturday_resumption_time: '10:30',
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -423,6 +425,16 @@ router.patch('/global', authenticateJWT, checkPermission('attendance:manage'), a
       `SELECT * FROM global_attendance_settings LIMIT 1`
     ) as [any[], any];
 
+    // If last_saturday_resumption_time was changed, auto-reprocess attendance
+    if (settings.last_saturday_resumption_time !== undefined) {
+      try {
+        const result = await ShiftSchedulingService.reprocessLastSaturdayAttendance();
+        console.log(`[Last Saturday] Auto-reprocessed ${result.reprocessed} attendance records after setting change`);
+      } catch (reprocessError) {
+        console.error('Error auto-reprocessing last Saturday attendance:', reprocessError);
+      }
+    }
+
     return res.json({
       success: true,
       message: 'Global attendance settings updated successfully',
@@ -433,6 +445,32 @@ router.patch('/global', authenticateJWT, checkPermission('attendance:manage'), a
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * POST /api/attendance/settings/reprocess-last-saturday
+ * Reprocess attendance records for last Saturday dates.
+ * This is used when the last_saturday_resumption_time setting is changed
+ * to retroactively correct late/present status for already-checked-in staff.
+ */
+router.post('/reprocess-last-saturday', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
+  try {
+    const { date } = req.body;
+
+    const result = await ShiftSchedulingService.reprocessLastSaturdayAttendance(date || undefined);
+
+    return res.json({
+      success: true,
+      message: `Reprocessed ${result.reprocessed} attendance records across ${result.dates.length} date(s)`,
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Reprocess last Saturday error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
     });
   }
 });

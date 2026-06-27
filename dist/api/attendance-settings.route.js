@@ -7,6 +7,7 @@ const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const branch_model_1 = __importDefault(require("../models/branch.model"));
 const database_1 = require("../config/database");
+const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const router = (0, express_1.Router)();
 router.get('/', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
@@ -263,6 +264,7 @@ router.get('/global', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.c
             notify_supervisors_daily_summary: true,
             enable_weekend_attendance: false,
             enable_holiday_attendance: false,
+            last_saturday_resumption_time: '10:30',
             created_at: new Date(),
             updated_at: new Date()
         };
@@ -318,6 +320,15 @@ router.patch('/global', auth_middleware_1.authenticateJWT, (0, auth_middleware_1
             await database_1.pool.execute(`INSERT INTO global_attendance_settings (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, values);
         }
         const [updatedSettings] = await database_1.pool.execute(`SELECT * FROM global_attendance_settings LIMIT 1`);
+        if (settings.last_saturday_resumption_time !== undefined) {
+            try {
+                const result = await shift_scheduling_service_1.ShiftSchedulingService.reprocessLastSaturdayAttendance();
+                console.log(`[Last Saturday] Auto-reprocessed ${result.reprocessed} attendance records after setting change`);
+            }
+            catch (reprocessError) {
+                console.error('Error auto-reprocessing last Saturday attendance:', reprocessError);
+            }
+        }
         return res.json({
             success: true,
             message: 'Global attendance settings updated successfully',
@@ -329,6 +340,24 @@ router.patch('/global', auth_middleware_1.authenticateJWT, (0, auth_middleware_1
         return res.status(500).json({
             success: false,
             message: 'Internal server error'
+        });
+    }
+});
+router.post('/reprocess-last-saturday', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:manage'), async (req, res) => {
+    try {
+        const { date } = req.body;
+        const result = await shift_scheduling_service_1.ShiftSchedulingService.reprocessLastSaturdayAttendance(date || undefined);
+        return res.json({
+            success: true,
+            message: `Reprocessed ${result.reprocessed} attendance records across ${result.dates.length} date(s)`,
+            data: result
+        });
+    }
+    catch (error) {
+        console.error('Reprocess last Saturday error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal server error'
         });
     }
 });
