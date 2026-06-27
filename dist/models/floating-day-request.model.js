@@ -34,15 +34,13 @@ class FloatingDayRequestModel {
         const [rows] = await database_1.pool.execute(query, params);
         return rows;
     }
-    static async findPendingForManager(managerUserId) {
+    static async findPendingForManager() {
         const [rows] = await database_1.pool.execute(`SELECT fdr.*, tob.program_name, u.full_name as user_name
        FROM ${this.tableName} fdr
        JOIN users u ON fdr.user_id = u.id
        LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
-       JOIN staff s ON s.user_id = fdr.user_id
-       WHERE s.reporting_manager_id = ?
-         AND fdr.status = 'pending'
-       ORDER BY fdr.created_at DESC`, [managerUserId]);
+       WHERE fdr.status = 'pending'
+       ORDER BY fdr.created_at DESC`);
         return rows;
     }
     static async create(data) {

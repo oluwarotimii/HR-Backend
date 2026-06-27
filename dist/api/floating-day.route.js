@@ -74,8 +74,7 @@ router.get('/', auth_middleware_1.authenticateJWT, async (req, res) => {
 });
 router.get('/pending-for-me', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('floating_day:clear'), async (req, res) => {
     try {
-        const managerId = req.currentUser.id;
-        const requests = await floating_day_request_model_1.default.findPendingForManager(managerId);
+        const requests = await floating_day_request_model_1.default.findPendingForManager();
         return res.json({ success: true, data: { requests } });
     }
     catch (error) {
@@ -99,7 +98,7 @@ router.get('/cleared', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
-router.post('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('floating_day:request'), async (req, res) => {
+router.post('/', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
         const userId = req.currentUser.id;
         const { time_off_bank_id, date, reason } = req.body;

@@ -28,7 +28,7 @@ declare class FloatingDayRequestModel {
     static findById(id: number): Promise<FloatingDayRequest | null>;
     static findByUserId(userId: number): Promise<any[]>;
     static findAll(status?: string): Promise<any[]>;
-    static findPendingForManager(managerUserId: number): Promise<any[]>;
+    static findPendingForManager(): Promise<any[]>;
     static create(data: FloatingDayRequestInput): Promise<FloatingDayRequest>;
     static updateStatus(id: number, status: string, extra?: Record<string, any>): Promise<boolean>;
 }
