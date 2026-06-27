@@ -33,6 +33,9 @@ const forgotPassword = async (req, res) => {
         const resetToken = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, type: 'password_reset' }, JWT_SECRET, { expiresIn: '1h' });
         const portalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
         const resetLink = `${portalUrl}/reset-password?token=${resetToken}`;
+        console.log('\n=== PASSWORD RESET LINK (dev only) ===');
+        console.log(resetLink);
+        console.log('=========================================\n');
         try {
             await (0, email_service_1.sendForgotPasswordEmail)({
                 to: user.email,

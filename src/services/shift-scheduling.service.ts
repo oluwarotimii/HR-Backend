@@ -6,6 +6,30 @@ import { ResultSetHeader } from 'mysql2';
  */
 export class ShiftSchedulingService {
   /**
+   * Check if a given date is the last Saturday of its month
+   */
+  static isLastSaturdayOfMonth(date: Date): boolean {
+    if (date.getDay() !== 6) return false;
+    const nextSaturday = new Date(date);
+    nextSaturday.setDate(date.getDate() + 7);
+    return nextSaturday.getMonth() !== date.getMonth();
+  }
+
+  /**
+   * Get the global last Saturday resumption time setting
+   */
+  static async getLastSaturdayResumptionTime(): Promise<string | null> {
+    try {
+      const [rows]: any = await pool.execute(
+        `SELECT last_saturday_resumption_time FROM global_attendance_settings LIMIT 1`
+      );
+      return rows.length > 0 ? rows[0].last_saturday_resumption_time : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Get the effective schedule for a user on a specific date
    */
   static async getEffectiveScheduleForDate(userId: number, date: Date): Promise<{
@@ -36,6 +60,9 @@ export class ShiftSchedulingService {
           schedule_note: exception.reason || `Special schedule for ${exception.exception_type}`
         };
       }
+
+      // Note: last Saturday resumption time override is intentionally NOT applied
+      // to shift exceptions, since an exception is an explicit override.
 
       // Next, check if it's a holiday
       // If it's a holiday and we didn't find an active exception above, they shouldn't work.
@@ -166,13 +193,30 @@ export class ShiftSchedulingService {
           }
 
           // Found a matching assignment for this day
-          return {
+          const assignmentResult = {
             start_time: assignment.custom_start_time || assignment.template_start_time,
             end_time: assignment.custom_end_time || assignment.template_end_time,
             break_duration_minutes: assignment.custom_break_duration_minutes || assignment.template_break_duration_minutes || 0,
             schedule_type: `assignment_${assignment.assignment_id}_${recurrencePattern}`,
             schedule_note: assignment.template_name || `Shift assignment ${assignment.assignment_id}`
+          } as {
+            start_time: string | null;
+            end_time: string | null;
+            break_duration_minutes: number;
+            schedule_type: string;
+            schedule_note: string;
           };
+
+          // Apply last Saturday resumption time override
+          if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+            const lastSatTime = await this.getLastSaturdayResumptionTime();
+            if (lastSatTime) {
+              assignmentResult.start_time = lastSatTime;
+              assignmentResult.schedule_note += ' (Last Saturday - adjusted start time)';
+            }
+          }
+
+          return assignmentResult;
         }
 
         // If we ran through all assignments and none matched the day pattern
@@ -213,13 +257,30 @@ export class ShiftSchedulingService {
           }
 
           // Found a matching shift timing
-          return {
+          const shiftTimingResult = {
             start_time: shift.start_time,
             end_time: shift.end_time,
-            break_duration_minutes: 0, // shift_timings table doesn't have break_duration, default to 0
+            break_duration_minutes: 0,
             schedule_type: 'multi_shift_timing',
             schedule_note: shift.shift_name
+          } as {
+            start_time: string | null;
+            end_time: string | null;
+            break_duration_minutes: number;
+            schedule_type: string;
+            schedule_note: string;
           };
+
+          // Apply last Saturday resumption time override
+          if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+            const lastSatTime = await this.getLastSaturdayResumptionTime();
+            if (lastSatTime) {
+              shiftTimingResult.start_time = lastSatTime;
+              shiftTimingResult.schedule_note += ' (Last Saturday - adjusted start time)';
+            }
+          }
+
+          return shiftTimingResult;
         }
       }
 
@@ -257,13 +318,30 @@ export class ShiftSchedulingService {
 
           if (branchHours.length > 0) {
             if (branchHours[0].is_working_day) {
-              return {
+              const branchResult = {
                 start_time: branchHours[0].start_time,
                 end_time: branchHours[0].end_time,
                 break_duration_minutes: branchHours[0].break_duration_minutes || 0,
                 schedule_type: 'branch_default',
                 schedule_note: `Standard ${dayName} hours for branch`
+              } as {
+                start_time: string | null;
+                end_time: string | null;
+                break_duration_minutes: number;
+                schedule_type: string;
+                schedule_note: string;
               };
+
+              // Apply last Saturday resumption time override
+              if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+                const lastSatTime = await this.getLastSaturdayResumptionTime();
+                if (lastSatTime) {
+                  branchResult.start_time = lastSatTime;
+                  branchResult.schedule_note += ' (Last Saturday - adjusted start time)';
+                }
+              }
+
+              return branchResult;
             } else {
               return {
                 start_time: null,
@@ -493,5 +571,64 @@ export class ShiftSchedulingService {
       console.error('Error processing attendance for date:', error);
       throw error;
     }
+  }
+
+  /**
+   * Reprocess attendance for all last Saturday dates
+   * Called when the last_saturday_resumption_time global setting is changed
+   * to retroactively correct attendance records (late/present status).
+   */
+  static async reprocessLastSaturdayAttendance(
+    specificDate?: string
+  ): Promise<{ reprocessed: number; dates: string[] }> {
+    const dates: string[] = [];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Collect all last Saturday dates that have already occurred
+    for (let year = currentYear - 1; year <= currentYear; year++) {
+      const maxMonth = year === currentYear ? currentMonth : 11;
+      const minMonth = year === currentYear - 1 ? currentMonth : 0;
+
+      for (let month = minMonth; month <= maxMonth; month++) {
+        const lastDay = new Date(year, month + 1, 0);
+        for (let day = lastDay.getDate(); day >= 1; day--) {
+          const d = new Date(year, month, day);
+          if (d.getDay() === 6) {
+            dates.push(d.toISOString().split('T')[0]);
+            break;
+          }
+        }
+      }
+    }
+
+    // If a specific date is provided, only reprocess that one
+    const targetDates = specificDate ? [specificDate] : dates;
+    let reprocessed = 0;
+
+    for (const dateStr of targetDates) {
+      const date = new Date(dateStr + 'T00:00:00');
+
+      // Get all attendance records with check-in on this date
+      const [records]: any = await pool.execute(
+        `SELECT a.id, a.user_id, a.check_in_time, a.check_out_time
+         FROM attendance a
+         WHERE a.date = ? AND a.check_in_time IS NOT NULL`,
+        [dateStr]
+      );
+
+      for (const record of records) {
+        await this.updateAttendanceWithScheduleInfo(
+          record.id,
+          record.user_id,
+          date,
+          0
+        );
+        reprocessed++;
+      }
+    }
+
+    return { reprocessed, dates: targetDates };
   }
 }

@@ -3,6 +3,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShiftSchedulingService = void 0;
 const database_1 = require("../config/database");
 class ShiftSchedulingService {
+    static isLastSaturdayOfMonth(date) {
+        if (date.getDay() !== 6)
+            return false;
+        const nextSaturday = new Date(date);
+        nextSaturday.setDate(date.getDate() + 7);
+        return nextSaturday.getMonth() !== date.getMonth();
+    }
+    static async getLastSaturdayResumptionTime() {
+        try {
+            const [rows] = await database_1.pool.execute(`SELECT last_saturday_resumption_time FROM global_attendance_settings LIMIT 1`);
+            return rows.length > 0 ? rows[0].last_saturday_resumption_time : null;
+        }
+        catch {
+            return null;
+        }
+    }
     static async getEffectiveScheduleForDate(userId, date) {
         try {
             const dateStr = date.toISOString().split('T')[0];
@@ -110,13 +126,21 @@ class ShiftSchedulingService {
                     if (assignedDays.length > 0 && !assignedDays.includes(dayName) && !assignedDays.includes(dayOfWeek.toString())) {
                         continue;
                     }
-                    return {
+                    const assignmentResult = {
                         start_time: assignment.custom_start_time || assignment.template_start_time,
                         end_time: assignment.custom_end_time || assignment.template_end_time,
                         break_duration_minutes: assignment.custom_break_duration_minutes || assignment.template_break_duration_minutes || 0,
                         schedule_type: `assignment_${assignment.assignment_id}_${recurrencePattern}`,
                         schedule_note: assignment.template_name || `Shift assignment ${assignment.assignment_id}`
                     };
+                    if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+                        const lastSatTime = await this.getLastSaturdayResumptionTime();
+                        if (lastSatTime) {
+                            assignmentResult.start_time = lastSatTime;
+                            assignmentResult.schedule_note += ' (Last Saturday - adjusted start time)';
+                        }
+                    }
+                    return assignmentResult;
                 }
                 return {
                     start_time: null,
@@ -144,13 +168,21 @@ class ShiftSchedulingService {
                             continue;
                         }
                     }
-                    return {
+                    const shiftTimingResult = {
                         start_time: shift.start_time,
                         end_time: shift.end_time,
                         break_duration_minutes: 0,
                         schedule_type: 'multi_shift_timing',
                         schedule_note: shift.shift_name
                     };
+                    if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+                        const lastSatTime = await this.getLastSaturdayResumptionTime();
+                        if (lastSatTime) {
+                            shiftTimingResult.start_time = lastSatTime;
+                            shiftTimingResult.schedule_note += ' (Last Saturday - adjusted start time)';
+                        }
+                    }
+                    return shiftTimingResult;
                 }
             }
             const [staffDetails] = await database_1.pool.execute(`SELECT branch_id, status FROM staff WHERE user_id = ?`, [userId]);
@@ -174,13 +206,21 @@ class ShiftSchedulingService {
              WHERE branch_id = ? AND day_of_week = ?`, [branch_id, dayName]);
                     if (branchHours.length > 0) {
                         if (branchHours[0].is_working_day) {
-                            return {
+                            const branchResult = {
                                 start_time: branchHours[0].start_time,
                                 end_time: branchHours[0].end_time,
                                 break_duration_minutes: branchHours[0].break_duration_minutes || 0,
                                 schedule_type: 'branch_default',
                                 schedule_note: `Standard ${dayName} hours for branch`
                             };
+                            if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
+                                const lastSatTime = await this.getLastSaturdayResumptionTime();
+                                if (lastSatTime) {
+                                    branchResult.start_time = lastSatTime;
+                                    branchResult.schedule_note += ' (Last Saturday - adjusted start time)';
+                                }
+                            }
+                            return branchResult;
                         }
                         else {
                             return {
@@ -319,6 +359,39 @@ class ShiftSchedulingService {
             console.error('Error processing attendance for date:', error);
             throw error;
         }
+    }
+    static async reprocessLastSaturdayAttendance(specificDate) {
+        const dates = [];
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        for (let year = currentYear - 1; year <= currentYear; year++) {
+            const maxMonth = year === currentYear ? currentMonth : 11;
+            const minMonth = year === currentYear - 1 ? currentMonth : 0;
+            for (let month = minMonth; month <= maxMonth; month++) {
+                const lastDay = new Date(year, month + 1, 0);
+                for (let day = lastDay.getDate(); day >= 1; day--) {
+                    const d = new Date(year, month, day);
+                    if (d.getDay() === 6) {
+                        dates.push(d.toISOString().split('T')[0]);
+                        break;
+                    }
+                }
+            }
+        }
+        const targetDates = specificDate ? [specificDate] : dates;
+        let reprocessed = 0;
+        for (const dateStr of targetDates) {
+            const date = new Date(dateStr + 'T00:00:00');
+            const [records] = await database_1.pool.execute(`SELECT a.id, a.user_id, a.check_in_time, a.check_out_time
+         FROM attendance a
+         WHERE a.date = ? AND a.check_in_time IS NOT NULL`, [dateStr]);
+            for (const record of records) {
+                await this.updateAttendanceWithScheduleInfo(record.id, record.user_id, date, 0);
+                reprocessed++;
+            }
+        }
+        return { reprocessed, dates: targetDates };
     }
 }
 exports.ShiftSchedulingService = ShiftSchedulingService;

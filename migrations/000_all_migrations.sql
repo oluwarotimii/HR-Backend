@@ -3696,3 +3696,115 @@ CREATE INDEX idx_performance_scores_period ON performance_scores(period_start, p
 
 -- targets: index on period_start, period_end
 CREATE INDEX idx_targets_period ON targets(period_start, period_end);
+
+
+-- ============================================================================
+-- Migration: 115_create_floating_day_requests_table.sql
+-- ============================================================================
+
+-- Migration: Create floating_day_requests table
+-- Description: Enables staff to request compensatory/floating days off.
+-- Balance is tracked via the existing time_off_banks table.
+-- Two-level approval: manager clears, HR approves.
+-- On HR approval: creates day_off shift_exception, deducts from time_off_banks,
+-- and re-processes attendance for the scheduled date.
+
+CREATE TABLE IF NOT EXISTS floating_day_requests (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  time_off_bank_id INT NOT NULL COMMENT 'Which day-off program this request uses',
+  date DATE NOT NULL COMMENT 'The day the employee wants off',
+  reason TEXT,
+  status ENUM('pending', 'cleared', 'approved', 'rejected', 'cancelled') DEFAULT 'pending',
+  cleared_by INT NULL COMMENT 'Manager who cleared (first approval)',
+  cleared_at TIMESTAMP NULL,
+  approved_by INT NULL COMMENT 'HR who gave final approval',
+  approved_at TIMESTAMP NULL,
+  rejected_by INT NULL,
+  rejected_at TIMESTAMP NULL,
+  rejection_reason TEXT,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (time_off_bank_id) REFERENCES time_off_banks(id),
+  FOREIGN KEY (cleared_by) REFERENCES users(id),
+  FOREIGN KEY (approved_by) REFERENCES users(id),
+  FOREIGN KEY (rejected_by) REFERENCES users(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_status (status),
+  INDEX idx_date (date)
+);
+
+
+-- ============================================================================
+-- Migration: 116_add_last_saturday_resumption_time.sql
+-- ============================================================================
+
+-- Migration: Add last_saturday_resumption_time to global_attendance_settings
+-- Description: Allows configuring the resumption/start time for last Saturdays of the month.
+-- Default is 10:30 (10:30 AM). When changed mid-day, attendance records for the
+-- current last Saturday are retroactively recalculated.
+
+ALTER TABLE global_attendance_settings
+  ADD COLUMN last_saturday_resumption_time VARCHAR(5) DEFAULT '10:30' AFTER exclude_sundays_from_leave;
+
+UPDATE global_attendance_settings
+SET last_saturday_resumption_time = '10:30'
+WHERE last_saturday_resumption_time IS NULL;
+
+
+-- ============================================================================
+-- Migration: 117_create_time_off_programs_table.sql
+-- ============================================================================
+
+-- Migration: Create time_off_programs table
+-- Description: Separates the program definition from per-employee assignments.
+-- time_off_programs stores the program (e.g. "Democracy Day", "Eid El Kabir").
+-- time_off_banks now references program_id and tracks per-employee usage.
+-- Existing data is migrated automatically.
+
+CREATE TABLE IF NOT EXISTS time_off_programs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  program_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  total_entitled_days DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+  valid_from DATE NOT NULL,
+  valid_to DATE NOT NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  INDEX idx_program_name (program_name)
+);
+
+ALTER TABLE time_off_banks
+  ADD COLUMN IF NOT EXISTS program_id INT NULL AFTER id,
+  ADD INDEX IF NOT EXISTS idx_program_id (program_id);
+
+INSERT INTO time_off_programs (program_name, description, total_entitled_days, valid_from, valid_to, created_by)
+SELECT DISTINCT
+  tob.program_name,
+  tob.description,
+  tob.total_entitled_days,
+  tob.valid_from,
+  tob.valid_to,
+  tob.created_by
+FROM time_off_banks tob
+WHERE NOT EXISTS (SELECT 1 FROM time_off_programs WHERE program_name = tob.program_name);
+
+UPDATE time_off_banks tob
+JOIN time_off_programs top
+  ON tob.program_name = top.program_name
+  AND tob.total_entitled_days = top.total_entitled_days
+  AND tob.valid_from = top.valid_from
+  AND tob.valid_to = top.valid_to
+  AND tob.created_by = top.created_by
+SET tob.program_id = top.id
+WHERE tob.program_id IS NULL;
+
+ALTER TABLE time_off_banks
+  ADD FOREIGN KEY IF NOT EXISTS (program_id) REFERENCES time_off_programs(id) ON DELETE CASCADE;

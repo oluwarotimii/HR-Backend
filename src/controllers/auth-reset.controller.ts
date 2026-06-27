@@ -40,6 +40,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const portalUrl = process.env.STAFF_PORTAL_URL || 'https://tms.femtechaccess.com.ng';
     const resetLink = `${portalUrl}/reset-password?token=${resetToken}`;
 
+    console.log('\n=== PASSWORD RESET LINK (dev only) ===');
+    console.log(resetLink);
+    console.log('=========================================\n');
+
     try {
       await sendForgotPasswordEmail({
         to: user.email,
