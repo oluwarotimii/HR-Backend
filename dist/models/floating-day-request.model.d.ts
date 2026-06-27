@@ -1,6 +1,7 @@
 export interface FloatingDayRequest {
     id: number;
     user_id: number;
+    time_off_bank_id: number;
     date: Date;
     reason: string | null;
     status: 'pending' | 'cleared' | 'approved' | 'rejected' | 'cancelled';
@@ -17,6 +18,7 @@ export interface FloatingDayRequest {
 }
 export interface FloatingDayRequestInput {
     user_id: number;
+    time_off_bank_id: number;
     date: Date;
     reason?: string | null;
     created_by?: number;

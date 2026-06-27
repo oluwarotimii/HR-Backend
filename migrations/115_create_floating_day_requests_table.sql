@@ -8,6 +8,7 @@
 CREATE TABLE IF NOT EXISTS floating_day_requests (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
+  time_off_bank_id INT NOT NULL COMMENT 'Which day-off program this request uses',
   date DATE NOT NULL COMMENT 'The day the employee wants off',
   reason TEXT,
   status ENUM('pending', 'cleared', 'approved', 'rejected', 'cancelled') DEFAULT 'pending',
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS floating_day_requests (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (time_off_bank_id) REFERENCES time_off_banks(id),
   FOREIGN KEY (cleared_by) REFERENCES users(id),
   FOREIGN KEY (approved_by) REFERENCES users(id),
   FOREIGN KEY (rejected_by) REFERENCES users(id),

@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 export interface FloatingDayRequest {
   id: number;
   user_id: number;
+  time_off_bank_id: number;
   date: Date;
   reason: string | null;
   status: 'pending' | 'cleared' | 'approved' | 'rejected' | 'cancelled';
@@ -20,6 +21,7 @@ export interface FloatingDayRequest {
 
 export interface FloatingDayRequestInput {
   user_id: number;
+  time_off_bank_id: number;
   date: Date;
   reason?: string | null;
   created_by?: number;
@@ -38,8 +40,9 @@ class FloatingDayRequestModel {
 
   static async findByUserId(userId: number): Promise<any[]> {
     const [rows] = await pool.execute(
-      `SELECT fdr.*, clr.full_name as cleared_by_name, apr.full_name as approved_by_name
+      `SELECT fdr.*, tob.program_name, clr.full_name as cleared_by_name, apr.full_name as approved_by_name
        FROM ${this.tableName} fdr
+       LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
        LEFT JOIN users clr ON fdr.cleared_by = clr.id
        LEFT JOIN users apr ON fdr.approved_by = apr.id
        WHERE fdr.user_id = ?
@@ -50,10 +53,11 @@ class FloatingDayRequestModel {
   }
 
   static async findAll(status?: string): Promise<any[]> {
-    let query = `SELECT fdr.*, u.full_name as user_name,
+    let query = `SELECT fdr.*, tob.program_name, u.full_name as user_name,
                         clr.full_name as cleared_by_name, apr.full_name as approved_by_name
                  FROM ${this.tableName} fdr
                  JOIN users u ON fdr.user_id = u.id
+                 LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
                  LEFT JOIN users clr ON fdr.cleared_by = clr.id
                  LEFT JOIN users apr ON fdr.approved_by = apr.id`;
     const params: any[] = [];
@@ -68,25 +72,23 @@ class FloatingDayRequestModel {
     return rows as any[];
   }
 
-  static async findPendingForManager(managerUserId: number): Promise<any[]> {
+  static async findPendingForManager(): Promise<any[]> {
     const [rows] = await pool.execute(
-      `SELECT fdr.*, u.full_name as user_name
+      `SELECT fdr.*, tob.program_name, u.full_name as user_name
        FROM ${this.tableName} fdr
        JOIN users u ON fdr.user_id = u.id
-       JOIN staff s ON s.user_id = fdr.user_id
-       WHERE s.reporting_manager_id = ?
-         AND fdr.status = 'pending'
-       ORDER BY fdr.created_at DESC`,
-      [managerUserId]
+       LEFT JOIN time_off_banks tob ON fdr.time_off_bank_id = tob.id
+       WHERE fdr.status = 'pending'
+       ORDER BY fdr.created_at DESC`
     );
     return rows as any[];
   }
 
   static async create(data: FloatingDayRequestInput): Promise<FloatingDayRequest> {
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} (user_id, date, reason, created_by)
-       VALUES (?, ?, ?, ?)`,
-      [data.user_id, data.date, data.reason || null, data.created_by || data.user_id]
+      `INSERT INTO ${this.tableName} (user_id, time_off_bank_id, date, reason, created_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [data.user_id, data.time_off_bank_id, data.date, data.reason || null, data.created_by || data.user_id]
     );
 
     const created = await this.findById(result.insertId);
