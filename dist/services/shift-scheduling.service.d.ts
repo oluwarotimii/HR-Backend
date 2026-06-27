@@ -1,4 +1,6 @@
 export declare class ShiftSchedulingService {
+    static isLastSaturdayOfMonth(date: Date): boolean;
+    static getLastSaturdayResumptionTime(): Promise<string | null>;
     static getEffectiveScheduleForDate(userId: number, date: Date): Promise<{
         start_time: string | null;
         end_time: string | null;
@@ -17,5 +19,9 @@ export declare class ShiftSchedulingService {
     }>;
     static updateAttendanceWithScheduleInfo(attendanceId: number, userId: number, date: Date, gracePeriodMinutes?: number): Promise<boolean>;
     static processAttendanceForDate(userId: number, date: Date): Promise<void>;
+    static reprocessLastSaturdayAttendance(specificDate?: string): Promise<{
+        reprocessed: number;
+        dates: string[];
+    }>;
 }
 //# sourceMappingURL=shift-scheduling.service.d.ts.map
