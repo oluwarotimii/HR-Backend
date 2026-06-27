@@ -72,6 +72,7 @@ const kpi_assignment_route_1 = __importDefault(require("./api/kpi-assignment.rou
 const kpi_score_route_1 = __importDefault(require("./api/kpi-score.route"));
 const staff_invitation_route_1 = __importDefault(require("./api/staff-invitation.route"));
 const time_off_bank_route_1 = __importDefault(require("./api/time-off-bank.route"));
+const time_off_program_route_1 = __importDefault(require("./api/time-off-program.route"));
 const password_change_route_1 = __importDefault(require("./api/password-change.route"));
 const system_route_1 = __importDefault(require("./api/system.route"));
 const role_management_route_1 = __importDefault(require("./api/role-management.route"));
@@ -251,6 +252,7 @@ const bootstrap = async () => {
     app.use('/api/kpi-scores', kpi_score_route_1.default);
     app.use('/api/staff-invitation', staff_invitation_route_1.default);
     app.use('/api/time-off-banks', time_off_bank_route_1.default);
+    app.use('/api/time-off-programs', time_off_program_route_1.default);
     app.use('/api/password-change', password_change_route_1.default);
     app.use('/api/system', system_route_1.default);
     app.use('/api/role-management', role_management_route_1.default);
