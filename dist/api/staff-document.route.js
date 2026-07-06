@@ -29,12 +29,19 @@ const upload = (0, multer_1.default)({
         fileSize: 10 * 1024 * 1024
     },
     fileFilter: (req, file, cb) => {
-        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'image/jpeg',
+            'image/png',
+            'image/jpg'
+        ];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         }
         else {
-            cb(new Error('Invalid file type. Only PDF and images are allowed.'));
+            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and images are allowed.'));
         }
     }
 });
@@ -43,5 +50,8 @@ router.get('/staff/:id/documents', auth_middleware_1.authenticateJWT, (0, auth_m
 router.get('/staff/documents/:documentId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:read'), staff_document_controller_1.getStaffDocument);
 router.post('/staff/:id/documents', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:upload'), upload.array('documents', 5), staff_document_controller_1.uploadStaffDocument);
 router.delete('/staff/documents/:documentId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:delete'), staff_document_controller_1.deleteStaffDocument);
+router.get('/me/documents', auth_middleware_1.authenticateJWT, staff_document_controller_1.getOwnDocuments);
+router.post('/me/documents', auth_middleware_1.authenticateJWT, upload.single('cv'), staff_document_controller_1.uploadOwnDocument);
+router.delete('/me/documents/:documentId', auth_middleware_1.authenticateJWT, staff_document_controller_1.deleteOwnDocument);
 exports.default = router;
 //# sourceMappingURL=staff-document.route.js.map

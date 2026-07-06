@@ -49,13 +49,9 @@ const login = async (req, res) => {
             email: user.email,
             role: user.role_id
         };
-        const { rememberMe } = req.body;
-        const usePersistentLogin = rememberMe === true || rememberMe === 'true';
         const accessToken = jwt_util_1.default.generateAccessToken(payload);
         const refreshToken = jwt_util_1.default.generateRefreshToken(payload);
-        const cookieMaxAge = usePersistentLogin
-            ? 90 * 24 * 60 * 60 * 1000
-            : 7 * 24 * 60 * 60 * 1000;
+        const cookieMaxAge = 90 * 24 * 60 * 60 * 1000;
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
