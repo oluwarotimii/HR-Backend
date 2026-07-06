@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.serveStaffDocument = exports.deleteStaffDocument = exports.getStaffDocument = exports.getStaffDocuments = exports.uploadStaffDocument = void 0;
+exports.deleteOwnDocument = exports.uploadOwnDocument = exports.getOwnDocuments = exports.serveStaffDocument = exports.deleteStaffDocument = exports.getStaffDocument = exports.getStaffDocuments = exports.uploadStaffDocument = void 0;
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const database_1 = require("../config/database");
 const staff_document_model_1 = __importDefault(require("../models/staff-document.model"));
+const staff_model_1 = __importDefault(require("../models/staff.model"));
 const uploadStaffDocument = async (req, res) => {
     try {
         const staffId = parseInt(req.params.id);
@@ -205,4 +206,110 @@ const serveStaffDocument = async (req, res) => {
     }
 };
 exports.serveStaffDocument = serveStaffDocument;
+const getOwnDocuments = async (req, res) => {
+    try {
+        const userId = req.currentUser?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        const staff = await staff_model_1.default.findByUserId(userId);
+        if (!staff) {
+            return res.status(404).json({ success: false, message: 'Staff record not found' });
+        }
+        const documents = await staff_document_model_1.default.findByStaffId(staff.id);
+        return res.status(200).json({
+            success: true,
+            message: 'Documents retrieved successfully',
+            data: { documents }
+        });
+    }
+    catch (error) {
+        console.error('Get own documents error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to retrieve documents'
+        });
+    }
+};
+exports.getOwnDocuments = getOwnDocuments;
+const uploadOwnDocument = async (req, res) => {
+    try {
+        const userId = req.currentUser?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        const staff = await staff_model_1.default.findByUserId(userId);
+        if (!staff) {
+            return res.status(404).json({ success: false, message: 'Staff record not found' });
+        }
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No file uploaded. Please upload a PDF, DOC, or DOCX file.'
+            });
+        }
+        const file = req.file;
+        const documentType = req.body.document_type || 'Resume/CV';
+        const documentData = {
+            staff_id: staff.id,
+            document_type: documentType,
+            document_name: file.originalname,
+            file_path: `/uploads/staff-documents/${path_1.default.basename(file.filename)}`,
+            file_size: file.size,
+            mime_type: file.mimetype,
+            uploaded_by: userId
+        };
+        const createdDocument = await staff_document_model_1.default.create(documentData);
+        return res.status(201).json({
+            success: true,
+            message: 'Document uploaded successfully',
+            data: { document: createdDocument }
+        });
+    }
+    catch (error) {
+        console.error('Upload own document error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to upload document'
+        });
+    }
+};
+exports.uploadOwnDocument = uploadOwnDocument;
+const deleteOwnDocument = async (req, res) => {
+    try {
+        const userId = req.currentUser?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        const documentId = parseInt(req.params.documentId);
+        if (!documentId || isNaN(documentId)) {
+            return res.status(400).json({ success: false, message: 'Invalid document ID' });
+        }
+        const document = await staff_document_model_1.default.findById(documentId);
+        if (!document) {
+            return res.status(404).json({ success: false, message: 'Document not found' });
+        }
+        const staff = await staff_model_1.default.findByUserId(userId);
+        if (!staff || document.staff_id !== staff.id) {
+            return res.status(403).json({ success: false, message: 'You can only delete your own documents' });
+        }
+        const filePath = path_1.default.join(process.cwd(), document.file_path);
+        if (fs_1.default.existsSync(filePath)) {
+            fs_1.default.unlinkSync(filePath);
+        }
+        await staff_document_model_1.default.delete(documentId);
+        return res.status(200).json({
+            success: true,
+            message: 'Document deleted successfully'
+        });
+    }
+    catch (error) {
+        console.error('Delete own document error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to delete document'
+        });
+    }
+};
+exports.deleteOwnDocument = deleteOwnDocument;
 //# sourceMappingURL=staff-document.controller.js.map
