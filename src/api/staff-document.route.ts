@@ -4,7 +4,10 @@ import {
   getStaffDocuments,
   getStaffDocument,
   deleteStaffDocument,
-  serveStaffDocument
+  serveStaffDocument,
+  uploadOwnDocument,
+  getOwnDocuments,
+  deleteOwnDocument
 } from '../controllers/staff-document.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import multer from 'multer';
@@ -34,28 +37,34 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+      'image/jpg'
+    ];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF and images are allowed.'));
+      cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and images are allowed.'));
     }
   }
 });
 
-// Serve uploaded files (must be before other routes to avoid conflicts)
+// Serve uploaded files
 router.get('/uploads/staff-documents/:filename', serveStaffDocument);
 
-// Get staff documents
+// --- Admin routes (require permissions) ---
 router.get('/staff/:id/documents', authenticateJWT, checkPermission('documents:read'), getStaffDocuments);
-
-// Get specific document
 router.get('/staff/documents/:documentId', authenticateJWT, checkPermission('documents:read'), getStaffDocument);
-
-// Upload document
 router.post('/staff/:id/documents', authenticateJWT, checkPermission('documents:upload'), upload.array('documents', 5), uploadStaffDocument);
-
-// Delete document
 router.delete('/staff/documents/:documentId', authenticateJWT, checkPermission('documents:delete'), deleteStaffDocument);
+
+// --- Self-service routes (staff manage their own CV/documents) ---
+router.get('/me/documents', authenticateJWT, getOwnDocuments);
+router.post('/me/documents', authenticateJWT, upload.single('cv'), uploadOwnDocument);
+router.delete('/me/documents/:documentId', authenticateJWT, deleteOwnDocument);
 
 export default router;

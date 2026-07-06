@@ -63,11 +63,14 @@ import guarantorRoutes from './api/guarantor.route';
 import leavePolicyRoutes from './api/leave-policy.route';
 // import apiKeyRoutes from './api/api-key.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
+import profileReminderRoutes from './api/profile-reminder.route';
 import { SchedulerService } from './services/scheduler.service';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
 import AutoCheckoutWorker from './workers/auto-checkout.worker';
 import LeaveCleanupWorker from './workers/leave-cleanup.worker';
 import leaveCleanupRoutes from './api/leave-cleanup.route';
+import logRoutes from './api/logs.route';
+import { createLogStream, patchConsole } from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -154,13 +157,16 @@ const authLimiter = rateLimit({
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors()); // Enable cross-origin requests
-app.use(morgan('combined')); // HTTP request logging
+app.use(morgan('combined', { stream: createLogStream() })); // HTTP request logging
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Test database connection when server starts
 // Initialize app services and start the HTTP server in an explicit bootstrap path.
 const bootstrap = async () => {
+  // Patch console.log/error/warn to also write to log file
+  patchConsole();
+
   // Test database connection when server starts
   try {
     await testConnection();
@@ -274,6 +280,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/leave-cleanup', leaveCleanupRoutes);
 // app.use('/api/api-keys', apiKeyRoutes);  // API Keys temporarily disabled
 app.use('/api/health', healthRoutes);
+app.use('/api/logs', logRoutes);
+app.use('/api/profile-reminder', profileReminderRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
