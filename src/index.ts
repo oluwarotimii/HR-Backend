@@ -64,6 +64,9 @@ import leavePolicyRoutes from './api/leave-policy.route';
 // import apiKeyRoutes from './api/api-key.route';
 import healthRoutes from './api/health.route';  // API Keys temporarily disabled
 import profileReminderRoutes from './api/profile-reminder.route';
+import auditLogRoutes from './api/audit-log.route';
+import syncRoutes from './api/sync.route';
+import syncFullRoutes from './api/sync-full.route';
 import { SchedulerService } from './services/scheduler.service';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
 import AutoCheckoutWorker from './workers/auto-checkout.worker';
@@ -282,6 +285,9 @@ app.use('/api/leave-cleanup', leaveCleanupRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/profile-reminder', profileReminderRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/sync', syncRoutes);
+app.use('/api/sync', syncFullRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
