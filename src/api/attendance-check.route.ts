@@ -7,6 +7,7 @@ import HolidayModel from '../models/holiday.model';
 import BranchModel from '../models/branch.model';
 import StaffModel from '../models/staff.model';
 import AttendanceLocationModel from '../models/attendance-location.model';
+import { QueryCache } from '../services/query-cache.service';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -893,7 +894,13 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
     };
 
     try {
-      const [branchSettings]: any = await pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branch.id]);
+      const branchSettings = await QueryCache.wrap(`attendance_settings:${branch.id}`,
+        async () => {
+          const [rows]: any = await pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branch.id]);
+          return rows;
+        },
+        15000
+      );
       if (branchSettings.length > 0) settings = { ...settings, ...branchSettings[0] };
     } catch (e) {
       if (debug) console.log('Falling back to default settings');
@@ -944,7 +951,7 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
     // Process late status and shift mapping, then re-fetch the updated record
     try {
       await ShiftSchedulingService.updateAttendanceWithScheduleInfo(
-        result.id, userId, requestedDate, settings.grace_period_minutes || 0
+        result.id, userId, requestedDate, settings.grace_period_minutes || 0, effectiveSchedule
       );
       const updated = await AttendanceModel.findById(result.id);
       if (updated) result = updated;
@@ -1093,11 +1100,13 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
     };
 
     try {
-      const [branchSettings] = await pool.execute(
-        `SELECT * FROM attendance_settings WHERE branch_id = ?`,
-        [branchId]
-      ) as [any[], any];
-
+      const branchSettings = await QueryCache.wrap(`attendance_settings:${branchId}`,
+        async () => {
+          const [rows] = await pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]) as [any[], any];
+          return rows;
+        },
+        15000
+      );
       if (branchSettings && branchSettings.length > 0) {
         settings = { ...settings, ...branchSettings[0] };
       }

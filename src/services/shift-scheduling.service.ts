@@ -125,6 +125,51 @@ export class ShiftSchedulingService {
         };
       }
 
+      // Check for branch time mapping override (staff-specific or department-wide)
+      // If a mapping exists, use that branch's working days, overriding personal shifts and branch default
+      const [staffBranchDept]: any = await pool.execute(
+        `SELECT s.branch_id, d.id AS department_id FROM staff s
+         LEFT JOIN departments d ON d.name = s.department
+         WHERE s.user_id = ?`,
+        [userId]
+      );
+      if (staffBranchDept.length > 0) {
+        const [staffRows]: any = await pool.execute(
+          `SELECT id FROM staff WHERE user_id = ? LIMIT 1`,
+          [userId]
+        );
+        if (staffRows.length > 0) {
+          const staffId = staffRows[0].id;
+          const [mappings]: any = await pool.execute(
+            `SELECT branch_id, staff_id FROM staff_branch_time_mappings
+             WHERE staff_id = ? OR (department_id = ? AND department_id IS NOT NULL)
+             ORDER BY staff_id DESC LIMIT 1`,
+            [staffId, staffBranchDept[0].department_id]
+          );
+          if (mappings.length > 0) {
+            const mappedBranchId = mappings[0].branch_id;
+            const dayOfWeek = date.getDay();
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayName = dayNames[dayOfWeek];
+            const [branchHours]: any = await pool.execute(
+              `SELECT start_time, end_time, break_duration_minutes, is_working_day
+               FROM branch_working_days
+               WHERE branch_id = ? AND day_of_week = ?`,
+              [mappedBranchId, dayName]
+            );
+            if (branchHours.length > 0 && branchHours[0].is_working_day) {
+              return {
+                start_time: branchHours[0].start_time,
+                end_time: branchHours[0].end_time,
+                break_duration_minutes: branchHours[0].break_duration_minutes || 0,
+                schedule_type: 'branch_time_mapping',
+                schedule_note: `Time mapped from branch #${mappedBranchId}`
+              };
+            }
+          }
+        }
+      }
+
       // Next, check for any active shift assignments for this user
       // Support for multiple assignments - we now look for ALL active assignments and find the one that matches the day
       const [assignments]: any = await pool.execute(
@@ -371,7 +416,8 @@ export class ShiftSchedulingService {
     date: Date,
     checkInTime: string | null,
     checkOutTime: string | null,
-    gracePeriodMinutes: number = 0
+    gracePeriodMinutes: number = 0,
+    existingSchedule?: any
   ): Promise<{
     is_late: boolean | null;
     is_early_departure: boolean | null;
@@ -382,8 +428,8 @@ export class ShiftSchedulingService {
     status: 'present' | 'late' | 'early_departure' | null;
   }> {
     try {
-      // Get the effective schedule for this date
-      const schedule = await this.getEffectiveScheduleForDate(userId, date);
+      // Get the effective schedule for this date (use pre-fetched if available)
+      const schedule = existingSchedule || await this.getEffectiveScheduleForDate(userId, date);
 
       if (!schedule || !schedule.start_time || !schedule.end_time) {
         // If no schedule exists for this date, the employee is not expected to work
@@ -490,7 +536,8 @@ export class ShiftSchedulingService {
     attendanceId: number,
     userId: number,
     date: Date,
-    gracePeriodMinutes: number = 0
+    gracePeriodMinutes: number = 0,
+    existingSchedule?: any
   ): Promise<boolean> {
     try {
       // Get the attendance record to get check-in/out times
@@ -513,7 +560,8 @@ export class ShiftSchedulingService {
         date,
         checkInTime,
         checkOutTime,
-        gracePeriodMinutes
+        gracePeriodMinutes,
+        existingSchedule
       );
 
       // Update the attendance record with schedule information
