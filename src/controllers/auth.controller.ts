@@ -104,10 +104,6 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
     // Auto-accept pending invitations + track first login
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     try {
-      const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations');
-      const trackingCols = new Set(columns.map((c: any) => c.Field));
-      const hasTrackingCols = trackingCols.has('first_login_at') && trackingCols.has('first_login_ip') && trackingCols.has('profile_completed');
-
       const [pendingRows]: any = await pool.execute(
         `SELECT id FROM staff_invitations 
          WHERE user_id = ? AND status = 'pending'
@@ -116,7 +112,7 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
       );
 
       if (pendingRows.length > 0) {
-        if (hasTrackingCols) {
+        try {
           await pool.execute(
             `UPDATE staff_invitations SET 
                status = 'accepted',
@@ -127,7 +123,7 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
              WHERE id = ?`,
             [ip, !!user.phone ? 1 : 0, pendingRows[0].id]
           );
-        } else {
+        } catch {
           await pool.execute(
             `UPDATE staff_invitations SET 
                status = 'accepted',
@@ -138,15 +134,15 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
         }
         console.log(`[Invite Tracking] Auto-accepted invitation for user ${user.id} (${user.email}) on first login`);
       } else {
-        if (hasTrackingCols) {
-          const [acceptedRows]: any = await pool.execute(
-            `SELECT id FROM staff_invitations 
-           WHERE user_id = ? AND status = 'accepted' AND first_login_at IS NULL
-           LIMIT 1`,
-            [user.id]
-          );
+        const [acceptedRows]: any = await pool.execute(
+          `SELECT id FROM staff_invitations 
+         WHERE user_id = ? AND status = 'accepted' AND first_login_at IS NULL
+         LIMIT 1`,
+          [user.id]
+        );
 
-          if (acceptedRows.length > 0) {
+        if (acceptedRows.length > 0) {
+          try {
             await pool.execute(
               `UPDATE staff_invitations SET 
                  first_login_at = NOW(),
@@ -155,16 +151,22 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
                WHERE id = ?`,
               [ip, !!user.phone ? 1 : 0, acceptedRows[0].id]
             );
-            console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
+          } catch {
+            // tracking columns not available, skip
           }
+          console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
         }
 
-        if (!needsPasswordChange && trackingCols.has('last_activity_at')) {
-          await pool.execute(
-            `UPDATE staff_invitations SET last_activity_at = NOW()
-             WHERE user_id = ? AND status = 'accepted'`,
-            [user.id]
-          );
+        if (!needsPasswordChange) {
+          try {
+            await pool.execute(
+              `UPDATE staff_invitations SET last_activity_at = NOW()
+               WHERE user_id = ? AND status = 'accepted'`,
+              [user.id]
+            );
+          } catch {
+            // last_activity_at column not available, skip
+          }
         }
       }
     } catch (trackingError) {
