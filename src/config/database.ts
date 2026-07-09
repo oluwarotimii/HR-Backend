@@ -23,14 +23,7 @@ const parseConnectionString = (connectionString?: string) => {
       user: url.username,
       password: decodeURIComponent(url.password),
       database: url.pathname.slice(1), // Remove leading '/'
-      timezone: '+01:00',
-      waitForConnections: true,
-      connectionLimit: 30,
-      queueLimit: 50,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 0,
-      namedPlaceholders: true,
-      multipleStatements: true,
+      ...baseConfig,
       ssl: {
         rejectUnauthorized: true
       }
@@ -42,26 +35,40 @@ const parseConnectionString = (connectionString?: string) => {
 };
 
 // Database connection configuration
-const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'hr_management_system',
+const baseConfig = {
   timezone: '+01:00',
   waitForConnections: true,
-  connectionLimit: 30,
-  queueLimit: 50,
+  connectionLimit: parseInt(process.env.DB_POOL_LIMIT || '20'),
+  queueLimit: 30,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0,
+  keepAliveInitialDelay: 10000,
   namedPlaceholders: true,
   multipleStatements: true,
   // SSL only for production (TiDB Cloud), disabled for local development
   ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? { rejectUnauthorized: true } : undefined,
 };
 
+const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'hr_management_system',
+  ...baseConfig,
+};
+
 // Create a connection pool
 const pool = mysql.createPool(dbConfig);
+
+pool.on('connection', (connection) => {
+  connection.on('error', (err) => {
+    console.error('MySQL connection error:', err.message);
+  });
+});
+
+pool.on('error', (err) => {
+  console.error('MySQL pool error:', err.message);
+});
 
 // Initialize Redis connection
 export async function initializeRedis(): Promise<void> {

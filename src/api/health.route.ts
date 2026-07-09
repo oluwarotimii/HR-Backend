@@ -1,8 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { redisService } from '../services/redis.service';
 import { pool } from '../config/database';
+import { getLogs } from '../utils/logger';
 
 const router = Router();
+
+const LOGS_SECRET = process.env.LOGS_SECRET || '';
 
 // Health check endpoint
 router.get('/', async (req: Request, res: Response) => {
@@ -158,6 +161,32 @@ router.get('/details', async (req: Request, res: Response) => {
       error: 'Detailed health check failed'
     });
   }
+});
+
+// System logs endpoint (protected by LOGS_SECRET env var)
+router.get('/logs', (req: Request, res: Response) => {
+  const secret = (req.query.secret as string) || req.headers['x-logs-secret'] as string;
+  if (LOGS_SECRET && secret !== LOGS_SECRET) {
+    res.status(401).json({ success: false, message: 'Invalid or missing logs secret' });
+    return;
+  }
+
+  const hours = parseInt(req.query.hours as string) || 24;
+  const maxLines = Math.min(parseInt(req.query.lines as string) || 200, 2000);
+  const raw = req.query.raw === 'true';
+
+  const logData = getLogs(hours, maxLines, !raw);
+
+  res.json({
+    success: true,
+    meta: {
+      hours,
+      maxLines,
+      totalBytes: logData.length,
+      timestamp: new Date().toISOString(),
+    },
+    data: logData,
+  });
 });
 
 export default router;
