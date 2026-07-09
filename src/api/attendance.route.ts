@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import AttendanceModel from '../models/attendance.model';
+import AuditLogModel from '../models/audit-log.model';
 import ShiftTimingModel from '../models/shift-timing.model';
 import HolidayModel from '../models/holiday.model';
 import AttendanceLocationModel from '../models/attendance-location.model';
@@ -11,6 +12,7 @@ import AttendanceProcessorWorker from '../workers/attendance-processor.worker';
 import attendanceProcessRoutes from './attendance-process.route';
 import attendanceSettingsRoutes from './attendance-settings.route';
 import attendanceCheckRoutes from './attendance-check.route';
+import branchTimeMappingRoutes from './branch-time-mapping.route';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -576,6 +578,19 @@ router.delete('/:id', authenticateJWT, checkPermission('attendance:delete'), asy
 
     await AttendanceModel.delete(attendanceId);
 
+    const currentUserId = req.currentUser?.id;
+    if (currentUserId) {
+      await AuditLogModel.create({
+        user_id: currentUserId,
+        action: 'delete',
+        entity_type: 'attendance',
+        entity_id: attendanceId,
+        before_data: existingAttendance,
+        ip_address: req.ip as string,
+        user_agent: req.headers['user-agent'] as string
+      });
+    }
+
     return res.json({
       success: true,
       message: 'Attendance record deleted successfully'
@@ -619,6 +634,20 @@ router.put('/:id', authenticateJWT, checkPermission('attendance:update'), async 
     if (location_verified !== undefined) updateData.location_verified = location_verified;
 
     const updatedAttendance = await AttendanceModel.update(attendanceId, updateData);
+
+    const currentUserId = req.currentUser?.id;
+    if (currentUserId) {
+      await AuditLogModel.create({
+        user_id: currentUserId,
+        action: 'update',
+        entity_type: 'attendance',
+        entity_id: attendanceId,
+        before_data: existingAttendance,
+        after_data: updatedAttendance,
+        ip_address: req.ip as string,
+        user_agent: req.headers['user-agent'] as string
+      });
+    }
 
     return res.json({
       success: true,
@@ -1049,6 +1078,9 @@ router.use('/settings', attendanceSettingsRoutes);
 
 // Mount attendance check-in/check-out routes
 router.use(attendanceCheckRoutes);
+
+// Mount branch time mapping routes
+router.use('/time-mappings', branchTimeMappingRoutes);
 
 // GET /api/attendance/:id - Get specific attendance record
 // NOTE: Keep this route LAST so it doesn't shadow more specific routes like

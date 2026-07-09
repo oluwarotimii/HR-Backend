@@ -99,10 +99,13 @@ const dashboard_route_1 = __importDefault(require("./api/dashboard.route"));
 const guarantor_route_1 = __importDefault(require("./api/guarantor.route"));
 const leave_policy_route_1 = __importDefault(require("./api/leave-policy.route"));
 const health_route_1 = __importDefault(require("./api/health.route"));
+const profile_reminder_route_1 = __importDefault(require("./api/profile-reminder.route"));
 const attendance_processor_worker_1 = __importDefault(require("./workers/attendance-processor.worker"));
 const auto_checkout_worker_1 = __importDefault(require("./workers/auto-checkout.worker"));
 const leave_cleanup_worker_1 = __importDefault(require("./workers/leave-cleanup.worker"));
 const leave_cleanup_route_1 = __importDefault(require("./api/leave-cleanup.route"));
+const logs_route_1 = __importDefault(require("./api/logs.route"));
+const logger_1 = require("./utils/logger");
 dotenv.config();
 const app = (0, express_1.default)();
 app.set('trust proxy', true);
@@ -172,10 +175,11 @@ const authLimiter = (0, express_rate_limit_1.default)({
 });
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)());
-app.use((0, morgan_1.default)('combined'));
+app.use((0, morgan_1.default)('combined', { stream: (0, logger_1.createLogStream)() }));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
 const bootstrap = async () => {
+    (0, logger_1.patchConsole)();
     try {
         await (0, database_1.testConnection)();
     }
@@ -279,6 +283,8 @@ const bootstrap = async () => {
     app.use('/api/dashboard', dashboard_route_1.default);
     app.use('/api/leave-cleanup', leave_cleanup_route_1.default);
     app.use('/api/health', health_route_1.default);
+    app.use('/api/logs', logs_route_1.default);
+    app.use('/api/profile-reminder', profile_reminder_route_1.default);
     app.get('/', (req, res) => {
         res.json({
             message: 'Welcome to the HR Management System API',

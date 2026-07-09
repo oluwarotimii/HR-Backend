@@ -84,7 +84,7 @@ class AttendanceModel {
 
   static async findByUserIdAndDate(userId: number, date: Date): Promise<Attendance | null> {
     const [rows] = await pool.execute(
-      `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND DATE(date) = ?`,
+      `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND date = ?`,
       [userId, AttendanceModel.fmtDate(date)]
     );
     return (rows as Attendance[])[0] || null;
@@ -221,6 +221,15 @@ class AttendanceModel {
     return rows as Attendance[];
   }
 
+
+  // Method to find attendance records updated after a given timestamp (for sync)
+  static async findByUpdatedSince(userId: number, since: Date): Promise<Attendance[]> {
+    const [rows] = await pool.execute(
+      `SELECT id, user_id, date, status, check_in_time, check_out_time, ST_AsText(location_coordinates) AS location_coordinates, location_verified, location_address, notes, is_locked, locked_at, created_at, updated_at FROM ${this.tableName} WHERE user_id = ? AND updated_at > ? ORDER BY updated_at ASC`,
+      [userId, since]
+    );
+    return rows as Attendance[];
+  }
 
   // Method to calculate attendance percentage for a user in a specific period
   static async getAttendancePercentage(userId: number, startDate: Date, endDate: Date): Promise<number> {
