@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const branch_model_1 = __importDefault(require("../models/branch.model"));
+const audit_log_model_1 = __importDefault(require("../models/audit-log.model"));
 const database_1 = require("../config/database");
 const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const router = (0, express_1.Router)();
@@ -233,6 +234,17 @@ router.patch('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.check
             }
             await database_1.pool.execute(`INSERT INTO attendance_settings (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, values);
         }
+        if (req.currentUser?.id) {
+            await audit_log_model_1.default.create({
+                user_id: req.currentUser.id,
+                action: 'update',
+                entity_type: 'attendance_settings',
+                entity_id: targetBranchId,
+                after_data: { settings: updateData },
+                ip_address: req.ip,
+                user_agent: req.headers['user-agent']
+            }).catch(() => { });
+        }
         const [updatedSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [targetBranchId]);
         return res.json({
             success: true,
@@ -320,6 +332,17 @@ router.patch('/global', auth_middleware_1.authenticateJWT, (0, auth_middleware_1
             await database_1.pool.execute(`INSERT INTO global_attendance_settings (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, values);
         }
         const [updatedSettings] = await database_1.pool.execute(`SELECT * FROM global_attendance_settings LIMIT 1`);
+        if (req.currentUser?.id) {
+            await audit_log_model_1.default.create({
+                user_id: req.currentUser.id,
+                action: 'update',
+                entity_type: 'global_attendance_settings',
+                entity_id: 1,
+                after_data: { settings },
+                ip_address: req.ip,
+                user_agent: req.headers['user-agent']
+            }).catch(() => { });
+        }
         if (settings.last_saturday_resumption_time !== undefined) {
             try {
                 const result = await shift_scheduling_service_1.ShiftSchedulingService.reprocessLastSaturdayAttendance();
@@ -407,6 +430,17 @@ router.patch('/auto-mark', auth_middleware_1.authenticateJWT, (0, auth_middlewar
         }
         if (Object.keys(updateData).length > 0) {
             await branch_model_1.default.update(targetBranchId, updateData);
+        }
+        if (req.currentUser?.id) {
+            await audit_log_model_1.default.create({
+                user_id: req.currentUser.id,
+                action: 'update',
+                entity_type: 'auto_mark_settings',
+                entity_id: targetBranchId,
+                after_data: { auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone },
+                ip_address: req.ip,
+                user_agent: req.headers['user-agent']
+            }).catch(() => { });
         }
         const updatedBranch = await branch_model_1.default.findById(targetBranchId);
         return res.json({

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const attendance_model_1 = __importDefault(require("../models/attendance.model"));
+const audit_log_model_1 = __importDefault(require("../models/audit-log.model"));
 const shift_timing_model_1 = __importDefault(require("../models/shift-timing.model"));
 const holiday_model_1 = __importDefault(require("../models/holiday.model"));
 const leave_history_model_1 = __importDefault(require("../models/leave-history.model"));
@@ -13,6 +14,7 @@ const attendance_processor_worker_1 = __importDefault(require("../workers/attend
 const attendance_process_route_1 = __importDefault(require("./attendance-process.route"));
 const attendance_settings_route_1 = __importDefault(require("./attendance-settings.route"));
 const attendance_check_route_1 = __importDefault(require("./attendance-check.route"));
+const branch_time_mapping_route_1 = __importDefault(require("./branch-time-mapping.route"));
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
 router.get('/history/user/:userId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
@@ -474,6 +476,18 @@ router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.c
             });
         }
         await attendance_model_1.default.delete(attendanceId);
+        const currentUserId = req.currentUser?.id;
+        if (currentUserId) {
+            await audit_log_model_1.default.create({
+                user_id: currentUserId,
+                action: 'delete',
+                entity_type: 'attendance',
+                entity_id: attendanceId,
+                before_data: existingAttendance,
+                ip_address: req.ip,
+                user_agent: req.headers['user-agent']
+            });
+        }
         return res.json({
             success: true,
             message: 'Attendance record deleted successfully'
@@ -516,6 +530,19 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
         if (location_verified !== undefined)
             updateData.location_verified = location_verified;
         const updatedAttendance = await attendance_model_1.default.update(attendanceId, updateData);
+        const currentUserId = req.currentUser?.id;
+        if (currentUserId) {
+            await audit_log_model_1.default.create({
+                user_id: currentUserId,
+                action: 'update',
+                entity_type: 'attendance',
+                entity_id: attendanceId,
+                before_data: existingAttendance,
+                after_data: updatedAttendance,
+                ip_address: req.ip,
+                user_agent: req.headers['user-agent']
+            });
+        }
         return res.json({
             success: true,
             message: 'Attendance record updated successfully',
@@ -874,6 +901,7 @@ router.post('/process-range', auth_middleware_1.authenticateJWT, (0, auth_middle
 router.use('/process', attendance_process_route_1.default);
 router.use('/settings', attendance_settings_route_1.default);
 router.use(attendance_check_route_1.default);
+router.use('/time-mappings', branch_time_mapping_route_1.default);
 router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
     try {
         const idParam = req.params.id;

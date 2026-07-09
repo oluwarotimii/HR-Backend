@@ -55,6 +55,7 @@ declare class AttendanceModel {
     static delete(id: number): Promise<boolean>;
     static hasMarkedAttendance(userId: number, date: Date): Promise<boolean>;
     static findByDateRange(userId: number, startDate: Date, endDate: Date): Promise<Attendance[]>;
+    static findByUpdatedSince(userId: number, since: Date): Promise<Attendance[]>;
     static getAttendancePercentage(userId: number, startDate: Date, endDate: Date): Promise<number>;
     static getAttendanceSummary(userId: number, startDate: Date, endDate: Date): Promise<{
         total_days: number;
