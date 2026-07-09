@@ -79,7 +79,7 @@ import { createLogStream, patchConsole } from './utils/logger';
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', true); // Trust all proxies (e.g. Nginx, Render, Cloudflare)
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 let server: ReturnType<typeof app.listen> | null = null;
 
