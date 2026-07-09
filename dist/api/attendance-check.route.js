@@ -44,6 +44,7 @@ const holiday_model_1 = __importDefault(require("../models/holiday.model"));
 const branch_model_1 = __importDefault(require("../models/branch.model"));
 const staff_model_1 = __importDefault(require("../models/staff.model"));
 const attendance_location_model_1 = __importDefault(require("../models/attendance-location.model"));
+const query_cache_service_1 = require("../services/query-cache.service");
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
 const parseLocationCoordinates = (location) => {
@@ -297,7 +298,10 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             grace_period_minutes: 0
         };
         try {
-            const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branch.id]);
+            const branchSettings = await query_cache_service_1.QueryCache.wrap(`attendance_settings:${branch.id}`, async () => {
+                const [rows] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branch.id]);
+                return rows;
+            }, 15000);
             if (branchSettings.length > 0)
                 settings = { ...settings, ...branchSettings[0] };
         }
@@ -338,7 +342,7 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             });
         }
         try {
-            await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(result.id, userId, requestedDate, settings.grace_period_minutes || 0);
+            await shift_scheduling_service_1.ShiftSchedulingService.updateAttendanceWithScheduleInfo(result.id, userId, requestedDate, settings.grace_period_minutes || 0, effectiveSchedule);
             const updated = await attendance_model_1.default.findById(result.id);
             if (updated)
                 result = updated;
@@ -448,7 +452,10 @@ router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) =>
             strict_location_mode: false
         };
         try {
-            const [branchSettings] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]);
+            const branchSettings = await query_cache_service_1.QueryCache.wrap(`attendance_settings:${branchId}`, async () => {
+                const [rows] = await database_1.pool.execute(`SELECT * FROM attendance_settings WHERE branch_id = ?`, [branchId]);
+                return rows;
+            }, 15000);
             if (branchSettings && branchSettings.length > 0) {
                 settings = { ...settings, ...branchSettings[0] };
             }
