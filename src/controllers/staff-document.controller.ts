@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { pool } from '../config/database';
 import StaffDocumentModel from '../models/staff-document.model';
+import StaffModel from '../models/staff.model';
 
 export interface UploadedDocument {
   id: number;
@@ -258,6 +259,137 @@ export const serveStaffDocument = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to serve document'
+    });
+  }
+};
+
+/**
+ * Get own documents (self-service)
+ * GET /api/staff-documents/me/documents
+ */
+export const getOwnDocuments = async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const staff = await StaffModel.findByUserId(userId);
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff record not found' });
+    }
+
+    const documents = await StaffDocumentModel.findByStaffId(staff.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Documents retrieved successfully',
+      data: { documents }
+    });
+  } catch (error: any) {
+    console.error('Get own documents error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve documents'
+    });
+  }
+};
+
+/**
+ * Upload own CV (self-service)
+ * POST /api/staff-documents/me/documents
+ */
+export const uploadOwnDocument = async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const staff = await StaffModel.findByUserId(userId);
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff record not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Please upload a PDF, DOC, or DOCX file.'
+      });
+    }
+
+    const file = req.file as Express.Multer.File;
+    const documentType = req.body.document_type || 'Resume/CV';
+
+    const documentData = {
+      staff_id: staff.id,
+      document_type: documentType,
+      document_name: file.originalname,
+      file_path: `/uploads/staff-documents/${path.basename(file.filename)}`,
+      file_size: file.size,
+      mime_type: file.mimetype,
+      uploaded_by: userId
+    };
+
+    const createdDocument = await StaffDocumentModel.create(documentData);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Document uploaded successfully',
+      data: { document: createdDocument }
+    });
+  } catch (error: any) {
+    console.error('Upload own document error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload document'
+    });
+  }
+};
+
+/**
+ * Delete own document (self-service)
+ * DELETE /api/staff-documents/me/documents/:documentId
+ */
+export const deleteOwnDocument = async (req: Request, res: Response) => {
+  try {
+    const userId = req.currentUser?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const documentId = parseInt(req.params.documentId as string);
+    if (!documentId || isNaN(documentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid document ID' });
+    }
+
+    const document = await StaffDocumentModel.findById(documentId);
+    if (!document) {
+      return res.status(404).json({ success: false, message: 'Document not found' });
+    }
+
+    const staff = await StaffModel.findByUserId(userId);
+    if (!staff || document.staff_id !== staff.id) {
+      return res.status(403).json({ success: false, message: 'You can only delete your own documents' });
+    }
+
+    // Delete physical file
+    const filePath = path.join(process.cwd(), document.file_path);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await StaffDocumentModel.delete(documentId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Document deleted successfully'
+    });
+  } catch (error: any) {
+    console.error('Delete own document error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete document'
     });
   }
 };

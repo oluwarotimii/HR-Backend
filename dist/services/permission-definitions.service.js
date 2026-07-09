@@ -64,6 +64,7 @@ exports.PERMISSION_DEFINITIONS = [
     { key: 'documents:download', category: 'Document Management', description: 'Download documents' },
     { key: 'settings:configure', category: 'Settings Management', description: 'Configure system settings' },
     { key: 'audit:read', category: 'Audit Trail', description: 'View audit logs' },
+    { key: 'logs:read', category: 'System Management', description: 'View system logs via /api/logs' },
     { key: 'appraisal_template:read', category: 'Appraisal Management', description: 'View appraisal templates' },
     { key: 'appraisal_template:create', category: 'Appraisal Management', description: 'Create appraisal templates' },
     { key: 'appraisal_template:update', category: 'Appraisal Management', description: 'Update appraisal templates' },

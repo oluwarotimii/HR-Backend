@@ -116,6 +116,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
 
   // Audit Trail Permissions
   { key: 'audit:read', category: 'Audit Trail', description: 'View audit logs' },
+  { key: 'logs:read', category: 'System Management', description: 'View system logs via /api/logs' },
 
   // Appraisal Template Permissions
   { key: 'appraisal_template:read', category: 'Appraisal Management', description: 'View appraisal templates' },

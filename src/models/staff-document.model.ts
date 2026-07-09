@@ -85,10 +85,10 @@ class StaffDocumentModel {
         documentData.document_type,
         documentData.document_name,
         documentData.file_path,
-        documentData.file_size,
-        documentData.mime_type,
-        documentData.uploaded_by,
-        documentData.expiry_date
+        documentData.file_size ?? null,
+        documentData.mime_type ?? null,
+        documentData.uploaded_by ?? null,
+        documentData.expiry_date ?? null
       ]
     );
 
