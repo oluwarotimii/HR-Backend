@@ -22,14 +22,7 @@ const parseConnectionString = (connectionString) => {
             user: url.username,
             password: decodeURIComponent(url.password),
             database: url.pathname.slice(1),
-            timezone: '+01:00',
-            waitForConnections: true,
-            connectionLimit: 30,
-            queueLimit: 50,
-            enableKeepAlive: true,
-            keepAliveInitialDelay: 0,
-            namedPlaceholders: true,
-            multipleStatements: true,
+            ...baseConfig,
             ssl: {
                 rejectUnauthorized: true
             }
@@ -40,25 +33,33 @@ const parseConnectionString = (connectionString) => {
         return null;
     }
 };
+const baseConfig = {
+    timezone: '+01:00',
+    waitForConnections: true,
+    connectionLimit: parseInt(process.env.DB_POOL_LIMIT || '20'),
+    queueLimit: 30,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    namedPlaceholders: true,
+    multipleStatements: true,
+    ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? { rejectUnauthorized: true } : undefined,
+};
 const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '3306'),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'hr_management_system',
-    timezone: '+01:00',
-    waitForConnections: true,
-    connectionLimit: 30,
-    queueLimit: 50,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
-    namedPlaceholders: true,
-    multipleStatements: true,
-    ssl: process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('tidbcloud') ? { rejectUnauthorized: true } : undefined,
+    ...baseConfig,
 };
 exports.dbConfig = dbConfig;
 const pool = promise_1.default.createPool(dbConfig);
 exports.pool = pool;
+pool.on('connection', (connection) => {
+    connection.on('error', (err) => {
+        console.error('MySQL connection error:', err.message);
+    });
+});
 async function initializeRedis() {
     await redis_service_1.redisService.connect();
 }

@@ -3,7 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const redis_service_1 = require("../services/redis.service");
 const database_1 = require("../config/database");
+const logger_1 = require("../utils/logger");
 const router = (0, express_1.Router)();
+const LOGS_SECRET = process.env.LOGS_SECRET || '';
 router.get('/', async (req, res) => {
     try {
         let dbHealthy = false;
@@ -148,6 +150,27 @@ router.get('/details', async (req, res) => {
             error: 'Detailed health check failed'
         });
     }
+});
+router.get('/logs', (req, res) => {
+    const secret = req.query.secret || req.headers['x-logs-secret'];
+    if (LOGS_SECRET && secret !== LOGS_SECRET) {
+        res.status(401).json({ success: false, message: 'Invalid or missing logs secret' });
+        return;
+    }
+    const hours = parseInt(req.query.hours) || 24;
+    const maxLines = Math.min(parseInt(req.query.lines) || 200, 2000);
+    const raw = req.query.raw === 'true';
+    const logData = (0, logger_1.getLogs)(hours, maxLines, !raw);
+    res.json({
+        success: true,
+        meta: {
+            hours,
+            maxLines,
+            totalBytes: logData.length,
+            timestamp: new Date().toISOString(),
+        },
+        data: logData,
+    });
 });
 exports.default = router;
 //# sourceMappingURL=health.route.js.map
