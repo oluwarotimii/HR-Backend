@@ -54,10 +54,10 @@ router.get('/full', authenticateJWT, async (req: Request, res: Response) => {
 
     // 5. Assigned attendance locations
     const [locRows]: any[] = await pool.execute(
-      `SELECT al.*, sla.is_primary, sla.is_active AS assignment_active
+      `SELECT al.*, TRUE AS is_primary, TRUE AS assignment_active
        FROM staff_location_assignments sla
-       JOIN attendance_locations al ON sla.attendance_location_id = al.id
-       WHERE sla.staff_user_id = ? AND sla.is_active = 1 AND al.is_active = 1`,
+       JOIN attendance_locations al ON sla.assigned_location_id = al.id
+       WHERE sla.user_id = ? AND al.is_active = 1`,
       [userId]
     );
 
