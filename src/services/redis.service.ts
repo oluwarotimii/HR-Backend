@@ -18,28 +18,35 @@ class RedisService {
       return;
     }
 
-    let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    try {
-      new URL(redisUrl);
-    } catch {
-      console.warn(`Invalid REDIS_URL: "${redisUrl}", falling back to default`);
-      redisUrl = 'redis://localhost:6379';
+    const rawUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    let clientOptions: any = {
+      socket: {
+        reconnectStrategy: (retries: number) => {
+          if (retries > 10) {
+            console.error('Redis connection failed after 10 retries');
+            return false;
+          }
+          return Math.min(1000 * Math.pow(2, retries), 30000);
+        }
+      }
+    };
+
+    if (rawUrl.startsWith('unix:') || rawUrl.startsWith('/')) {
+      const socketPath = rawUrl.replace(/^unix:/, '');
+      clientOptions.socket.path = socketPath;
+      console.log(`Redis: connecting via Unix socket at ${socketPath}`);
+    } else {
+      try {
+        new URL(rawUrl);
+        clientOptions.url = rawUrl;
+      } catch {
+        console.warn(`Invalid REDIS_URL: "${rawUrl}", falling back to default`);
+        clientOptions.url = 'redis://localhost:6379';
+      }
     }
 
     try {
-      this.client = createClient({
-        url: redisUrl,
-        socket: {
-          reconnectStrategy: (retries: number) => {
-            // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms, max 30s
-            if (retries > 10) {
-              console.error('Redis connection failed after 10 retries');
-              return false;
-            }
-            return Math.min(1000 * Math.pow(2, retries), 30000);
-          }
-        }
-      });
+      this.client = createClient(clientOptions);
 
       this.client.on('error', (err: Error) => {
         console.error('Redis Client Error:', err);
