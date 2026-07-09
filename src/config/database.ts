@@ -60,14 +60,10 @@ const dbConfig = parseConnectionString(process.env.DATABASE_URL) || {
 // Create a connection pool
 const pool = mysql.createPool(dbConfig);
 
-pool.on('connection', (connection) => {
-  connection.on('error', (err) => {
+pool.on('connection', (connection: mysql.PoolConnection) => {
+  connection.on('error', (err: Error) => {
     console.error('MySQL connection error:', err.message);
   });
-});
-
-pool.on('error', (err) => {
-  console.error('MySQL pool error:', err.message);
 });
 
 // Initialize Redis connection
