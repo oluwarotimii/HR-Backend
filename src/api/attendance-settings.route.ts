@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import BranchModel from '../models/branch.model';
+import AuditLogModel from '../models/audit-log.model';
 import { pool } from '../config/database';
 import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 
@@ -304,6 +305,19 @@ router.patch('/', authenticateJWT, checkPermission('attendance:manage'), async (
       );
     }
 
+    // Audit log
+    if (req.currentUser?.id) {
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'update',
+        entity_type: 'attendance_settings',
+        entity_id: targetBranchId,
+        after_data: { settings: updateData },
+        ip_address: req.ip as string,
+        user_agent: req.headers['user-agent'] as string
+      }).catch(() => {});
+    }
+
     // Return updated settings
     const [updatedSettings] = await pool.execute(
       `SELECT * FROM attendance_settings WHERE branch_id = ?`,
@@ -425,6 +439,19 @@ router.patch('/global', authenticateJWT, checkPermission('attendance:manage'), a
       `SELECT * FROM global_attendance_settings LIMIT 1`
     ) as [any[], any];
 
+    // Audit log
+    if (req.currentUser?.id) {
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'update',
+        entity_type: 'global_attendance_settings',
+        entity_id: 1,
+        after_data: { settings },
+        ip_address: req.ip as string,
+        user_agent: req.headers['user-agent'] as string
+      }).catch(() => {});
+    }
+
     // If last_saturday_resumption_time was changed, auto-reprocess attendance
     if (settings.last_saturday_resumption_time !== undefined) {
       try {
@@ -541,6 +568,19 @@ router.patch('/auto-mark', authenticateJWT, checkPermission('attendance:manage')
     // Update branch if any fields provided
     if (Object.keys(updateData).length > 0) {
       await BranchModel.update(targetBranchId, updateData);
+    }
+
+    // Audit log
+    if (req.currentUser?.id) {
+      await AuditLogModel.create({
+        user_id: req.currentUser.id,
+        action: 'update',
+        entity_type: 'auto_mark_settings',
+        entity_id: targetBranchId,
+        after_data: { auto_mark_absent_enabled, auto_mark_absent_time, auto_mark_absent_timezone },
+        ip_address: req.ip as string,
+        user_agent: req.headers['user-agent'] as string
+      }).catch(() => {});
     }
 
     // Return updated settings

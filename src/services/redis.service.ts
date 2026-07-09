@@ -18,9 +18,17 @@ class RedisService {
       return;
     }
 
+    let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    try {
+      new URL(redisUrl);
+    } catch {
+      console.warn(`Invalid REDIS_URL: "${redisUrl}", falling back to default`);
+      redisUrl = 'redis://localhost:6379';
+    }
+
     try {
       this.client = createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        url: redisUrl,
         socket: {
           reconnectStrategy: (retries: number) => {
             // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms, max 30s

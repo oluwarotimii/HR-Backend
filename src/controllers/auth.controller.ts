@@ -104,8 +104,10 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
     // Auto-accept pending invitations + track first login
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     try {
-      // Optimized invitation tracking - assume standard columns exist after migrations
-      // Step 1: Auto-accept any pending invitation for this user
+      const [columns]: any = await pool.execute('SHOW COLUMNS FROM staff_invitations');
+      const trackingCols = new Set(columns.map((c: any) => c.Field));
+      const hasTrackingCols = trackingCols.has('first_login_at') && trackingCols.has('first_login_ip') && trackingCols.has('profile_completed');
+
       const [pendingRows]: any = await pool.execute(
         `SELECT id FROM staff_invitations 
          WHERE user_id = ? AND status = 'pending'
@@ -114,40 +116,50 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
       );
 
       if (pendingRows.length > 0) {
-        await pool.execute(
-          `UPDATE staff_invitations SET 
-             status = 'accepted',
-             accepted_at = NOW(),
-             first_login_at = NOW(),
-             first_login_ip = ?,
-             profile_completed = ?
-           WHERE id = ?`,
-          [ip, !!user.phone ? 1 : 0, pendingRows[0].id]
-        );
-        console.log(`[Invite Tracking] Auto-accepted invitation for user ${user.id} (${user.email}) on first login`);
-      } else {
-        // Step 2: Track first login for already-accepted invitations
-        const [acceptedRows]: any = await pool.execute(
-          `SELECT id FROM staff_invitations 
-           WHERE user_id = ? AND status = 'accepted' AND first_login_at IS NULL
-           LIMIT 1`,
-          [user.id]
-        );
-
-        if (acceptedRows.length > 0) {
+        if (hasTrackingCols) {
           await pool.execute(
             `UPDATE staff_invitations SET 
+               status = 'accepted',
+               accepted_at = NOW(),
                first_login_at = NOW(),
                first_login_ip = ?,
                profile_completed = ?
              WHERE id = ?`,
-            [ip, !!user.phone ? 1 : 0, acceptedRows[0].id]
+            [ip, !!user.phone ? 1 : 0, pendingRows[0].id]
           );
-          console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
+        } else {
+          await pool.execute(
+            `UPDATE staff_invitations SET 
+               status = 'accepted',
+               accepted_at = NOW()
+             WHERE id = ?`,
+            [pendingRows[0].id]
+          );
         }
-        
-        // Step 3: Update last_activity for returning users
-        if (!needsPasswordChange) {
+        console.log(`[Invite Tracking] Auto-accepted invitation for user ${user.id} (${user.email}) on first login`);
+      } else {
+        if (hasTrackingCols) {
+          const [acceptedRows]: any = await pool.execute(
+            `SELECT id FROM staff_invitations 
+           WHERE user_id = ? AND status = 'accepted' AND first_login_at IS NULL
+           LIMIT 1`,
+            [user.id]
+          );
+
+          if (acceptedRows.length > 0) {
+            await pool.execute(
+              `UPDATE staff_invitations SET 
+                 first_login_at = NOW(),
+                 first_login_ip = ?,
+                 profile_completed = ?
+               WHERE id = ?`,
+              [ip, !!user.phone ? 1 : 0, acceptedRows[0].id]
+            );
+            console.log(`[Invite Tracking] Recorded first login for user ${user.id} (${user.email})`);
+          }
+        }
+
+        if (!needsPasswordChange && trackingCols.has('last_activity_at')) {
           await pool.execute(
             `UPDATE staff_invitations SET last_activity_at = NOW()
              WHERE user_id = ? AND status = 'accepted'`,
@@ -156,7 +168,6 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
         }
       }
     } catch (trackingError) {
-      // Don't fail login if tracking fails (e.g. if migrations aren't fully applied)
       console.error('Invitation tracking error (non-critical):', trackingError);
     }
 
