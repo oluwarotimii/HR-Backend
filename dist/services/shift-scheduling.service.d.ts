@@ -8,7 +8,7 @@ export declare class ShiftSchedulingService {
         schedule_type: string;
         schedule_note: string;
     } | null>;
-    static calculateAttendanceMetrics(userId: number, date: Date, checkInTime: string | null, checkOutTime: string | null, gracePeriodMinutes?: number): Promise<{
+    static calculateAttendanceMetrics(userId: number, date: Date, checkInTime: string | null, checkOutTime: string | null, gracePeriodMinutes?: number, existingSchedule?: any): Promise<{
         is_late: boolean | null;
         is_early_departure: boolean | null;
         actual_working_hours: number | null;
@@ -17,7 +17,7 @@ export declare class ShiftSchedulingService {
         scheduled_break_duration_minutes: number;
         status: 'present' | 'late' | 'early_departure' | null;
     }>;
-    static updateAttendanceWithScheduleInfo(attendanceId: number, userId: number, date: Date, gracePeriodMinutes?: number): Promise<boolean>;
+    static updateAttendanceWithScheduleInfo(attendanceId: number, userId: number, date: Date, gracePeriodMinutes?: number, existingSchedule?: any): Promise<boolean>;
     static processAttendanceForDate(userId: number, date: Date): Promise<void>;
     static reprocessLastSaturdayAttendance(specificDate?: string): Promise<{
         reprocessed: number;

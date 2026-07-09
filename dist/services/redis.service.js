@@ -18,9 +18,17 @@ class RedisService {
             console.log('Redis is disabled via environment variable');
             return;
         }
+        let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+        try {
+            new URL(redisUrl);
+        }
+        catch {
+            console.warn(`Invalid REDIS_URL: "${redisUrl}", falling back to default`);
+            redisUrl = 'redis://localhost:6379';
+        }
         try {
             this.client = (0, redis_1.createClient)({
-                url: process.env.REDIS_URL || 'redis://localhost:6379',
+                url: redisUrl,
                 socket: {
                     reconnectStrategy: (retries) => {
                         if (retries > 10) {
