@@ -18,27 +18,35 @@ class RedisService {
             console.log('Redis is disabled via environment variable');
             return;
         }
-        let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-        try {
-            new URL(redisUrl);
-        }
-        catch {
-            console.warn(`Invalid REDIS_URL: "${redisUrl}", falling back to default`);
-            redisUrl = 'redis://localhost:6379';
-        }
-        try {
-            this.client = (0, redis_1.createClient)({
-                url: redisUrl,
-                socket: {
-                    reconnectStrategy: (retries) => {
-                        if (retries > 10) {
-                            console.error('Redis connection failed after 10 retries');
-                            return false;
-                        }
-                        return Math.min(1000 * Math.pow(2, retries), 30000);
+        const rawUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+        let clientOptions = {
+            socket: {
+                reconnectStrategy: (retries) => {
+                    if (retries > 10) {
+                        console.error('Redis connection failed after 10 retries');
+                        return false;
                     }
+                    return Math.min(1000 * Math.pow(2, retries), 30000);
                 }
-            });
+            }
+        };
+        if (rawUrl.startsWith('unix:') || rawUrl.startsWith('/')) {
+            const socketPath = rawUrl.replace(/^unix:/, '');
+            clientOptions.socket.path = socketPath;
+            console.log(`Redis: connecting via Unix socket at ${socketPath}`);
+        }
+        else {
+            try {
+                new URL(rawUrl);
+                clientOptions.url = rawUrl;
+            }
+            catch {
+                console.warn(`Invalid REDIS_URL: "${rawUrl}", falling back to default`);
+                clientOptions.url = 'redis://localhost:6379';
+            }
+        }
+        try {
+            this.client = (0, redis_1.createClient)(clientOptions);
             this.client.on('error', (err) => {
                 console.error('Redis Client Error:', err);
                 this._isEnabled = false;

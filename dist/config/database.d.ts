@@ -1,10 +1,8 @@
 import mysql from 'mysql2/promise';
 declare const dbConfig: {
-    host: string;
-    port: number;
-    user: string;
-    password: string;
-    database: string;
+    ssl: {
+        rejectUnauthorized: boolean;
+    };
     timezone: string;
     waitForConnections: boolean;
     connectionLimit: number;
@@ -13,9 +11,11 @@ declare const dbConfig: {
     keepAliveInitialDelay: number;
     namedPlaceholders: boolean;
     multipleStatements: boolean;
-    ssl: {
-        rejectUnauthorized: boolean;
-    };
+    host: string;
+    port: number;
+    user: string;
+    password: string;
+    database: string;
 };
 declare const pool: mysql.Pool;
 export declare function initializeRedis(): Promise<void>;
