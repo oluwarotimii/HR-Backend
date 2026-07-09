@@ -23,10 +23,10 @@ router.get('/dashboard-data', auth_middleware_1.authenticateJWT, async (req, res
        JOIN branches b ON s.branch_id = b.id
        WHERE s.user_id = ?`, [userId]);
         const settings = branchRows[0] || null;
-        const [locRows] = await database_1.pool.execute(`SELECT al.*, sla.is_primary, sla.is_active AS assignment_active
+        const [locRows] = await database_1.pool.execute(`SELECT al.*, TRUE AS is_primary, TRUE AS assignment_active
        FROM staff_location_assignments sla
-       JOIN attendance_locations al ON sla.attendance_location_id = al.id
-       WHERE sla.staff_user_id = ? AND sla.is_active = 1 AND al.is_active = 1`, [userId]);
+       JOIN attendance_locations al ON sla.assigned_location_id = al.id
+       WHERE sla.user_id = ? AND al.is_active = 1`, [userId]);
         const todayAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, new Date(today));
         const monthEnd = new Date();
         const monthAttendance = await attendance_model_1.default.findByDateRange(userId, new Date(monthStart), monthEnd);

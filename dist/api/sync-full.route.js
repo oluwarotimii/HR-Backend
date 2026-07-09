@@ -33,10 +33,10 @@ router.get('/full', auth_middleware_1.authenticateJWT, async (req, res) => {
             const [wdRows] = await database_1.pool.execute(`SELECT * FROM branch_working_days WHERE branch_id = ?`, [staffBranchId]);
             branchWorkingDays = wdRows;
         }
-        const [locRows] = await database_1.pool.execute(`SELECT al.*, sla.is_primary, sla.is_active AS assignment_active
+        const [locRows] = await database_1.pool.execute(`SELECT al.*, TRUE AS is_primary, TRUE AS assignment_active
        FROM staff_location_assignments sla
-       JOIN attendance_locations al ON sla.attendance_location_id = al.id
-       WHERE sla.staff_user_id = ? AND sla.is_active = 1 AND al.is_active = 1`, [userId]);
+       JOIN attendance_locations al ON sla.assigned_location_id = al.id
+       WHERE sla.user_id = ? AND al.is_active = 1`, [userId]);
         const [attRows] = await database_1.pool.execute(`SELECT id, user_id, date, status, check_in_time, check_out_time,
               ST_AsText(location_coordinates) AS location_coordinates,
               location_verified, location_address, notes, is_locked,
