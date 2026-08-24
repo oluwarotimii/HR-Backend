@@ -40,7 +40,8 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
       try {
         decoded = JwtUtil.verifyAccessToken(token);
       } catch (verifyError) {
-        return res.status(403).json({
+        // 401 (not 403) so clients trigger their token-refresh flow
+        return res.status(401).json({
           success: false,
           message: 'Invalid or expired token'
         });
@@ -79,7 +80,7 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
       stack: error.stack,
       name: error.name
     });
-    return res.status(403).json({
+    return res.status(401).json({
       success: false,
       message: 'Invalid or expired token'
     });
