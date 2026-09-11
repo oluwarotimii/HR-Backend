@@ -50,9 +50,9 @@ export function renderAttendanceReportCsv(data: AttendanceReportData): string {
 
   lines.push('');
   lines.push('LEADERBOARD');
-  lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Punctuality Score']));
+  lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Punctuality Score', 'Avg Arrival']));
   data.leaderboard.forEach((s, i) => {
-    lines.push(toCsvRow([i + 1, s.full_name, s.branch_name ?? '', s.points]));
+    lines.push(toCsvRow([i + 1, s.full_name, s.branch_name ?? '', s.points, s.avg_check_in_time ?? '']));
   });
 
   return lines.join('\n');

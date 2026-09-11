@@ -47,6 +47,7 @@ async function renderAttendanceReportExcel(data) {
         { header: 'Employee', key: 'full_name', width: 28 },
         { header: 'Branch', key: 'branch_name', width: 20 },
         { header: 'Punctuality Score', key: 'points', width: 18 },
+        { header: 'Avg Arrival', key: 'avg_check_in_time', width: 14 },
     ];
     leaderboardSheet.getRow(1).font = { bold: true };
     data.leaderboard.forEach((s, i) => {
@@ -55,6 +56,7 @@ async function renderAttendanceReportExcel(data) {
             full_name: s.full_name,
             branch_name: s.branch_name ?? '',
             points: s.points,
+            avg_check_in_time: s.avg_check_in_time ?? '',
         });
     });
     const buffer = await workbook.xlsx.writeBuffer();

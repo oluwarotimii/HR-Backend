@@ -99,6 +99,7 @@ export function renderAttendanceReportPdf(data: AttendanceReportData): Promise<B
       { key: 'full_name', label: 'Employee', width: 170 },
       { key: 'branch_name', label: 'Branch', width: 90 },
       { key: 'points', label: 'Punctuality Score', width: 80 },
+      { key: 'avg_check_in_time', label: 'Avg Arrival', width: 70 },
     ];
     drawTableHeader(doc, leaderboardColumns, startX);
 
@@ -109,6 +110,7 @@ export function renderAttendanceReportPdf(data: AttendanceReportData): Promise<B
         full_name: s.full_name,
         branch_name: s.branch_name ?? '',
         points: s.points,
+        avg_check_in_time: s.avg_check_in_time ?? '',
       }, startX);
     });
 

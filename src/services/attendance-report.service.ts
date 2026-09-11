@@ -36,12 +36,10 @@ export async function buildAttendanceReportData(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([branchName, staff]) => ({
       branchName,
-      staff: [...staff].sort((a, b) => b.points - a.points || b.present_days - a.present_days),
+      staff: [...staff].sort(rankByPointsThenArrivalTime),
     }));
 
-  const leaderboard = [...rows].sort(
-    (a, b) => b.points - a.points || b.present_days - a.present_days
-  );
+  const leaderboard = [...rows].sort(rankByPointsThenArrivalTime);
 
   let branchFilter = 'All Branches';
   if (branchId) {
@@ -50,4 +48,19 @@ export async function buildAttendanceReportData(
   }
 
   return { startDate, endDate, branchFilter, summaryByBranch, leaderboard };
+}
+
+/**
+ * Points decide rank first; average clock-in time only breaks ties within
+ * the same point total — e.g. two people who were "present" every day
+ * otherwise tie, but one consistently arrived earlier. Staff with no
+ * recorded check-in (null average, e.g. all-absent) sort after everyone
+ * who has one on a tie.
+ */
+function rankByPointsThenArrivalTime(a: StaffAttendanceSummaryRow, b: StaffAttendanceSummaryRow): number {
+  if (b.points !== a.points) return b.points - a.points;
+  if (a.avg_check_in_seconds === null && b.avg_check_in_seconds === null) return b.present_days - a.present_days;
+  if (a.avg_check_in_seconds === null) return 1;
+  if (b.avg_check_in_seconds === null) return -1;
+  return a.avg_check_in_seconds - b.avg_check_in_seconds;
 }

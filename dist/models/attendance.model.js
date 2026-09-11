@@ -174,7 +174,8 @@ class AttendanceModel {
         SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END) AS half_day_days,
         SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END) AS leave_days,
         SUM(CASE WHEN a.status = 'early_departure' THEN 1 ELSE 0 END) AS early_departure_days,
-        COALESCE(SUM(${pointsCase}), 0) AS points
+        COALESCE(SUM(${pointsCase}), 0) AS points,
+        AVG(TIME_TO_SEC(a.check_in_time)) AS avg_check_in_seconds
       FROM staff s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN branches b ON b.id = s.branch_id
@@ -189,7 +190,10 @@ class AttendanceModel {
             query += ' AND s.branch_id = ?';
             params.push(branchId);
         }
-        query += ' GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name ORDER BY points DESC, present_days DESC';
+        query += `
+      GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name
+      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC
+    `;
         const [rows] = await database_1.pool.execute(query, params);
         return rows.map((r) => ({
             user_id: r.user_id,
@@ -205,8 +209,23 @@ class AttendanceModel {
             leave_days: Number(r.leave_days) || 0,
             early_departure_days: Number(r.early_departure_days) || 0,
             points: Number(r.points) || 0,
+            avg_check_in_time: formatSecondsAsClockTime(r.avg_check_in_seconds),
+            avg_check_in_seconds: r.avg_check_in_seconds === null || Number.isNaN(Number(r.avg_check_in_seconds))
+                ? null
+                : Number(r.avg_check_in_seconds),
         }));
     }
+}
+function formatSecondsAsClockTime(totalSeconds) {
+    const seconds = Number(totalSeconds);
+    if (totalSeconds === null || Number.isNaN(seconds))
+        return null;
+    const totalMinutes = Math.round(seconds / 60) % (24 * 60);
+    const hours24 = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const period = hours24 >= 12 ? 'PM' : 'AM';
+    const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 exports.default = AttendanceModel;
 //# sourceMappingURL=attendance.model.js.map

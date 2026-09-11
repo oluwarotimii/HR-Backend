@@ -68,6 +68,10 @@ export interface StaffAttendanceSummaryRow {
   leave_days: number;
   early_departure_days: number;
   points: number;
+  /** Average clock-in time across days with a recorded check-in, e.g. "08:52 AM" — null if never clocked in. */
+  avg_check_in_time: string | null;
+  /** Same average, in raw seconds-since-midnight — use this (not the formatted string) for sorting. */
+  avg_check_in_seconds: number | null;
 }
 
 class AttendanceModel {
@@ -330,7 +334,8 @@ class AttendanceModel {
         SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END) AS half_day_days,
         SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END) AS leave_days,
         SUM(CASE WHEN a.status = 'early_departure' THEN 1 ELSE 0 END) AS early_departure_days,
-        COALESCE(SUM(${pointsCase}), 0) AS points
+        COALESCE(SUM(${pointsCase}), 0) AS points,
+        AVG(TIME_TO_SEC(a.check_in_time)) AS avg_check_in_seconds
       FROM staff s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN branches b ON b.id = s.branch_id
@@ -347,7 +352,16 @@ class AttendanceModel {
       params.push(branchId);
     }
 
-    query += ' GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name ORDER BY points DESC, present_days DESC';
+    // Points decide rank first; average check-in time only breaks ties within
+    // the same point total — e.g. two people who were "present" every day
+    // otherwise tie, but one consistently clocked in earlier. Staff with no
+    // recorded check-in (avg is NULL, e.g. all-absent) must sort after
+    // everyone who has one, not before — MySQL sorts NULL first in ASC order
+    // by default, which would wrongly rank them ahead on ties.
+    query += `
+      GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name
+      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC
+    `;
 
     const [rows] = await pool.execute(query, params) as [any[], any];
     return (rows as any[]).map((r) => ({
@@ -364,8 +378,24 @@ class AttendanceModel {
       leave_days: Number(r.leave_days) || 0,
       early_departure_days: Number(r.early_departure_days) || 0,
       points: Number(r.points) || 0,
+      avg_check_in_time: formatSecondsAsClockTime(r.avg_check_in_seconds),
+      avg_check_in_seconds: r.avg_check_in_seconds === null || Number.isNaN(Number(r.avg_check_in_seconds))
+        ? null
+        : Number(r.avg_check_in_seconds),
     }));
   }
+}
+
+/** e.g. 31920 -> "08:52 AM". Returns null for a null/NaN input (no recorded check-in). */
+function formatSecondsAsClockTime(totalSeconds: number | string | null): string | null {
+  const seconds = Number(totalSeconds);
+  if (totalSeconds === null || Number.isNaN(seconds)) return null;
+  const totalMinutes = Math.round(seconds / 60) % (24 * 60);
+  const hours24 = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
 export default AttendanceModel;
