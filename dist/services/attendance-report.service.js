@@ -17,7 +17,10 @@ async function buildAttendanceReportData(startDate, endDate, branchId) {
     }
     const summaryByBranch = Array.from(byBranch.entries())
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([branchName, staff]) => ({ branchName, staff }));
+        .map(([branchName, staff]) => ({
+        branchName,
+        staff: [...staff].sort((a, b) => b.present_days - a.present_days || b.points - a.points),
+    }));
     const leaderboard = [...rows].sort((a, b) => b.points - a.points || b.present_days - a.present_days);
     let branchFilter = 'All Branches';
     if (branchId) {
