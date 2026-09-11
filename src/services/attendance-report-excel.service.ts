@@ -51,6 +51,7 @@ export async function renderAttendanceReportExcel(data: AttendanceReportData): P
     { header: 'Employee', key: 'full_name', width: 28 },
     { header: 'Branch', key: 'branch_name', width: 20 },
     { header: 'Punctuality Score', key: 'points', width: 18 },
+    { header: 'Avg Arrival', key: 'avg_check_in_time', width: 14 },
   ];
   leaderboardSheet.getRow(1).font = { bold: true };
 
@@ -60,6 +61,7 @@ export async function renderAttendanceReportExcel(data: AttendanceReportData): P
       full_name: s.full_name,
       branch_name: s.branch_name ?? '',
       points: s.points,
+      avg_check_in_time: s.avg_check_in_time ?? '',
     });
   });
 

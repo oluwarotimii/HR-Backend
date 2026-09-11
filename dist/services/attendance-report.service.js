@@ -19,14 +19,25 @@ async function buildAttendanceReportData(startDate, endDate, branchId) {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([branchName, staff]) => ({
         branchName,
-        staff: [...staff].sort((a, b) => b.points - a.points || b.present_days - a.present_days),
+        staff: [...staff].sort(rankByPointsThenArrivalTime),
     }));
-    const leaderboard = [...rows].sort((a, b) => b.points - a.points || b.present_days - a.present_days);
+    const leaderboard = [...rows].sort(rankByPointsThenArrivalTime);
     let branchFilter = 'All Branches';
     if (branchId) {
         const branch = await branch_model_1.default.findById(branchId);
         branchFilter = branch?.name || `Branch #${branchId}`;
     }
     return { startDate, endDate, branchFilter, summaryByBranch, leaderboard };
+}
+function rankByPointsThenArrivalTime(a, b) {
+    if (b.points !== a.points)
+        return b.points - a.points;
+    if (a.avg_check_in_seconds === null && b.avg_check_in_seconds === null)
+        return b.present_days - a.present_days;
+    if (a.avg_check_in_seconds === null)
+        return 1;
+    if (b.avg_check_in_seconds === null)
+        return -1;
+    return a.avg_check_in_seconds - b.avg_check_in_seconds;
 }
 //# sourceMappingURL=attendance-report.service.js.map

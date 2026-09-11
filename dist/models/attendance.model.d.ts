@@ -56,6 +56,8 @@ export interface StaffAttendanceSummaryRow {
     leave_days: number;
     early_departure_days: number;
     points: number;
+    avg_check_in_time: string | null;
+    avg_check_in_seconds: number | null;
 }
 declare class AttendanceModel {
     static tableName: string;
