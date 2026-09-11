@@ -167,16 +167,24 @@ const authLimiter = rateLimit({
 // Middleware
 app.use(helmet()); // Security headers
 
-// CORS allowlist — set CORS_ALLOWED_ORIGINS to a comma-separated list of the
-// deployed PWA/Admin origins in production. Requests with no Origin header
-// (native mobile app calls, curl, server-to-server) are always allowed since
-// they can't be spoofed via a browser the way a forged Origin header could be.
-const defaultDevOrigins = ['http://localhost:5173', 'http://localhost:5174'];
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+// CORS allowlist — CORS_ALLOWED_ORIGINS can add extra origins (comma-
+// separated) on top of these, but the deployed PWA/Admin origins are always
+// allowed regardless of env config, since forgetting to set that variable on
+// a fresh deploy previously took both web apps down silently in production.
+// Requests with no Origin header (native mobile app calls, curl,
+// server-to-server) are always allowed since they can't be spoofed via a
+// browser the way a forged Origin header could be.
+const knownOrigins = [
+  'https://hrtms.femtechaccess.com.ng',
+  'https://tms.femtechaccess.com.ng',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+const envOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-const corsOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultDevOrigins;
+const corsOrigins = [...new Set([...knownOrigins, ...envOrigins])];
 
 app.use(cors({
   origin: (origin, callback) => {

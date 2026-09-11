@@ -177,12 +177,17 @@ const authLimiter = (0, express_rate_limit_1.default)({
     skipSuccessfulRequests: true,
 });
 app.use((0, helmet_1.default)());
-const defaultDevOrigins = ['http://localhost:5173', 'http://localhost:5174'];
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+const knownOrigins = [
+    'https://hrtms.femtechaccess.com.ng',
+    'https://tms.femtechaccess.com.ng',
+    'http://localhost:5173',
+    'http://localhost:5174',
+];
+const envOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
-const corsOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultDevOrigins;
+const corsOrigins = [...new Set([...knownOrigins, ...envOrigins])];
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
         if (!origin || corsOrigins.includes(origin)) {
