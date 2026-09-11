@@ -15,6 +15,7 @@ const attendance_process_route_1 = __importDefault(require("./attendance-process
 const attendance_settings_route_1 = __importDefault(require("./attendance-settings.route"));
 const attendance_check_route_1 = __importDefault(require("./attendance-check.route"));
 const branch_time_mapping_route_1 = __importDefault(require("./branch-time-mapping.route"));
+const attendance_leaderboard_route_1 = __importDefault(require("./attendance-leaderboard.route"));
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
 router.get('/history/user/:userId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
@@ -902,6 +903,7 @@ router.use('/process', attendance_process_route_1.default);
 router.use('/settings', attendance_settings_route_1.default);
 router.use(attendance_check_route_1.default);
 router.use('/time-mappings', branch_time_mapping_route_1.default);
+router.use(attendance_leaderboard_route_1.default);
 router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
     try {
         const idParam = req.params.id;

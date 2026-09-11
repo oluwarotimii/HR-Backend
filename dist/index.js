@@ -136,7 +136,7 @@ process.on('uncaughtException', (error) => {
     shutdown('Uncaught exception', error);
 });
 process.on('unhandledRejection', (reason) => {
-    shutdown('Unhandled promise rejection', reason);
+    console.error('[Server] Unhandled promise rejection (not fatal, server continues):', reason);
 });
 process.on('SIGTERM', () => {
     console.log('[Server] SIGTERM received, shutting down gracefully');
@@ -177,10 +177,37 @@ const authLimiter = (0, express_rate_limit_1.default)({
     skipSuccessfulRequests: true,
 });
 app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)());
+const defaultDevOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+const corsOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultDevOrigins;
+app.use((0, cors_1.default)({
+    origin: (origin, callback) => {
+        if (!origin || corsOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        console.warn(`[CORS] Blocked request from disallowed origin: ${origin}`);
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+}));
 app.use((0, morgan_1.default)('combined', { stream: (0, logger_1.createLogStream)() }));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
+const REQUEST_TIMEOUT_MS = 30000;
+app.use((req, res, next) => {
+    res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        if (!res.headersSent) {
+            res.status(503).json({
+                success: false,
+                message: 'The request took too long to process. Please try again.'
+            });
+        }
+    });
+    next();
+});
 const bootstrap = async () => {
     (0, logger_1.patchConsole)();
     try {

@@ -1,9 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const reporting_analytics_controller_1 = require("../controllers/reporting-analytics.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const attendance_export_route_1 = __importDefault(require("./attendance-export.route"));
 const router = (0, express_1.Router)();
+router.use('/attendance', attendance_export_route_1.default);
 router.get('/report-templates', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('report_template:read'), reporting_analytics_controller_1.getAllReportTemplates);
 router.get('/report-templates/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('report_template:read'), reporting_analytics_controller_1.getReportTemplateById);
 router.post('/report-templates', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('report_template:create'), reporting_analytics_controller_1.createReportTemplate);

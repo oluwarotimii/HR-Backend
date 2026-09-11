@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import JwtUtil from '../utils/jwt.util';
+import JwtUtil, { TokenVerificationError } from '../utils/jwt.util';
 import UserModel from '../models/user.model';
 import PermissionService from '../services/permission.service';
+import { tokenDenylistService } from '../services/token-denylist.service';
 // import ApiKeyModel from '../models/api-key.model';  // API Keys temporarily disabled
 
 declare global {
@@ -9,6 +10,7 @@ declare global {
     interface Request {
       currentUser?: any;
       numericId?: number;
+      tokenJti?: string;
       // apiKey?: any; // API key information when authenticated via API key (disabled)
     }
   }
@@ -21,6 +23,7 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
     if (!authHeader) {
       return res.status(401).json({
         success: false,
+        code: 'TOKEN_MISSING',
         message: 'Access token is required'
       });
     }
@@ -32,6 +35,7 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
       if (!token) {
         return res.status(401).json({
           success: false,
+          code: 'TOKEN_MISSING',
           message: 'Access token is required'
         });
       }
@@ -40,10 +44,22 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
       try {
         decoded = JwtUtil.verifyAccessToken(token);
       } catch (verifyError) {
-        // 401 (not 403) so clients trigger their token-refresh flow
+        // 401 (not 403) so clients trigger their token-refresh flow.
+        // `code` lets clients distinguish "silently refresh" (expired) from
+        // "force re-login" (invalid/tampered) instead of parsing message text.
+        const err = verifyError as TokenVerificationError;
         return res.status(401).json({
           success: false,
+          code: err.code || 'TOKEN_INVALID',
           message: 'Invalid or expired token'
+        });
+      }
+
+      if (await tokenDenylistService.isRevoked(decoded.jti)) {
+        return res.status(401).json({
+          success: false,
+          code: 'TOKEN_REVOKED',
+          message: 'Session has been signed out. Please log in again.'
         });
       }
 
@@ -53,6 +69,7 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
       if (!user || user.status !== 'active') {
         return res.status(401).json({
           success: false,
+          code: 'USER_INACTIVE',
           message: 'Invalid or inactive user'
         });
       }
@@ -64,12 +81,14 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
         role_id: user.role_id,
         branch_id: user.branch_id
       };
+      req.tokenJti = decoded.jti;
 
       return next();
     } else {
       console.log('Invalid authentication header format');
       return res.status(401).json({
         success: false,
+        code: 'TOKEN_INVALID',
         message: 'Invalid authentication header format. Use "Bearer <token>" for JWT authentication.'
       });
     }
@@ -82,6 +101,7 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
     });
     return res.status(401).json({
       success: false,
+      code: 'TOKEN_INVALID',
       message: 'Invalid or expired token'
     });
   }

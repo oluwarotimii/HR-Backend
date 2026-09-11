@@ -42,6 +42,21 @@ export interface AttendanceUpdate {
     is_locked?: boolean;
     locked_at?: Date | null;
 }
+export interface StaffAttendanceSummaryRow {
+    user_id: number;
+    full_name: string;
+    employee_id: string | null;
+    branch_id: number | null;
+    branch_name: string | null;
+    total_days: number;
+    present_days: number;
+    absent_days: number;
+    late_days: number;
+    half_day_days: number;
+    leave_days: number;
+    early_departure_days: number;
+    points: number;
+}
 declare class AttendanceModel {
     static tableName: string;
     private static fmtDate;
@@ -65,6 +80,7 @@ declare class AttendanceModel {
         half_day_days: number;
         early_departure_days: number;
     }>;
+    static getAttendanceSummaryForAllStaff(startDate: string, endDate: string, branchId?: number, activeOnly?: boolean): Promise<StaffAttendanceSummaryRow[]>;
 }
 export default AttendanceModel;
 //# sourceMappingURL=attendance.model.d.ts.map
