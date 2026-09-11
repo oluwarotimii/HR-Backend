@@ -55,7 +55,7 @@ function renderAttendanceReportPdf(data) {
             { key: 'late_days', label: 'Late', width: 40 },
             { key: 'absent_days', label: 'Absent', width: 50 },
             { key: 'leave_days', label: 'Leave', width: 45 },
-            { key: 'points', label: 'Points', width: 50 },
+            { key: 'points', label: 'Punctuality Score', width: 80 },
         ];
         drawTableHeader(doc, summaryColumns, startX);
         for (const group of data.summaryByBranch) {
@@ -78,8 +78,8 @@ function renderAttendanceReportPdf(data) {
         const leaderboardColumns = [
             { key: 'rank', label: 'Rank', width: 40 },
             { key: 'full_name', label: 'Employee', width: 170 },
-            { key: 'branch_name', label: 'Branch', width: 110 },
-            { key: 'points', label: 'Points', width: 60 },
+            { key: 'branch_name', label: 'Branch', width: 90 },
+            { key: 'points', label: 'Punctuality Score', width: 80 },
         ];
         drawTableHeader(doc, leaderboardColumns, startX);
         data.leaderboard.forEach((s, i) => {
