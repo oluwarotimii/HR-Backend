@@ -1,9 +1,5 @@
 # Dependencies
-# node_modules/ is intentionally NOT ignored — this server deploys via
-# `git pull` only (no `npm install`/`npm run build` on the host, due to
-# memory limits), so a clean, production-only node_modules (see the
-# "vendor-prod-deps" npm script) is committed alongside dist/.
-node_modules.*-backup/
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
