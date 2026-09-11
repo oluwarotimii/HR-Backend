@@ -25,7 +25,8 @@
     "lint": "eslint src --ext .ts,.js",
     "lint:fix": "eslint src --ext .ts,.js --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json}\"",
-    "render-build": "npm install && npm run build && node scripts/verify-build.js"
+    "render-build": "npm install && npm run build && node scripts/verify-build.js",
+    "vendor-prod-deps": "bash scripts/vendor-prod-deps.sh"
   },
   "keywords": [
     "hr",
