@@ -26,7 +26,7 @@ export function renderAttendanceReportCsv(data: AttendanceReportData): string {
 
   lines.push('SUMMARY');
   lines.push(
-    toCsvRow(['Employee', 'Employee ID', 'Branch', 'Present', 'Late', 'Absent', 'Half Day', 'Early Departure', 'Leave', 'Total Days', 'Points'])
+    toCsvRow(['Employee', 'Employee ID', 'Branch', 'Present', 'Late', 'Absent', 'Half Day', 'Early Departure', 'Leave', 'Total Days', 'Punctuality Score'])
   );
   for (const group of data.summaryByBranch) {
     for (const s of group.staff) {
@@ -50,7 +50,7 @@ export function renderAttendanceReportCsv(data: AttendanceReportData): string {
 
   lines.push('');
   lines.push('LEADERBOARD');
-  lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Points']));
+  lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Punctuality Score']));
   data.leaderboard.forEach((s, i) => {
     lines.push(toCsvRow([i + 1, s.full_name, s.branch_name ?? '', s.points]));
   });

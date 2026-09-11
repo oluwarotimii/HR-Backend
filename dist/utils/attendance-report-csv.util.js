@@ -16,7 +16,7 @@ function renderAttendanceReportCsv(data) {
     lines.push(`Attendance Report,${data.startDate} to ${data.endDate},${data.branchFilter}`);
     lines.push('');
     lines.push('SUMMARY');
-    lines.push(toCsvRow(['Employee', 'Employee ID', 'Branch', 'Present', 'Late', 'Absent', 'Half Day', 'Early Departure', 'Leave', 'Total Days', 'Points']));
+    lines.push(toCsvRow(['Employee', 'Employee ID', 'Branch', 'Present', 'Late', 'Absent', 'Half Day', 'Early Departure', 'Leave', 'Total Days', 'Punctuality Score']));
     for (const group of data.summaryByBranch) {
         for (const s of group.staff) {
             lines.push(toCsvRow([
@@ -36,7 +36,7 @@ function renderAttendanceReportCsv(data) {
     }
     lines.push('');
     lines.push('LEADERBOARD');
-    lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Points']));
+    lines.push(toCsvRow(['Rank', 'Employee', 'Branch', 'Punctuality Score']));
     data.leaderboard.forEach((s, i) => {
         lines.push(toCsvRow([i + 1, s.full_name, s.branch_name ?? '', s.points]));
     });

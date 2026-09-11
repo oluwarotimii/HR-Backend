@@ -21,7 +21,7 @@ async function renderAttendanceReportExcel(data) {
         { header: 'Early Departure', key: 'early_departure_days', width: 16 },
         { header: 'Leave', key: 'leave_days', width: 8 },
         { header: 'Total Days', key: 'total_days', width: 12 },
-        { header: 'Points', key: 'points', width: 10 },
+        { header: 'Punctuality Score', key: 'points', width: 18 },
     ];
     summarySheet.getRow(1).font = { bold: true };
     for (const group of data.summaryByBranch) {
@@ -46,7 +46,7 @@ async function renderAttendanceReportExcel(data) {
         { header: 'Rank', key: 'rank', width: 8 },
         { header: 'Employee', key: 'full_name', width: 28 },
         { header: 'Branch', key: 'branch_name', width: 20 },
-        { header: 'Points', key: 'points', width: 10 },
+        { header: 'Punctuality Score', key: 'points', width: 18 },
     ];
     leaderboardSheet.getRow(1).font = { bold: true };
     data.leaderboard.forEach((s, i) => {
