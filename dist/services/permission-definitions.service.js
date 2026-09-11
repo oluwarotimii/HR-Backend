@@ -28,6 +28,7 @@ exports.PERMISSION_DEFINITIONS = [
     { key: 'attendance:record', category: 'Attendance Management', description: 'Record attendance' },
     { key: 'attendance:view', category: 'Attendance Management', description: 'View attendance records' },
     { key: 'attendance:manage', category: 'Attendance Management', description: 'Manage attendance records' },
+    { key: 'attendance:export', category: 'Attendance Management', description: 'Export attendance reports (CSV/PDF/Excel)' },
     { key: 'leave:request', category: 'Leave Management', description: 'Request leave' },
     { key: 'leave:view', category: 'Leave Management', description: 'View leave records' },
     { key: 'leave:approve', category: 'Leave Management', description: 'Approve/reject leave requests' },

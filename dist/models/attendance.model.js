@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.locationToWKT = locationToWKT;
 const database_1 = require("../config/database");
+const attendance_scoring_config_1 = require("../config/attendance-scoring.config");
 function locationToWKT(location) {
     if (!location)
         return null;
@@ -156,6 +157,55 @@ class AttendanceModel {
             half_day_days: result.half_day_days || 0,
             early_departure_days: result.early_departure_days || 0
         };
+    }
+    static async getAttendanceSummaryForAllStaff(startDate, endDate, branchId, activeOnly = true) {
+        const pointsCase = (0, attendance_scoring_config_1.buildPointsCaseSql)('a.status');
+        let query = `
+      SELECT
+        u.id AS user_id,
+        u.full_name,
+        s.employee_id,
+        s.branch_id,
+        b.name AS branch_name,
+        COUNT(a.id) AS total_days,
+        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present_days,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent_days,
+        SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS late_days,
+        SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END) AS half_day_days,
+        SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END) AS leave_days,
+        SUM(CASE WHEN a.status = 'early_departure' THEN 1 ELSE 0 END) AS early_departure_days,
+        COALESCE(SUM(${pointsCase}), 0) AS points
+      FROM staff s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN branches b ON b.id = s.branch_id
+      LEFT JOIN attendance a ON a.user_id = u.id AND a.date BETWEEN ? AND ?
+      WHERE 1 = 1
+    `;
+        const params = [startDate, endDate];
+        if (activeOnly) {
+            query += ' AND s.status = \'active\'';
+        }
+        if (branchId) {
+            query += ' AND s.branch_id = ?';
+            params.push(branchId);
+        }
+        query += ' GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name ORDER BY points DESC, present_days DESC';
+        const [rows] = await database_1.pool.execute(query, params);
+        return rows.map((r) => ({
+            user_id: r.user_id,
+            full_name: r.full_name,
+            employee_id: r.employee_id,
+            branch_id: r.branch_id,
+            branch_name: r.branch_name,
+            total_days: Number(r.total_days) || 0,
+            present_days: Number(r.present_days) || 0,
+            absent_days: Number(r.absent_days) || 0,
+            late_days: Number(r.late_days) || 0,
+            half_day_days: Number(r.half_day_days) || 0,
+            leave_days: Number(r.leave_days) || 0,
+            early_departure_days: Number(r.early_departure_days) || 0,
+            points: Number(r.points) || 0,
+        }));
     }
 }
 exports.default = AttendanceModel;

@@ -1,4 +1,5 @@
 import { pool } from '../config/database';
+import { buildPointsCaseSql } from '../config/attendance-scoring.config';
 
 export interface Attendance {
   id: number;
@@ -51,6 +52,22 @@ export interface AttendanceUpdate {
   notes?: string | null;
   is_locked?: boolean;
   locked_at?: Date | null;
+}
+
+export interface StaffAttendanceSummaryRow {
+  user_id: number;
+  full_name: string;
+  employee_id: string | null;
+  branch_id: number | null;
+  branch_name: string | null;
+  total_days: number;
+  present_days: number;
+  absent_days: number;
+  late_days: number;
+  half_day_days: number;
+  leave_days: number;
+  early_departure_days: number;
+  points: number;
 }
 
 class AttendanceModel {
@@ -279,6 +296,75 @@ class AttendanceModel {
       half_day_days: result.half_day_days || 0,
       early_departure_days: result.early_departure_days || 0
     };
+  }
+
+  /**
+   * One row per staff member for a date range — the shared aggregation
+   * behind both the attendance leaderboard and the HR export. A single
+   * query (no N+1 per-staff calls to getAttendanceSummary), LEFT JOINed so
+   * a staff member with zero attendance rows in range still appears
+   * (scored 0) instead of silently vanishing from the ranking.
+   *
+   * `activeOnly` defaults true (leaderboard use: don't rank people who've
+   * left). The export passes `false` since HR may need a departed staff
+   * member's history for a period predating their exit.
+   */
+  static async getAttendanceSummaryForAllStaff(
+    startDate: string,
+    endDate: string,
+    branchId?: number,
+    activeOnly: boolean = true
+  ): Promise<StaffAttendanceSummaryRow[]> {
+    const pointsCase = buildPointsCaseSql('a.status');
+    let query = `
+      SELECT
+        u.id AS user_id,
+        u.full_name,
+        s.employee_id,
+        s.branch_id,
+        b.name AS branch_name,
+        COUNT(a.id) AS total_days,
+        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present_days,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent_days,
+        SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS late_days,
+        SUM(CASE WHEN a.status = 'half_day' THEN 1 ELSE 0 END) AS half_day_days,
+        SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END) AS leave_days,
+        SUM(CASE WHEN a.status = 'early_departure' THEN 1 ELSE 0 END) AS early_departure_days,
+        COALESCE(SUM(${pointsCase}), 0) AS points
+      FROM staff s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN branches b ON b.id = s.branch_id
+      LEFT JOIN attendance a ON a.user_id = u.id AND a.date BETWEEN ? AND ?
+      WHERE 1 = 1
+    `;
+    const params: any[] = [startDate, endDate];
+
+    if (activeOnly) {
+      query += ' AND s.status = \'active\'';
+    }
+    if (branchId) {
+      query += ' AND s.branch_id = ?';
+      params.push(branchId);
+    }
+
+    query += ' GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name ORDER BY points DESC, present_days DESC';
+
+    const [rows] = await pool.execute(query, params) as [any[], any];
+    return (rows as any[]).map((r) => ({
+      user_id: r.user_id,
+      full_name: r.full_name,
+      employee_id: r.employee_id,
+      branch_id: r.branch_id,
+      branch_name: r.branch_name,
+      total_days: Number(r.total_days) || 0,
+      present_days: Number(r.present_days) || 0,
+      absent_days: Number(r.absent_days) || 0,
+      late_days: Number(r.late_days) || 0,
+      half_day_days: Number(r.half_day_days) || 0,
+      leave_days: Number(r.leave_days) || 0,
+      early_departure_days: Number(r.early_departure_days) || 0,
+      points: Number(r.points) || 0,
+    }));
   }
 }
 

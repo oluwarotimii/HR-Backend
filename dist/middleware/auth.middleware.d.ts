@@ -4,6 +4,7 @@ declare global {
         interface Request {
             currentUser?: any;
             numericId?: number;
+            tokenJti?: string;
         }
     }
 }

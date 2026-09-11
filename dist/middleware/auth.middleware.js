@@ -7,12 +7,14 @@ exports.attachPermissions = exports.checkPermission = exports.authenticateJWT = 
 const jwt_util_1 = __importDefault(require("../utils/jwt.util"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const permission_service_1 = __importDefault(require("../services/permission.service"));
+const token_denylist_service_1 = require("../services/token-denylist.service");
 const authenticateJWT = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader) {
             return res.status(401).json({
                 success: false,
+                code: 'TOKEN_MISSING',
                 message: 'Access token is required'
             });
         }
@@ -21,6 +23,7 @@ const authenticateJWT = async (req, res, next) => {
             if (!token) {
                 return res.status(401).json({
                     success: false,
+                    code: 'TOKEN_MISSING',
                     message: 'Access token is required'
                 });
             }
@@ -29,15 +32,25 @@ const authenticateJWT = async (req, res, next) => {
                 decoded = jwt_util_1.default.verifyAccessToken(token);
             }
             catch (verifyError) {
-                return res.status(403).json({
+                const err = verifyError;
+                return res.status(401).json({
                     success: false,
+                    code: err.code || 'TOKEN_INVALID',
                     message: 'Invalid or expired token'
+                });
+            }
+            if (await token_denylist_service_1.tokenDenylistService.isRevoked(decoded.jti)) {
+                return res.status(401).json({
+                    success: false,
+                    code: 'TOKEN_REVOKED',
+                    message: 'Session has been signed out. Please log in again.'
                 });
             }
             const user = await user_model_1.default.findById(decoded.userId);
             if (!user || user.status !== 'active') {
                 return res.status(401).json({
                     success: false,
+                    code: 'USER_INACTIVE',
                     message: 'Invalid or inactive user'
                 });
             }
@@ -47,12 +60,14 @@ const authenticateJWT = async (req, res, next) => {
                 role_id: user.role_id,
                 branch_id: user.branch_id
             };
+            req.tokenJti = decoded.jti;
             return next();
         }
         else {
             console.log('Invalid authentication header format');
             return res.status(401).json({
                 success: false,
+                code: 'TOKEN_INVALID',
                 message: 'Invalid authentication header format. Use "Bearer <token>" for JWT authentication.'
             });
         }
@@ -64,8 +79,9 @@ const authenticateJWT = async (req, res, next) => {
             stack: error.stack,
             name: error.name
         });
-        return res.status(403).json({
+        return res.status(401).json({
             success: false,
+            code: 'TOKEN_INVALID',
             message: 'Invalid or expired token'
         });
     }

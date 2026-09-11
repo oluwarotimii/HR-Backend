@@ -13,6 +13,7 @@ import attendanceProcessRoutes from './attendance-process.route';
 import attendanceSettingsRoutes from './attendance-settings.route';
 import attendanceCheckRoutes from './attendance-check.route';
 import branchTimeMappingRoutes from './branch-time-mapping.route';
+import attendanceLeaderboardRoutes from './attendance-leaderboard.route';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -1081,6 +1082,9 @@ router.use(attendanceCheckRoutes);
 
 // Mount branch time mapping routes
 router.use('/time-mappings', branchTimeMappingRoutes);
+
+// Mount attendance leaderboard routes
+router.use(attendanceLeaderboardRoutes);
 
 // GET /api/attendance/:id - Get specific attendance record
 // NOTE: Keep this route LAST so it doesn't shadow more specific routes like

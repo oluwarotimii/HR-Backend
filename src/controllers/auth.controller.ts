@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
-import JwtUtil from '../utils/jwt.util';
+import JwtUtil, { TokenVerificationError } from '../utils/jwt.util';
 import UserModel from '../models/user.model';
 import PermissionService from '../services/permission.service';
+import { tokenDenylistService } from '../services/token-denylist.service';
 import { pool } from '../config/database';
 
 interface LoginRequestBody {
@@ -68,12 +70,13 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
       role: user.role_id
     };
 
-    // Generate tokens
-    const accessToken = JwtUtil.generateAccessToken(payload);
-    const refreshToken = JwtUtil.generateRefreshToken(payload);
-    
-    // Always persistent login (90 days)
-    const cookieMaxAge = 90 * 24 * 60 * 60 * 1000;
+    // A single session id (jti) shared by both tokens of this login, so logout
+    // can revoke the whole session with one denylist entry.
+    const jti = randomUUID();
+    const accessToken = JwtUtil.generateAccessToken(payload, jti);
+    const refreshToken = JwtUtil.generateRefreshToken(payload, jti);
+
+    const cookieMaxAge = JwtUtil.refreshTokenTtlSeconds * 1000;
 
     // Set refresh token as HTTP-only cookie
     res.cookie('refreshToken', refreshToken, {
@@ -191,7 +194,7 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
         tokens: {
           accessToken,
           refreshToken,
-            expiresIn: process.env.JWT_EXPIRES_IN || '90d'
+          expiresIn: process.env.JWT_EXPIRES_IN || '2h'
         }
       }
     });
@@ -206,9 +209,15 @@ export const login = async (req: Request<{}, {}, LoginRequestBody>, res: Respons
 
 export const logout = async (req: Request, res: Response) => {
   try {
-    // In a real implementation, you might want to blacklist the refresh token
-    // For now, we'll just return a success response
-    
+    // Revoke the session's jti so the access token (until it naturally expires)
+    // and any attempt to use its paired refresh token are both rejected from
+    // here on, instead of remaining valid until natural expiry.
+    if (req.tokenJti) {
+      await tokenDenylistService.revoke(req.tokenJti, JwtUtil.refreshTokenTtlSeconds);
+    }
+
+    res.clearCookie('refreshToken', { path: '/' });
+
     res.json({
       success: true,
       message: 'Logout successful'
@@ -229,6 +238,7 @@ export const refreshToken = async (req: Request<{}, {}, RefreshTokenRequestBody>
     if (!refreshToken) {
       return res.status(401).json({
         success: false,
+        code: 'TOKEN_MISSING',
         message: 'Refresh token is required'
       });
     }
@@ -237,24 +247,45 @@ export const refreshToken = async (req: Request<{}, {}, RefreshTokenRequestBody>
       // Verify refresh token
       const decoded = JwtUtil.verifyRefreshToken(refreshToken);
 
+      if (await tokenDenylistService.isRevoked(decoded.jti)) {
+        return res.status(401).json({
+          success: false,
+          code: 'TOKEN_REVOKED',
+          message: 'Session has been signed out. Please log in again.'
+        });
+      }
+
       // Check if user still exists and is active
       const user = await UserModel.findById(decoded.userId);
       if (!user || user.status !== 'active') {
         return res.status(401).json({
           success: false,
+          code: 'USER_INACTIVE',
           message: 'Invalid or inactive user'
         });
       }
 
-      // Generate new access token
+      // Rotate: the old jti is retired immediately so the just-used refresh
+      // token can't be replayed, and a fresh session id backs the new pair.
+      await tokenDenylistService.revoke(decoded.jti, JwtUtil.refreshTokenTtlSeconds);
+      const newJti = randomUUID();
+
       const payload = {
         userId: user.id,
         email: user.email,
         role: user.role_id
       };
 
-      const newAccessToken = JwtUtil.generateAccessToken(payload);
-      const newRefreshToken = JwtUtil.generateRefreshToken(payload);
+      const newAccessToken = JwtUtil.generateAccessToken(payload, newJti);
+      const newRefreshToken = JwtUtil.generateRefreshToken(payload, newJti);
+
+      res.cookie('refreshToken', newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: JwtUtil.refreshTokenTtlSeconds * 1000,
+        path: '/'
+      });
 
       return res.json({
         success: true,
@@ -263,13 +294,17 @@ export const refreshToken = async (req: Request<{}, {}, RefreshTokenRequestBody>
           tokens: {
             accessToken: newAccessToken,
             refreshToken: newRefreshToken,
-          expiresIn: process.env.JWT_EXPIRES_IN || '90d'
+            expiresIn: process.env.JWT_EXPIRES_IN || '2h'
           }
         }
       });
     } catch (error) {
-      return res.status(403).json({
+      const err = error as TokenVerificationError;
+      // 401 (not 403) — consistent with authenticateJWT so clients use one
+      // code path to decide "force re-login" instead of branching on status.
+      return res.status(401).json({
         success: false,
+        code: err.code || 'TOKEN_INVALID',
         message: 'Invalid or expired refresh token'
       });
     }

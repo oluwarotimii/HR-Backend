@@ -19,8 +19,12 @@ import {
   calculateAllMetrics
 } from '../controllers/reporting-analytics.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+import attendanceExportRoutes from './attendance-export.route';
 
 const router = Router();
+
+// Mount attendance export/leaderboard-preview routes at /api/reports/attendance
+router.use('/attendance', attendanceExportRoutes);
 
 // Report Templates Routes
 router.get('/report-templates', authenticateJWT, checkPermission('report_template:read'), getAllReportTemplates);

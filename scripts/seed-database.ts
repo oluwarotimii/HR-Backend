@@ -285,7 +285,7 @@ async function seedRoles() {
     Manager: [
       'staff:read', 'staff:update',
       'users:read', 'users:update',
-      'attendance:read', 'attendance:manage',
+      'attendance:read', 'attendance:manage', 'attendance:export',
       'leave:request', 'leave:view', 'leave:approve',
       'leave:read', 'leave:update',
       'leave_allocation:read', 'leave_allocation:create',
@@ -298,7 +298,7 @@ async function seedRoles() {
     HR: [
       'staff:create', 'staff:read', 'staff:update',
       'users:create', 'users:read', 'users:update',
-      'attendance:read', 'attendance:manage',
+      'attendance:read', 'attendance:manage', 'attendance:export',
       'leave:request', 'leave:view', 'leave:approve',
       'leave:read', 'leave:create', 'leave:update', 'leave:delete',
       'leave_type:read',

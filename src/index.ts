@@ -106,11 +106,18 @@ const shutdown = (reason: string, error?: unknown) => {
 };
 
 process.on('uncaughtException', (error) => {
+  // Node's own guidance: after an uncaught exception the process is in an
+  // undefined state, so this one stays fatal — restart cleanly.
   shutdown('Uncaught exception', error);
 });
 
 process.on('unhandledRejection', (reason) => {
-  shutdown('Unhandled promise rejection', reason);
+  // A rejected promise that nobody awaited (e.g. a fire-and-forget call in an
+  // unrelated request) does not corrupt process state the way a thrown
+  // exception does. Previously this also called shutdown(), so any isolated
+  // rejection anywhere in the app took down the server for every connected
+  // client (PWA + Admin + mobile) at once. Log loudly instead and keep serving.
+  console.error('[Server] Unhandled promise rejection (not fatal, server continues):', reason);
 });
 
 process.on('SIGTERM', () => {
@@ -159,10 +166,48 @@ const authLimiter = rateLimit({
 
 // Middleware
 app.use(helmet()); // Security headers
-app.use(cors()); // Enable cross-origin requests
+
+// CORS allowlist — set CORS_ALLOWED_ORIGINS to a comma-separated list of the
+// deployed PWA/Admin origins in production. Requests with no Origin header
+// (native mobile app calls, curl, server-to-server) are always allowed since
+// they can't be spoofed via a browser the way a forged Origin header could be.
+const defaultDevOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const corsOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultDevOrigins;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Blocked request from disallowed origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
 app.use(morgan('combined', { stream: createLogStream() })); // HTTP request logging
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Bound how long any request may run — a hung downstream call (slow query,
+// stalled outbound email API, etc.) now fails the request instead of hanging
+// the client (and its retry/refresh queue) indefinitely.
+const REQUEST_TIMEOUT_MS = 30000;
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    if (!res.headersSent) {
+      res.status(503).json({
+        success: false,
+        message: 'The request took too long to process. Please try again.'
+      });
+    }
+  });
+  next();
+});
 
 // Test database connection when server starts
 // Initialize app services and start the HTTP server in an explicit bootstrap path.

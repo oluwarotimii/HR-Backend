@@ -4,9 +4,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPermissions = exports.refreshToken = exports.logout = exports.login = void 0;
+const crypto_1 = require("crypto");
 const jwt_util_1 = __importDefault(require("../utils/jwt.util"));
 const user_model_1 = __importDefault(require("../models/user.model"));
 const permission_service_1 = __importDefault(require("../services/permission.service"));
+const token_denylist_service_1 = require("../services/token-denylist.service");
 const database_1 = require("../config/database");
 const login = async (req, res) => {
     try {
@@ -49,9 +51,10 @@ const login = async (req, res) => {
             email: user.email,
             role: user.role_id
         };
-        const accessToken = jwt_util_1.default.generateAccessToken(payload);
-        const refreshToken = jwt_util_1.default.generateRefreshToken(payload);
-        const cookieMaxAge = 90 * 24 * 60 * 60 * 1000;
+        const jti = (0, crypto_1.randomUUID)();
+        const accessToken = jwt_util_1.default.generateAccessToken(payload, jti);
+        const refreshToken = jwt_util_1.default.generateRefreshToken(payload, jti);
+        const cookieMaxAge = jwt_util_1.default.refreshTokenTtlSeconds * 1000;
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -131,7 +134,7 @@ const login = async (req, res) => {
                 tokens: {
                     accessToken,
                     refreshToken,
-                    expiresIn: process.env.JWT_EXPIRES_IN || '90d'
+                    expiresIn: process.env.JWT_EXPIRES_IN || '2h'
                 }
             }
         });
@@ -147,6 +150,10 @@ const login = async (req, res) => {
 exports.login = login;
 const logout = async (req, res) => {
     try {
+        if (req.tokenJti) {
+            await token_denylist_service_1.tokenDenylistService.revoke(req.tokenJti, jwt_util_1.default.refreshTokenTtlSeconds);
+        }
+        res.clearCookie('refreshToken', { path: '/' });
         res.json({
             success: true,
             message: 'Logout successful'
@@ -167,25 +174,43 @@ const refreshToken = async (req, res) => {
         if (!refreshToken) {
             return res.status(401).json({
                 success: false,
+                code: 'TOKEN_MISSING',
                 message: 'Refresh token is required'
             });
         }
         try {
             const decoded = jwt_util_1.default.verifyRefreshToken(refreshToken);
+            if (await token_denylist_service_1.tokenDenylistService.isRevoked(decoded.jti)) {
+                return res.status(401).json({
+                    success: false,
+                    code: 'TOKEN_REVOKED',
+                    message: 'Session has been signed out. Please log in again.'
+                });
+            }
             const user = await user_model_1.default.findById(decoded.userId);
             if (!user || user.status !== 'active') {
                 return res.status(401).json({
                     success: false,
+                    code: 'USER_INACTIVE',
                     message: 'Invalid or inactive user'
                 });
             }
+            await token_denylist_service_1.tokenDenylistService.revoke(decoded.jti, jwt_util_1.default.refreshTokenTtlSeconds);
+            const newJti = (0, crypto_1.randomUUID)();
             const payload = {
                 userId: user.id,
                 email: user.email,
                 role: user.role_id
             };
-            const newAccessToken = jwt_util_1.default.generateAccessToken(payload);
-            const newRefreshToken = jwt_util_1.default.generateRefreshToken(payload);
+            const newAccessToken = jwt_util_1.default.generateAccessToken(payload, newJti);
+            const newRefreshToken = jwt_util_1.default.generateRefreshToken(payload, newJti);
+            res.cookie('refreshToken', newRefreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: jwt_util_1.default.refreshTokenTtlSeconds * 1000,
+                path: '/'
+            });
             return res.json({
                 success: true,
                 message: 'Tokens refreshed successfully',
@@ -193,14 +218,16 @@ const refreshToken = async (req, res) => {
                     tokens: {
                         accessToken: newAccessToken,
                         refreshToken: newRefreshToken,
-                        expiresIn: process.env.JWT_EXPIRES_IN || '90d'
+                        expiresIn: process.env.JWT_EXPIRES_IN || '2h'
                     }
                 }
             });
         }
         catch (error) {
-            return res.status(403).json({
+            const err = error;
+            return res.status(401).json({
                 success: false,
+                code: err.code || 'TOKEN_INVALID',
                 message: 'Invalid or expired refresh token'
             });
         }
