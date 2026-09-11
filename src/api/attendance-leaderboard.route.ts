@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
+import { authenticateJWT } from '../middleware/auth.middleware';
 import AttendanceModel, { StaffAttendanceSummaryRow } from '../models/attendance.model';
 import StaffModel from '../models/staff.model';
 import { getPeriodRange, getPeriodLabel, LeaderboardPeriod } from '../utils/date-range.util';
@@ -19,17 +19,18 @@ function toRanked(rows: StaffAttendanceSummaryRow[]) {
 }
 
 // GET /api/attendance/leaderboard?period=week|month|year&offset=0
-// Every authenticated staff member can view this (reuses attendance:read,
-// which every role — including Employee — already has). Returns both the
-// company-wide and the caller's own branch ranking in one call, plus the
-// caller's own rank in each, so the client can render "Company" / "Branch"
-// tabs from a single request instead of a loading waterfall per toggle.
+// Any authenticated staff member can view this — no permission gate,
+// since it's a company-wide gamification feature everyone is meant to see.
+// Returns both the company-wide and the caller's own branch ranking in one
+// call, plus the caller's own rank in each, so the client can render
+// "Company" / "Branch" tabs from a single request instead of a loading
+// waterfall per toggle.
 //
 // `offset` (0 = current period, -1 = previous, etc.) lets clients page back
 // through past weeks/months/years using data already recorded — e.g. "last
 // month's leaderboard" is `period=month&offset=-1`. Positive offsets
 // (future periods) are rejected; there's nothing to rank yet.
-router.get('/leaderboard', authenticateJWT, checkPermission('attendance:read'), async (req: Request, res: Response) => {
+router.get('/leaderboard', authenticateJWT, async (req: Request, res: Response) => {
   try {
     const period = (req.query.period as LeaderboardPeriod) || 'week';
     if (!['week', 'month', 'year'].includes(period)) {
