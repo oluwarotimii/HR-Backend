@@ -17,7 +17,7 @@ const MAX_OFFSET_BACK = {
 function toRanked(rows) {
     return rows.map((r, i) => ({ ...r, rank: i + 1 }));
 }
-router.get('/leaderboard', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
+router.get('/leaderboard', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
         const period = req.query.period || 'week';
         if (!['week', 'month', 'year'].includes(period)) {
