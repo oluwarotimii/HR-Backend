@@ -3,6 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.notificationService = exports.NotificationService = void 0;
 const database_1 = require("../config/database");
 const generic_email_service_1 = require("./generic-email.service");
+const expo_server_sdk_1 = require("expo-server-sdk");
+const expo = new expo_server_sdk_1.Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+const NOTIFICATION_DEEP_LINKS = {
+    leave_request_confirmation: { screen: 'LeaveHistory' },
+    leave_request_approved: { screen: 'LeaveHistory' },
+    leave_request_rejected: { screen: 'LeaveHistory' },
+    leave_request_cancelled: { screen: 'LeaveHistory' },
+    leave_request_pending: { screen: 'LeaveRequestManagement' },
+    clock_in_reminder: { screen: 'Tabs', params: { screen: 'Home' } },
+    special_note: { screen: 'Notifications' },
+    system_announcement: { screen: 'Notifications' },
+};
 class NotificationService {
     db;
     constructor(databasePool = database_1.pool) {
@@ -19,6 +31,12 @@ class NotificationService {
             if (userPreferences && userPreferences.channels.length > 0) {
                 channelsToUse = userPreferences.channels;
             }
+            const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+            if (!channelsToUse.includes('push') && !hasExplicitPreference) {
+                channelsToUse = [...channelsToUse, 'push'];
+            }
+            const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
+            const payloadWithDeepLink = deepLink ? { ...payload, _deepLink: deepLink } : payload;
             for (const channel of channelsToUse) {
                 if (userPreferences && !userPreferences.enabled) {
                     continue;
@@ -37,7 +55,7 @@ class NotificationService {
                     subject,
                     channel,
                     JSON.stringify(recipientData),
-                    JSON.stringify(payload),
+                    JSON.stringify(payloadWithDeepLink),
                     options.priority || 'normal',
                     options.scheduledAt || new Date()
                 ]);
@@ -225,17 +243,44 @@ class NotificationService {
     async sendPushNotification(notification) {
         try {
             const recipientData = JSON.parse(notification.recipient_data);
-            const deviceTokens = recipientData.deviceTokens;
-            if (!deviceTokens || deviceTokens.length === 0) {
-                console.warn(`No device tokens found for user in notification ${notification.id}`);
+            const deviceTokens = recipientData.deviceTokens || [];
+            const validTokens = deviceTokens.filter((token) => expo_server_sdk_1.Expo.isExpoPushToken(token));
+            if (validTokens.length === 0) {
+                console.warn(`No valid Expo push tokens for notification ${notification.id}`);
                 return false;
             }
-            console.log(`Sending push notification to tokens: ${deviceTokens.join(', ')}`);
-            console.log(`Title: ${notification.title}`);
-            console.log(`Message: ${notification.message}`);
-            for (const token of deviceTokens) {
+            let deepLink;
+            try {
+                const payload = typeof notification.payload === 'string' ? JSON.parse(notification.payload) : notification.payload;
+                deepLink = payload?._deepLink;
             }
-            return true;
+            catch {
+            }
+            const messages = validTokens.map((token) => ({
+                to: token,
+                sound: 'default',
+                title: notification.title,
+                body: notification.message,
+                data: {
+                    notificationType: notification.notification_type,
+                    ...(deepLink ? { screen: deepLink.screen, params: deepLink.params } : {}),
+                },
+            }));
+            const chunks = expo.chunkPushNotifications(messages);
+            const tickets = [];
+            for (const chunk of chunks) {
+                tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
+            }
+            await Promise.all(tickets.map((ticket, i) => {
+                if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+                    const deadToken = ticket.details?.expoPushToken || validTokens[i];
+                    return this.db
+                        .execute('UPDATE device_registrations SET is_active = FALSE WHERE device_token = ?', [deadToken])
+                        .catch(() => { });
+                }
+                return Promise.resolve();
+            }));
+            return tickets.some((ticket) => ticket.status === 'ok');
         }
         catch (error) {
             console.error('Error sending push notification:', error);
@@ -306,6 +351,24 @@ class NotificationService {
             console.error('Error unregistering device:', error);
             return false;
         }
+    }
+    async broadcastSpecialNote(title, message, recipientUserIds) {
+        let targetIds = recipientUserIds;
+        if (!targetIds || targetIds.length === 0) {
+            const [rows] = await this.db.execute(`SELECT id FROM users WHERE status = 'active'`);
+            targetIds = rows.map((r) => r.id);
+        }
+        let sent = 0;
+        for (const userId of targetIds) {
+            try {
+                await this.queueNotification(userId, 'special_note', { title, message });
+                sent++;
+            }
+            catch (error) {
+                console.error(`Error queuing special note for user ${userId}:`, error);
+            }
+        }
+        return sent;
     }
 }
 exports.NotificationService = NotificationService;

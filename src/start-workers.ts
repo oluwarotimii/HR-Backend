@@ -1,5 +1,6 @@
 import { LeaveExpiryWorker } from './workers/leave-expiry.worker';
 import { NotificationDispatcherWorker } from './workers/notification-dispatcher.worker';
+import { ClockInReminderWorker } from './workers/clock-in-reminder.worker';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
 
 console.log('Starting background workers...');
@@ -10,6 +11,9 @@ LeaveExpiryWorker.startWorker(parseInt(process.env.LEAVE_EXPIRY_WORKER_INTERVAL 
 
 // Start the notification dispatcher worker (runs every 5 minutes by default)
 NotificationDispatcherWorker.startWorker(parseInt(process.env.NOTIFICATION_DISPATCH_INTERVAL || '300')); // 300 seconds = 5 minutes
+
+// Start the clock-in reminder worker (runs every 5 minutes by default)
+ClockInReminderWorker.startWorker(parseInt(process.env.CLOCK_IN_REMINDER_INTERVAL || '300')); // 300 seconds = 5 minutes
 
 // Start the attendance processor worker (runs daily to process attendance for the previous day)
 AttendanceProcessorWorker.start().catch(error => {

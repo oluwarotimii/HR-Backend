@@ -172,7 +172,11 @@ router.post('/', authenticateJWT, async (req: Request, res: Response) => {
             days: 1,
             reason: reason || 'Floating day off',
             company_name: process.env.APP_NAME || 'Our Company'
-          }
+          },
+          // No dedicated mobile "clear requests" screen exists yet — this
+          // reuses leave_request_pending's template but must NOT deep-link
+          // to LeaveRequestManagement (that's for leave, not floating days).
+          { deepLink: { screen: 'Notifications' } }
         );
       }
     } catch (notifErr) {
@@ -237,7 +241,11 @@ router.put('/:id/clear', authenticateJWT, checkPermission('floating_day:clear'),
             days: 1,
             reason: request.reason || 'Floating day off',
             company_name: process.env.APP_NAME || 'Our Company'
-          }
+          },
+          // This reuses leave_request_pending's template but the recipient
+          // is the employee, not an approver — send them to their own
+          // Time Off screen, not the leave manager screen.
+          { deepLink: { screen: 'FloatingDay' } }
         );
       }
     } catch (notifErr) {
@@ -342,7 +350,8 @@ router.put('/:id/approve', authenticateJWT, checkPermission('floating_day:approv
             approval_date: new Date().toISOString().split('T')[0],
             request_id: String(requestId),
             company_name: process.env.APP_NAME || 'Our Company'
-          }
+          },
+          { deepLink: { screen: 'FloatingDay' } }
         );
       }
     } catch (notifErr) {
@@ -411,7 +420,8 @@ router.put('/:id/reject', authenticateJWT, checkPermission('floating_day:reject'
             rejection_reason: rejection_reason || 'No reason provided',
             request_id: String(requestId),
             company_name: process.env.APP_NAME || 'Our Company'
-          }
+          },
+          { deepLink: { screen: 'FloatingDay' } }
         );
       }
     } catch (notifErr) {

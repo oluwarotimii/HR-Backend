@@ -157,6 +157,7 @@ exports.PERMISSION_DEFINITIONS = [
     { key: 'shift-exception:update', category: 'Attendance Management', description: 'Update shift exceptions' },
     { key: 'shift-exception:delete', category: 'Attendance Management', description: 'Delete shift exceptions' },
     { key: 'shift-exception:approve', category: 'Attendance Management', description: 'Approve/reject shift exceptions' },
+    { key: 'notifications:broadcast', category: 'System Management', description: 'Send an ad-hoc announcement (special note) to staff' },
     { key: 'api_key:read', category: 'System Management', description: 'View API keys' },
     { key: 'api_key:create', category: 'System Management', description: 'Create API keys' },
     { key: 'api_key:update', category: 'System Management', description: 'Update API keys' },

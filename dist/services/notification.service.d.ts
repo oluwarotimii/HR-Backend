@@ -41,6 +41,10 @@ export declare class NotificationService {
         channel?: string;
         priority?: 'low' | 'normal' | 'high' | 'urgent';
         scheduledAt?: Date;
+        deepLink?: {
+            screen: string;
+            params?: Record<string, any>;
+        };
     }): Promise<number>;
     prepareNotificationContent(template: NotificationTemplate, payload: Record<string, any>): Promise<{
         title: string;
@@ -58,6 +62,7 @@ export declare class NotificationService {
     sendSmsNotification(notification: NotificationQueueItem): Promise<boolean>;
     registerDevice(userId: number, deviceToken: string, deviceType: string, platform: string, appVersion?: string, osVersion?: string): Promise<boolean>;
     unregisterDevice(deviceToken: string): Promise<boolean>;
+    broadcastSpecialNote(title: string, message: string, recipientUserIds: number[] | null): Promise<number>;
 }
 export declare const notificationService: NotificationService;
 export {};

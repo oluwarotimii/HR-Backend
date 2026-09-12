@@ -71,6 +71,8 @@ import { SchedulerService } from './services/scheduler.service';
 import AttendanceProcessorWorker from './workers/attendance-processor.worker';
 import AutoCheckoutWorker from './workers/auto-checkout.worker';
 import LeaveCleanupWorker from './workers/leave-cleanup.worker';
+import { NotificationDispatcherWorker } from './workers/notification-dispatcher.worker';
+import { ClockInReminderWorker } from './workers/clock-in-reminder.worker';
 import leaveCleanupRoutes from './api/leave-cleanup.route';
 import logRoutes from './api/logs.route';
 import { createLogStream, patchConsole } from './utils/logger';
@@ -263,6 +265,20 @@ const bootstrap = async () => {
     LeaveCleanupWorker.start();
   } catch (error) {
     console.error('[Server] Leave cleanup worker failed to start:', error);
+  }
+
+  // Start notification dispatcher worker (sends queued email/push notifications)
+  try {
+    NotificationDispatcherWorker.startWorker(parseInt(process.env.NOTIFICATION_DISPATCH_INTERVAL || '300'));
+  } catch (error) {
+    console.error('[Server] Notification dispatcher worker failed to start:', error);
+  }
+
+  // Start clock-in reminder worker (pushes a reminder ~10 min before shift start)
+  try {
+    ClockInReminderWorker.startWorker(parseInt(process.env.CLOCK_IN_REMINDER_INTERVAL || '300'));
+  } catch (error) {
+    console.error('[Server] Clock-in reminder worker failed to start:', error);
   }
 
 // Routes

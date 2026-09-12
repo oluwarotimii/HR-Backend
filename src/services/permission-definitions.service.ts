@@ -258,6 +258,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: 'shift-exception:delete', category: 'Attendance Management', description: 'Delete shift exceptions' },
   { key: 'shift-exception:approve', category: 'Attendance Management', description: 'Approve/reject shift exceptions' },
 
+  // Notification Permissions
+  { key: 'notifications:broadcast', category: 'System Management', description: 'Send an ad-hoc announcement (special note) to staff' },
+
   // API Key Permissions
   { key: 'api_key:read', category: 'System Management', description: 'View API keys' },
   { key: 'api_key:create', category: 'System Management', description: 'Create API keys' },

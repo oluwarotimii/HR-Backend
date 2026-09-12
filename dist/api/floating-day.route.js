@@ -166,7 +166,7 @@ router.post('/', auth_middleware_1.authenticateJWT, async (req, res) => {
                     days: 1,
                     reason: reason || 'Floating day off',
                     company_name: process.env.APP_NAME || 'Our Company'
-                });
+                }, { deepLink: { screen: 'Notifications' } });
             }
         }
         catch (notifErr) {
@@ -213,7 +213,7 @@ router.put('/:id/clear', auth_middleware_1.authenticateJWT, (0, auth_middleware_
                     days: 1,
                     reason: request.reason || 'Floating day off',
                     company_name: process.env.APP_NAME || 'Our Company'
-                });
+                }, { deepLink: { screen: 'FloatingDay' } });
             }
         }
         catch (notifErr) {
@@ -281,7 +281,7 @@ router.put('/:id/approve', auth_middleware_1.authenticateJWT, (0, auth_middlewar
                     approval_date: new Date().toISOString().split('T')[0],
                     request_id: String(requestId),
                     company_name: process.env.APP_NAME || 'Our Company'
-                });
+                }, { deepLink: { screen: 'FloatingDay' } });
             }
         }
         catch (notifErr) {
@@ -330,7 +330,7 @@ router.put('/:id/reject', auth_middleware_1.authenticateJWT, (0, auth_middleware
                     rejection_reason: rejection_reason || 'No reason provided',
                     request_id: String(requestId),
                     company_name: process.env.APP_NAME || 'Our Company'
-                });
+                }, { deepLink: { screen: 'FloatingDay' } });
             }
         }
         catch (notifErr) {

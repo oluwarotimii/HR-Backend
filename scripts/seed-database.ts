@@ -293,6 +293,8 @@ async function seedRoles() {
       'branches:read',
       'departments:read', 'departments:update',
       'shifts:read', 'shifts:manage',
+      'shift-exception:read', 'shift-exception:create', 'shift-exception:update', 'shift-exception:delete',
+      'notifications:broadcast',
       'performance:review'
     ],
     HR: [
@@ -308,6 +310,8 @@ async function seedRoles() {
       'branches:read',
       'departments:read',
       'shifts:read', 'shifts:manage',
+      'shift-exception:read', 'shift-exception:create', 'shift-exception:update', 'shift-exception:delete',
+      'notifications:broadcast',
       'payroll:read',
       'performance:review',
       'documents:upload', 'documents:download'
