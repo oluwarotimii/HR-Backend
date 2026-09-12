@@ -18,7 +18,7 @@ router.use(authenticateJWT);
 router.get('/my-notifications', getUserNotifications);
 
 // Mark notification as read
-router.patch('/notifications/:id/read', markNotificationAsRead);
+router.patch('/:id/read', markNotificationAsRead);
 
 // Get user's notification preferences
 router.get('/preferences', getNotificationPreferences);
