@@ -1,0 +1,1 @@
+{"version":3,"file":"notification-dispatcher.worker.d.ts","sourceRoot":"","sources":["../../src/workers/notification-dispatcher.worker.ts"],"names":[],"mappings":"AAOA,qBAAa,4BAA4B;IACvC,OAAO,CAAC,MAAM,CAAC,SAAS,CAAS;WAKpB,wBAAwB,IAAI,OAAO,CAAC,IAAI,CAAC;IAyBtD,MAAM,CAAC,WAAW,CAAC,eAAe,GAAE,MAAY,GAAG,IAAI;CAexD"}

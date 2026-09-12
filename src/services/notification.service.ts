@@ -1,7 +1,27 @@
 import { Pool } from 'mysql2/promise';
 import { pool } from '../config/database';
 import { sendGenericEmail } from './generic-email.service';
-import axios from 'axios';
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+
+const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+
+/**
+ * Where tapping a notification should take the user in the mobile app.
+ * Screen names must match `AppStackParamList`/`MainTabParamList` in
+ * mobile/src/navigation/types.ts. Keyed by notification_type, since that's
+ * all `sendNotification` has to go on when no explicit deep link was passed
+ * at `queueNotification()` call time.
+ */
+const NOTIFICATION_DEEP_LINKS: Record<string, { screen: string; params?: Record<string, any> }> = {
+  leave_request_confirmation: { screen: 'LeaveHistory' },
+  leave_request_approved: { screen: 'LeaveHistory' },
+  leave_request_rejected: { screen: 'LeaveHistory' },
+  leave_request_cancelled: { screen: 'LeaveHistory' },
+  leave_request_pending: { screen: 'LeaveRequestManagement' },
+  clock_in_reminder: { screen: 'Tabs', params: { screen: 'Home' } },
+  special_note: { screen: 'Notifications' },
+  system_announcement: { screen: 'Notifications' },
+};
 
 // Interface definitions
 interface NotificationTemplate {
@@ -70,6 +90,10 @@ export class NotificationService {
       channel?: string;
       priority?: 'low' | 'normal' | 'high' | 'urgent';
       scheduledAt?: Date;
+      /** Overrides NOTIFICATION_DEEP_LINKS when a template is reused across
+       * different audiences/screens (e.g. leave_request_pending is sent both
+       * to approvers and, via floating-day requests, to employees). */
+      deepLink?: { screen: string; params?: Record<string, any> };
     } = {}
   ): Promise<number> {
     try {
@@ -81,12 +105,24 @@ export class NotificationService {
 
       // Get user preferences
       const userPreferences = await this.getUserPreferences(recipientUserId, template.name);
-      
+
       // Determine channels to use
       let channelsToUse = [options.channel || template.channel];
       if (userPreferences && userPreferences.channels.length > 0) {
         channelsToUse = userPreferences.channels;
       }
+
+      // Every notification also attempts a push alert on top of whatever the
+      // template's primary channel is (usually email) — email is the durable
+      // record, push is the immediate nudge. Only skip this when the user has
+      // an explicit preference row that deliberately excludes push.
+      const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+      if (!channelsToUse.includes('push') && !hasExplicitPreference) {
+        channelsToUse = [...channelsToUse, 'push'];
+      }
+
+      const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
+      const payloadWithDeepLink = deepLink ? { ...payload, _deepLink: deepLink } : payload;
 
       // Process each channel
       for (const channel of channelsToUse) {
@@ -118,7 +154,7 @@ export class NotificationService {
             subject,
             channel,
             JSON.stringify(recipientData),
-            JSON.stringify(payload),
+            JSON.stringify(payloadWithDeepLink),
             options.priority || 'normal',
             options.scheduledAt || new Date()
           ]
@@ -423,46 +459,61 @@ export class NotificationService {
   }
 
   /**
-   * Send push notification
+   * Send push notification via Expo's push service. Expo push tokens work
+   * across both iOS and Android — no separate FCM/APNs integration needed.
    */
   async sendPushNotification(notification: NotificationQueueItem): Promise<boolean> {
     try {
       const recipientData = JSON.parse(notification.recipient_data);
-      const deviceTokens = recipientData.deviceTokens;
+      const deviceTokens: string[] = recipientData.deviceTokens || [];
 
-      if (!deviceTokens || deviceTokens.length === 0) {
-        console.warn(`No device tokens found for user in notification ${notification.id}`);
+      const validTokens = deviceTokens.filter((token) => Expo.isExpoPushToken(token));
+      if (validTokens.length === 0) {
+        console.warn(`No valid Expo push tokens for notification ${notification.id}`);
         return false;
       }
 
-      // For now, we'll simulate sending push notifications
-      // In a real implementation, we would integrate with FCM or APNs
-      console.log(`Sending push notification to tokens: ${deviceTokens.join(', ')}`);
-      console.log(`Title: ${notification.title}`);
-      console.log(`Message: ${notification.message}`);
-
-      // TODO: Implement actual push notification service (FCM/APNs)
-      // This is a placeholder implementation
-      for (const token of deviceTokens) {
-        // Example FCM call (would need proper FCM setup)
-        /*
-        await axios.post('https://fcm.googleapis.com/fcm/send', {
-          to: token,
-          notification: {
-            title: notification.title,
-            body: notification.message
-          },
-          data: notification.payload || {}
-        }, {
-          headers: {
-            'Authorization': `key=${process.env.FCM_SERVER_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        */
+      let deepLink: { screen: string; params?: Record<string, any> } | undefined;
+      try {
+        const payload = typeof notification.payload === 'string' ? JSON.parse(notification.payload) : notification.payload;
+        deepLink = payload?._deepLink;
+      } catch {
+        // Malformed payload shouldn't block delivery — just skip the deep link.
       }
 
-      return true;
+      const messages: ExpoPushMessage[] = validTokens.map((token) => ({
+        to: token,
+        sound: 'default',
+        title: notification.title,
+        body: notification.message,
+        data: {
+          notificationType: notification.notification_type,
+          ...(deepLink ? { screen: deepLink.screen, params: deepLink.params } : {}),
+        },
+      }));
+
+      const chunks = expo.chunkPushNotifications(messages);
+      const tickets = [];
+      for (const chunk of chunks) {
+        tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
+      }
+
+      // A token Expo reports as no-longer-registered (app uninstalled, etc.)
+      // should stop being used — otherwise every future notification retries
+      // against it forever.
+      await Promise.all(
+        tickets.map((ticket, i) => {
+          if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+            const deadToken = ticket.details?.expoPushToken || validTokens[i];
+            return this.db
+              .execute('UPDATE device_registrations SET is_active = FALSE WHERE device_token = ?', [deadToken])
+              .catch(() => {});
+          }
+          return Promise.resolve();
+        })
+      );
+
+      return tickets.some((ticket) => ticket.status === 'ok');
     } catch (error) {
       console.error('Error sending push notification:', error);
       return false;
@@ -578,6 +629,37 @@ export class NotificationService {
       console.error('Error unregistering device:', error);
       return false;
     }
+  }
+
+  /**
+   * Send an ad-hoc "special note" — a one-off announcement from HR/Admin to
+   * either specific staff or everyone. Unlike the lifecycle notifications
+   * above (leave, floating-day), there's no DB row driving this; the
+   * broadcast route passes the recipients directly.
+   */
+  async broadcastSpecialNote(
+    title: string,
+    message: string,
+    recipientUserIds: number[] | null
+  ): Promise<number> {
+    let targetIds = recipientUserIds;
+    if (!targetIds || targetIds.length === 0) {
+      const [rows]: any = await this.db.execute(
+        `SELECT id FROM users WHERE status = 'active'`
+      );
+      targetIds = rows.map((r: any) => r.id);
+    }
+
+    let sent = 0;
+    for (const userId of targetIds!) {
+      try {
+        await this.queueNotification(userId, 'special_note', { title, message });
+        sent++;
+      } catch (error) {
+        console.error(`Error queuing special note for user ${userId}:`, error);
+      }
+    }
+    return sent;
   }
 }
 

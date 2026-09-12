@@ -106,6 +106,8 @@ const sync_full_route_1 = __importDefault(require("./api/sync-full.route"));
 const attendance_processor_worker_1 = __importDefault(require("./workers/attendance-processor.worker"));
 const auto_checkout_worker_1 = __importDefault(require("./workers/auto-checkout.worker"));
 const leave_cleanup_worker_1 = __importDefault(require("./workers/leave-cleanup.worker"));
+const notification_dispatcher_worker_1 = require("./workers/notification-dispatcher.worker");
+const clock_in_reminder_worker_1 = require("./workers/clock-in-reminder.worker");
 const leave_cleanup_route_1 = __importDefault(require("./api/leave-cleanup.route"));
 const logs_route_1 = __importDefault(require("./api/logs.route"));
 const logger_1 = require("./utils/logger");
@@ -250,6 +252,18 @@ const bootstrap = async () => {
     }
     catch (error) {
         console.error('[Server] Leave cleanup worker failed to start:', error);
+    }
+    try {
+        notification_dispatcher_worker_1.NotificationDispatcherWorker.startWorker(parseInt(process.env.NOTIFICATION_DISPATCH_INTERVAL || '300'));
+    }
+    catch (error) {
+        console.error('[Server] Notification dispatcher worker failed to start:', error);
+    }
+    try {
+        clock_in_reminder_worker_1.ClockInReminderWorker.startWorker(parseInt(process.env.CLOCK_IN_REMINDER_INTERVAL || '300'));
+    }
+    catch (error) {
+        console.error('[Server] Clock-in reminder worker failed to start:', error);
     }
     app.use('/api/auth', authLimiter, auth_route_1.default);
     app.use('/api/roles', role_route_1.default);

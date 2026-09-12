@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unregisterDevice = exports.registerDevice = exports.updateUserNotificationPreferences = exports.getNotificationPreferences = exports.markNotificationAsRead = exports.getUserNotifications = void 0;
+exports.broadcastSpecialNote = exports.unregisterDevice = exports.registerDevice = exports.updateUserNotificationPreferences = exports.getNotificationPreferences = exports.markNotificationAsRead = exports.getUserNotifications = void 0;
 const database_1 = require("../config/database");
 const notification_service_1 = require("../services/notification.service");
 const getUserNotifications = async (req, res) => {
@@ -231,4 +231,35 @@ const unregisterDevice = async (req, res) => {
     }
 };
 exports.unregisterDevice = unregisterDevice;
+const broadcastSpecialNote = async (req, res) => {
+    try {
+        const { title, message, recipientUserIds } = req.body;
+        if (!title || !message) {
+            return res.status(400).json({
+                success: false,
+                message: 'Title and message are required'
+            });
+        }
+        if (recipientUserIds !== undefined && !Array.isArray(recipientUserIds)) {
+            return res.status(400).json({
+                success: false,
+                message: 'recipientUserIds must be an array of user IDs, or omitted to send to everyone'
+            });
+        }
+        const sentCount = await notification_service_1.notificationService.broadcastSpecialNote(title, message, recipientUserIds && recipientUserIds.length > 0 ? recipientUserIds : null);
+        return res.json({
+            success: true,
+            message: `Note sent to ${sentCount} ${sentCount === 1 ? 'person' : 'people'}`,
+            data: { sentCount }
+        });
+    }
+    catch (error) {
+        console.error('Error broadcasting special note:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error while broadcasting note'
+        });
+    }
+};
+exports.broadcastSpecialNote = broadcastSpecialNote;
 //# sourceMappingURL=notification.controller.js.map

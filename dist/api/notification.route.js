@@ -11,5 +11,6 @@ router.get('/preferences', notification_controller_1.getNotificationPreferences)
 router.put('/preferences', notification_controller_1.updateUserNotificationPreferences);
 router.post('/devices/register', notification_controller_1.registerDevice);
 router.delete('/devices/unregister', notification_controller_1.unregisterDevice);
+router.post('/broadcast', (0, auth_middleware_1.checkPermission)('notifications:broadcast'), notification_controller_1.broadcastSpecialNote);
 exports.default = router;
 //# sourceMappingURL=notification.route.js.map

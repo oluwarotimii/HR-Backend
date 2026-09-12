@@ -295,3 +295,45 @@ export const unregisterDevice = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Broadcast an ad-hoc "special note" to specific staff, or everyone if no
+ * recipients are given. Gated by notifications:broadcast.
+ */
+export const broadcastSpecialNote = async (req: Request, res: Response) => {
+  try {
+    const { title, message, recipientUserIds } = req.body;
+
+    if (!title || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and message are required'
+      });
+    }
+
+    if (recipientUserIds !== undefined && !Array.isArray(recipientUserIds)) {
+      return res.status(400).json({
+        success: false,
+        message: 'recipientUserIds must be an array of user IDs, or omitted to send to everyone'
+      });
+    }
+
+    const sentCount = await notificationService.broadcastSpecialNote(
+      title,
+      message,
+      recipientUserIds && recipientUserIds.length > 0 ? recipientUserIds : null
+    );
+
+    return res.json({
+      success: true,
+      message: `Note sent to ${sentCount} ${sentCount === 1 ? 'person' : 'people'}`,
+      data: { sentCount }
+    });
+  } catch (error) {
+    console.error('Error broadcasting special note:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while broadcasting note'
+    });
+  }
+};

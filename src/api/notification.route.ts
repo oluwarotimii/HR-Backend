@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { 
+import {
   getUserNotifications,
   markNotificationAsRead,
   updateUserNotificationPreferences,
   getNotificationPreferences,
   registerDevice,
-  unregisterDevice
+  unregisterDevice,
+  broadcastSpecialNote
 } from '../controllers/notification.controller';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 
@@ -31,5 +32,8 @@ router.post('/devices/register', registerDevice);
 
 // Unregister device for push notifications
 router.delete('/devices/unregister', unregisterDevice);
+
+// Send an ad-hoc announcement ("special note") to specific staff or everyone
+router.post('/broadcast', checkPermission('notifications:broadcast'), broadcastSpecialNote);
 
 export default router;
