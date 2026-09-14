@@ -367,9 +367,15 @@ class AttendanceModel {
     // tied group in a different physical order on every single call, which
     // showed up as the leaderboard's top 10 reshuffling to different people
     // on every refresh even though nothing about their attendance changed.
+    // MySQL rejects re-referencing a SELECT-list alias that is itself an
+    // aggregate (avg_check_in_seconds) inside another ORDER BY expression
+    // ("Reference not supported (reference to group function)", error 1247)
+    // — a bare `ORDER BY avg_check_in_seconds` is fine, but wrapping it in
+    // `(... IS NULL)` is not. Repeating the raw AVG(...) expression instead
+    // of the alias for just the null-check sidesteps the restriction.
     query += `
       GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name
-      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC, u.id ASC
+      ORDER BY points DESC, (AVG(TIME_TO_SEC(a.check_in_time)) IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC, u.id ASC
     `;
 
     const [rows] = await pool.execute(query, params) as [any[], any];
