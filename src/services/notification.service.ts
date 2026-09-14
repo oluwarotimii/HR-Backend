@@ -23,6 +23,26 @@ const NOTIFICATION_DEEP_LINKS: Record<string, { screen: string; params?: Record<
   system_announcement: { screen: 'Notifications' },
 };
 
+/**
+ * Templates are authored as HTML for email (real <br> tags, etc). Push
+ * notifications and the in-app feed render this as plain text, so anything
+ * shown there needs the markup stripped first — otherwise a phone
+ * notification literally reads "Dear John,<br><br>Your leave request...".
+ */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 // Interface definitions
 interface NotificationTemplate {
   id: number;
@@ -124,33 +144,37 @@ export class NotificationService {
       const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
       const payloadWithDeepLink = deepLink ? { ...payload, _deepLink: deepLink } : payload;
 
-      // Process each channel
+      // Templates are authored as HTML for email (real <br> line breaks etc).
+      // Push and the in-app feed render this as plain text, so a stripped
+      // version is what they get — otherwise a phone notification or the
+      // Notifications screen shows the literal tags.
+      const { title, message, subject } = await this.prepareNotificationContent(template, payload);
+      const plainTitle = stripHtml(title);
+      const plainMessage = stripHtml(message);
+
+      // Process each delivery channel (email, push, ...) — but the in-app
+      // feed (notification_logs) gets exactly one row per event below, not
+      // one per channel, or a push+email pair would show as two duplicate
+      // entries in the Notifications screen.
       for (const channel of channelsToUse) {
         if (userPreferences && !userPreferences.enabled) {
           continue; // Skip if user has disabled this notification type
         }
 
-        // Prepare the notification content by substituting variables
-        const { title, message, subject } = await this.prepareNotificationContent(
-          template,
-          payload
-        );
-
-        // Get recipient data based on channel
+        const isEmail = channel === 'email';
         const recipientData = await this.getRecipientData(recipientUserId, channel);
 
-        // Insert into notification queue
-        const [result]: any = await this.db.execute(
-          `INSERT INTO notification_queue 
-           (recipient_user_id, template_id, notification_type, title, message, subject, channel, 
-            recipient_data, payload, priority, scheduled_at) 
+        await this.db.execute(
+          `INSERT INTO notification_queue
+           (recipient_user_id, template_id, notification_type, title, message, subject, channel,
+            recipient_data, payload, priority, scheduled_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             recipientUserId,
             template.id,
             template.name,
-            title,
-            message,
+            isEmail ? title : plainTitle,
+            isEmail ? message : plainMessage,
             subject,
             channel,
             JSON.stringify(recipientData),
@@ -159,21 +183,21 @@ export class NotificationService {
             options.scheduledAt || new Date()
           ]
         );
+      }
 
-        const notificationId = result.insertId;
-
-        // Also insert into notification_logs for tracking
+      if (channelsToUse.length > 0 && !(userPreferences && !userPreferences.enabled)) {
+        const feedChannel = channelsToUse.includes('push') ? 'push' : channelsToUse[0];
         await this.db.execute(
-          `INSERT INTO notification_logs 
-           (recipient_user_id, notification_type, title, message, channel, 
-            related_entity_type, related_entity_id, delivery_status) 
+          `INSERT INTO notification_logs
+           (recipient_user_id, notification_type, title, message, channel,
+            related_entity_type, related_entity_id, delivery_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             recipientUserId,
             template.name,
-            title,
-            message,
-            channel,
+            plainTitle,
+            plainMessage,
+            feedChannel,
             payload.relatedEntityType || null,
             payload.relatedEntityId || null,
             'pending'
