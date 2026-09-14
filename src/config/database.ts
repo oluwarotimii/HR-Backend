@@ -37,6 +37,14 @@ const parseConnectionString = (connectionString?: string) => {
 // Database connection configuration
 const baseConfig = {
   timezone: '+01:00',
+  // Return DATE columns (start_date, end_date, holiday date, DOB, exception_date, etc.)
+  // as plain 'YYYY-MM-DD' strings instead of JS Date objects. Without this, mysql2
+  // builds a Date at local midnight — and since process.env.TZ is locked to
+  // Africa/Lagos (UTC+1) above, any later .toISOString() (including the implicit
+  // one JSON.stringify runs on Date objects) rolls the calendar day back by one.
+  // DATETIME/TIMESTAMP columns are left as Date objects since time-of-day logic
+  // (check-in/out, audit timestamps) depends on them.
+  dateStrings: ['DATE'] as ('DATE' | 'TIMESTAMP' | 'DATETIME')[],
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_POOL_LIMIT || '20'),
   queueLimit: 30,
