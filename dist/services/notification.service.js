@@ -15,6 +15,7 @@ const NOTIFICATION_DEEP_LINKS = {
     special_note: { screen: 'Notifications' },
     system_announcement: { screen: 'Notifications' },
 };
+const EMAIL_REQUIRED_TEMPLATES = new Set(['welcome_email', 'password_change_required']);
 function stripHtml(html) {
     return html
         .replace(/<br\s*\/?>/gi, '\n')
@@ -41,12 +42,18 @@ class NotificationService {
             }
             const userPreferences = await this.getUserPreferences(recipientUserId, template.name);
             let channelsToUse = [options.channel || template.channel];
-            if (userPreferences && userPreferences.channels.length > 0) {
+            const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+            if (hasExplicitPreference) {
                 channelsToUse = userPreferences.channels;
             }
-            const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+            else if (!EMAIL_REQUIRED_TEMPLATES.has(template.name)) {
+                channelsToUse = channelsToUse.filter((c) => c !== 'email');
+            }
             if (!channelsToUse.includes('push') && !hasExplicitPreference) {
                 channelsToUse = [...channelsToUse, 'push'];
+            }
+            if (channelsToUse.length === 0) {
+                channelsToUse = ['push'];
             }
             const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
             const payloadWithDeepLink = deepLink ? { ...payload, _deepLink: deepLink } : payload;

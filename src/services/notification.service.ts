@@ -24,6 +24,15 @@ const NOTIFICATION_DEEP_LINKS: Record<string, { screen: string; params?: Record<
 };
 
 /**
+ * Push + the in-app feed are the default for everything — email is opt-in,
+ * reserved for cases where someone might not have app access at all yet
+ * (a brand-new account, a forced password reset before they can log in).
+ * Routine operational stuff (leave, attendance, time off, payroll, general
+ * announcements) goes push + in-app only.
+ */
+const EMAIL_REQUIRED_TEMPLATES = new Set(['welcome_email', 'password_change_required']);
+
+/**
  * Templates are authored as HTML for email (real <br> tags, etc). Push
  * notifications and the in-app feed render this as plain text, so anything
  * shown there needs the markup stripped first — otherwise a phone
@@ -128,17 +137,26 @@ export class NotificationService {
 
       // Determine channels to use
       let channelsToUse = [options.channel || template.channel];
-      if (userPreferences && userPreferences.channels.length > 0) {
-        channelsToUse = userPreferences.channels;
+      const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+      if (hasExplicitPreference) {
+        channelsToUse = userPreferences!.channels;
+      } else if (!EMAIL_REQUIRED_TEMPLATES.has(template.name)) {
+        // Push + the in-app feed are the standard for routine operational
+        // notifications (leave, attendance, time off, ...) — email isn't
+        // needed since the app already surfaces these, and it was flooding
+        // a limited daily send quota. A short allowlist still gets email:
+        // things that need to reach someone who may not have app access yet.
+        channelsToUse = channelsToUse.filter((c) => c !== 'email');
       }
 
-      // Every notification also attempts a push alert on top of whatever the
-      // template's primary channel is (usually email) — email is the durable
-      // record, push is the immediate nudge. Only skip this when the user has
-      // an explicit preference row that deliberately excludes push.
-      const hasExplicitPreference = Boolean(userPreferences && userPreferences.channels.length > 0);
+      // Every notification always gets a push alert (which also drives the
+      // in-app feed via notification_logs below) — the one exception is a
+      // user's explicit preference deliberately excluding it.
       if (!channelsToUse.includes('push') && !hasExplicitPreference) {
         channelsToUse = [...channelsToUse, 'push'];
+      }
+      if (channelsToUse.length === 0) {
+        channelsToUse = ['push'];
       }
 
       const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
