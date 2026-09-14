@@ -15,6 +15,19 @@ const NOTIFICATION_DEEP_LINKS = {
     special_note: { screen: 'Notifications' },
     system_announcement: { screen: 'Notifications' },
 };
+function stripHtml(html) {
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
 class NotificationService {
     db;
     constructor(databasePool = database_1.pool) {
@@ -37,21 +50,24 @@ class NotificationService {
             }
             const deepLink = options.deepLink || NOTIFICATION_DEEP_LINKS[template.name];
             const payloadWithDeepLink = deepLink ? { ...payload, _deepLink: deepLink } : payload;
+            const { title, message, subject } = await this.prepareNotificationContent(template, payload);
+            const plainTitle = stripHtml(title);
+            const plainMessage = stripHtml(message);
             for (const channel of channelsToUse) {
                 if (userPreferences && !userPreferences.enabled) {
                     continue;
                 }
-                const { title, message, subject } = await this.prepareNotificationContent(template, payload);
+                const isEmail = channel === 'email';
                 const recipientData = await this.getRecipientData(recipientUserId, channel);
-                const [result] = await this.db.execute(`INSERT INTO notification_queue 
-           (recipient_user_id, template_id, notification_type, title, message, subject, channel, 
-            recipient_data, payload, priority, scheduled_at) 
+                await this.db.execute(`INSERT INTO notification_queue
+           (recipient_user_id, template_id, notification_type, title, message, subject, channel,
+            recipient_data, payload, priority, scheduled_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                     recipientUserId,
                     template.id,
                     template.name,
-                    title,
-                    message,
+                    isEmail ? title : plainTitle,
+                    isEmail ? message : plainMessage,
                     subject,
                     channel,
                     JSON.stringify(recipientData),
@@ -59,16 +75,18 @@ class NotificationService {
                     options.priority || 'normal',
                     options.scheduledAt || new Date()
                 ]);
-                const notificationId = result.insertId;
-                await this.db.execute(`INSERT INTO notification_logs 
-           (recipient_user_id, notification_type, title, message, channel, 
-            related_entity_type, related_entity_id, delivery_status) 
+            }
+            if (channelsToUse.length > 0 && !(userPreferences && !userPreferences.enabled)) {
+                const feedChannel = channelsToUse.includes('push') ? 'push' : channelsToUse[0];
+                await this.db.execute(`INSERT INTO notification_logs
+           (recipient_user_id, notification_type, title, message, channel,
+            related_entity_type, related_entity_id, delivery_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
                     recipientUserId,
                     template.name,
-                    title,
-                    message,
-                    channel,
+                    plainTitle,
+                    plainMessage,
+                    feedChannel,
                     payload.relatedEntityType || null,
                     payload.relatedEntityId || null,
                     'pending'
