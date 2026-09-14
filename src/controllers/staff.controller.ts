@@ -840,6 +840,10 @@ export const deleteStaff = async (req: Request, res: Response) => {
       });
     }
 
+    // Keep the linked user's status in sync so login is blocked immediately
+    // (auth middleware and login/refresh checks key off users.status, not staff.status).
+    await UserModel.delete(existingStaff.user_id);
+
     // Get updated staff record
     const updatedStaff = await StaffModel.findById(staffId);
 
@@ -913,6 +917,10 @@ export const terminateStaff = async (req: Request, res: Response) => {
         message: 'Staff not found'
       });
     }
+
+    // Keep the linked user's status in sync so login is blocked immediately
+    // (auth middleware and login/refresh checks key off users.status, not staff.status).
+    await UserModel.softDelete(existingStaff.user_id);
 
     // Log the staff termination
     if (req.currentUser) {
