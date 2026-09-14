@@ -236,7 +236,7 @@ export class NotificationService {
   async prepareNotificationContent(
     template: NotificationTemplate,
     payload: Record<string, any>
-  ): Promise<{ title: string; message: string; subject?: string }> {
+  ): Promise<{ title: string; message: string; subject: string | null }> {
     try {
       // Replace variables in title template
       let title = template.title_template;
@@ -252,8 +252,12 @@ export class NotificationService {
         message = message.replace(placeholder, String(value));
       }
 
-      // Replace variables in subject template if it exists
-      let subject;
+      // Templates without a subject_template (push-only ones like
+      // clock_in_reminder/special_note) must produce SQL NULL, not JS
+      // undefined — mysql2 throws "Bind parameters must not contain
+      // undefined" otherwise, which was crashing every queueNotification()
+      // call for those templates.
+      let subject: string | null = null;
       if (template.subject_template) {
         subject = template.subject_template;
         for (const [key, value] of Object.entries(payload)) {
