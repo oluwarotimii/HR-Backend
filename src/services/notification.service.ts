@@ -594,10 +594,11 @@ export class NotificationService {
   ): Promise<boolean> {
     try {
       await this.db.execute(
-        `INSERT INTO device_registrations 
-         (user_id, device_token, device_type, platform, app_version, os_version) 
+        `INSERT INTO device_registrations
+         (user_id, device_token, device_type, platform, app_version, os_version)
          VALUES (?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
+         ON DUPLICATE KEY UPDATE
+         user_id = VALUES(user_id),
          device_type = VALUES(device_type),
          platform = VALUES(platform),
          app_version = VALUES(app_version),
