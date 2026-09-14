@@ -185,7 +185,10 @@ class NotificationService {
     }
     async processNotificationQueue(limit = 10) {
         try {
-            const [rows] = await this.db.execute(`SELECT * FROM notification_queue 
+            await this.db.execute(`UPDATE notification_queue
+         SET status = 'failed', error_message = 'Stale — skipped (queued more than 2 days ago)', updated_at = NOW()
+         WHERE status = 'pending' AND scheduled_at <= NOW() AND created_at < (NOW() - INTERVAL 2 DAY)`);
+            const [rows] = await this.db.execute(`SELECT * FROM notification_queue
          WHERE status = 'pending' AND scheduled_at <= NOW()
          ORDER BY priority DESC, scheduled_at ASC
          LIMIT ?`, [limit]);
