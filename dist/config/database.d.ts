@@ -4,6 +4,7 @@ declare const dbConfig: {
         rejectUnauthorized: boolean;
     };
     timezone: string;
+    dateStrings: ("DATE" | "TIMESTAMP" | "DATETIME")[];
     waitForConnections: boolean;
     connectionLimit: number;
     queueLimit: number;

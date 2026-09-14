@@ -35,6 +35,7 @@ const parseConnectionString = (connectionString) => {
 };
 const baseConfig = {
     timezone: '+01:00',
+    dateStrings: ['DATE'],
     waitForConnections: true,
     connectionLimit: parseInt(process.env.DB_POOL_LIMIT || '20'),
     queueLimit: 30,

@@ -10,6 +10,7 @@ const audit_log_model_1 = __importDefault(require("../models/audit-log.model"));
 const shift_timing_model_1 = __importDefault(require("../models/shift-timing.model"));
 const holiday_model_1 = __importDefault(require("../models/holiday.model"));
 const leave_history_model_1 = __importDefault(require("../models/leave-history.model"));
+const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const attendance_processor_worker_1 = __importDefault(require("../workers/attendance-processor.worker"));
 const attendance_process_route_1 = __importDefault(require("./attendance-process.route"));
 const attendance_settings_route_1 = __importDefault(require("./attendance-settings.route"));
@@ -458,6 +459,64 @@ router.get('/monthly-stats', auth_middleware_1.authenticateJWT, (0, auth_middlew
         });
     }
 });
+router.get('/flagged-non-working', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:read'), async (req, res) => {
+    try {
+        const { startDate, endDate, branchId, page, limit } = req.query;
+        const currentPage = parseInt(page) || 1;
+        const perPage = Math.min(parseInt(limit) || 50, 200);
+        const offset = (currentPage - 1) * perPage;
+        let query = `
+      SELECT a.id, a.user_id, a.date, a.status, a.check_in_time, a.check_out_time, a.notes,
+             u.full_name, s.employee_id, s.branch_id, b.name as branch_name,
+             bwd.is_working_day, h.holiday_name
+      FROM attendance a
+      LEFT JOIN staff s ON a.user_id = s.user_id
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN branch_working_days bwd
+        ON bwd.branch_id = s.branch_id AND bwd.day_of_week = LOWER(DAYNAME(a.date))
+      LEFT JOIN holidays h
+        ON h.date = a.date AND (h.branch_id IS NULL OR h.branch_id = s.branch_id)
+      WHERE a.status IN ('present', 'late', 'half_day', 'early_departure')
+        AND ((bwd.id IS NOT NULL AND bwd.is_working_day = 0) OR h.id IS NOT NULL)
+    `;
+        const params = [];
+        if (startDate && endDate) {
+            query += ' AND a.date BETWEEN ? AND ?';
+            params.push(startDate, endDate);
+        }
+        if (branchId) {
+            query += ' AND s.branch_id = ?';
+            params.push(parseInt(branchId));
+        }
+        const countQuery = query.replace(/SELECT a\.id[\s\S]*?FROM attendance a/, 'SELECT COUNT(*) as total FROM attendance a');
+        const [countResult] = await database_1.pool.execute(countQuery, params);
+        const totalRecords = countResult[0]?.total || 0;
+        query += ' ORDER BY a.date DESC, a.id DESC LIMIT ? OFFSET ?';
+        params.push(perPage, offset);
+        const [rows] = await database_1.pool.execute(query, params);
+        return res.json({
+            success: true,
+            message: 'Flagged attendance records retrieved successfully',
+            data: {
+                records: rows,
+                pagination: {
+                    current_page: currentPage,
+                    per_page: perPage,
+                    total_records: totalRecords,
+                    total_pages: Math.ceil(totalRecords / perPage)
+                }
+            }
+        });
+    }
+    catch (error) {
+        console.error('Get flagged attendance error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
 router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:delete'), async (req, res) => {
     try {
         const idParam = req.params.id;
@@ -507,7 +566,7 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
         const idParam = req.params.id;
         const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
         const attendanceId = parseInt(idStr);
-        const { status, check_in_time, check_out_time, location_verified } = req.body;
+        const { status, check_in_time, check_out_time, location_verified, override_non_working_day, override_reason } = req.body;
         if (isNaN(attendanceId)) {
             return res.status(400).json({
                 success: false,
@@ -521,6 +580,36 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
                 message: 'Attendance record not found'
             });
         }
+        const workingStatuses = ['present', 'late', 'half_day', 'early_departure'];
+        if (status !== undefined && workingStatuses.includes(status) && override_non_working_day && !String(override_reason || '').trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'A reason is required to override a non-working day.'
+            });
+        }
+        if (status !== undefined && workingStatuses.includes(status) && !override_non_working_day) {
+            const effectiveSchedule = await shift_scheduling_service_1.ShiftSchedulingService.getEffectiveScheduleForDate(existingAttendance.user_id, new Date(existingAttendance.date));
+            if (effectiveSchedule?.schedule_type === 'leave') {
+                return res.status(409).json({
+                    success: false,
+                    requires_override: true,
+                    schedule_type: 'leave',
+                    message: 'This staff member is on approved leave for this date. Confirm to override and mark them as ' + status + ' anyway.'
+                });
+            }
+            if (!effectiveSchedule || !effectiveSchedule.start_time) {
+                const isHoliday = await holiday_model_1.default.isHoliday(new Date(existingAttendance.date));
+                const scheduleType = (isHoliday || effectiveSchedule?.schedule_type === 'holiday') ? 'holiday' : 'non_working_day';
+                return res.status(409).json({
+                    success: false,
+                    requires_override: true,
+                    schedule_type: scheduleType,
+                    message: scheduleType === 'holiday'
+                        ? `This date is a holiday. Confirm to override and mark this staff member as ${status} anyway.`
+                        : `This staff member's branch is closed on this date (${effectiveSchedule?.schedule_note || 'non-working day'}). Confirm to override and mark them as ${status} anyway.`
+                });
+            }
+        }
         const updateData = {};
         if (status !== undefined)
             updateData.status = status;
@@ -532,14 +621,15 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
             updateData.location_verified = location_verified;
         const updatedAttendance = await attendance_model_1.default.update(attendanceId, updateData);
         const currentUserId = req.currentUser?.id;
+        const isOverride = status !== undefined && workingStatuses.includes(status) && !!override_non_working_day;
         if (currentUserId) {
             await audit_log_model_1.default.create({
                 user_id: currentUserId,
-                action: 'update',
+                action: isOverride ? 'override_non_working_day' : 'update',
                 entity_type: 'attendance',
                 entity_id: attendanceId,
                 before_data: existingAttendance,
-                after_data: updatedAttendance,
+                after_data: isOverride ? { ...updatedAttendance, override_reason } : updatedAttendance,
                 ip_address: req.ip,
                 user_agent: req.headers['user-agent']
             });
