@@ -8,6 +8,7 @@ import AttendanceLocationModel from '../models/attendance-location.model';
 import BranchModel from '../models/branch.model';
 import StaffModel from '../models/staff.model';
 import LeaveHistoryModel from '../models/leave-history.model';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import AttendanceProcessorWorker from '../workers/attendance-processor.worker';
 import attendanceProcessRoutes from './attendance-process.route';
 import attendanceSettingsRoutes from './attendance-settings.route';
@@ -555,6 +556,78 @@ router.get('/monthly-stats', authenticateJWT, checkPermission('attendance:read')
   }
 });
 
+// GET /api/attendance/flagged-non-working - Find attendance records marked as a
+// "working" status (present/late/half_day/early_departure) on a date the staff
+// member's branch was closed, or that was a holiday. Lets admins catch cases
+// like a manual edit or override slipping through, instead of finding them by
+// accident. Supports optional startDate/endDate/branchId filters + pagination.
+router.get('/flagged-non-working', authenticateJWT, checkPermission('attendance:read'), async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, branchId, page, limit } = req.query;
+    const currentPage = parseInt(page as string) || 1;
+    const perPage = Math.min(parseInt(limit as string) || 50, 200);
+    const offset = (currentPage - 1) * perPage;
+
+    let query = `
+      SELECT a.id, a.user_id, a.date, a.status, a.check_in_time, a.check_out_time, a.notes,
+             u.full_name, s.employee_id, s.branch_id, b.name as branch_name,
+             bwd.is_working_day, h.holiday_name
+      FROM attendance a
+      LEFT JOIN staff s ON a.user_id = s.user_id
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN branch_working_days bwd
+        ON bwd.branch_id = s.branch_id AND bwd.day_of_week = LOWER(DAYNAME(a.date))
+      LEFT JOIN holidays h
+        ON h.date = a.date AND (h.branch_id IS NULL OR h.branch_id = s.branch_id)
+      WHERE a.status IN ('present', 'late', 'half_day', 'early_departure')
+        AND ((bwd.id IS NOT NULL AND bwd.is_working_day = 0) OR h.id IS NOT NULL)
+    `;
+    const params: any[] = [];
+
+    if (startDate && endDate) {
+      query += ' AND a.date BETWEEN ? AND ?';
+      params.push(startDate, endDate);
+    }
+    if (branchId) {
+      query += ' AND s.branch_id = ?';
+      params.push(parseInt(branchId as string));
+    }
+
+    const countQuery = query.replace(
+      /SELECT a\.id[\s\S]*?FROM attendance a/,
+      'SELECT COUNT(*) as total FROM attendance a'
+    );
+    const [countResult] = await pool.execute(countQuery, params);
+    const totalRecords = (countResult as any[])[0]?.total || 0;
+
+    query += ' ORDER BY a.date DESC, a.id DESC LIMIT ? OFFSET ?';
+    params.push(perPage, offset);
+
+    const [rows] = await pool.execute(query, params);
+
+    return res.json({
+      success: true,
+      message: 'Flagged attendance records retrieved successfully',
+      data: {
+        records: rows,
+        pagination: {
+          current_page: currentPage,
+          per_page: perPage,
+          total_records: totalRecords,
+          total_pages: Math.ceil(totalRecords / perPage)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get flagged attendance error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // DELETE /api/attendance/:id - Delete attendance record (admin only)
 router.delete('/:id', authenticateJWT, checkPermission('attendance:delete'), async (req: Request, res: Response) => {
   try {
@@ -611,7 +684,7 @@ router.put('/:id', authenticateJWT, checkPermission('attendance:update'), async 
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
     const attendanceId = parseInt(idStr as string);
-    const { status, check_in_time, check_out_time, location_verified } = req.body;
+    const { status, check_in_time, check_out_time, location_verified, override_non_working_day, override_reason } = req.body;
 
     if (isNaN(attendanceId)) {
       return res.status(400).json({
@@ -628,6 +701,47 @@ router.put('/:id', authenticateJWT, checkPermission('attendance:update'), async 
       });
     }
 
+    // Guard against marking someone present/late/half_day/early_departure on a day
+    // their branch is closed, they are on holiday, or on approved leave — mirrors
+    // the validation already enforced on self-service check-in, but allows an
+    // explicit, reasoned override since a human admin may legitimately need one
+    // (e.g. staff genuinely worked on an off day).
+    const workingStatuses = ['present', 'late', 'half_day', 'early_departure'];
+    if (status !== undefined && workingStatuses.includes(status) && override_non_working_day && !String(override_reason || '').trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A reason is required to override a non-working day.'
+      });
+    }
+    if (status !== undefined && workingStatuses.includes(status) && !override_non_working_day) {
+      const effectiveSchedule = await ShiftSchedulingService.getEffectiveScheduleForDate(
+        existingAttendance.user_id,
+        new Date(existingAttendance.date)
+      );
+
+      if (effectiveSchedule?.schedule_type === 'leave') {
+        return res.status(409).json({
+          success: false,
+          requires_override: true,
+          schedule_type: 'leave',
+          message: 'This staff member is on approved leave for this date. Confirm to override and mark them as ' + status + ' anyway.'
+        });
+      }
+
+      if (!effectiveSchedule || !effectiveSchedule.start_time) {
+        const isHoliday = await HolidayModel.isHoliday(new Date(existingAttendance.date));
+        const scheduleType = (isHoliday || effectiveSchedule?.schedule_type === 'holiday') ? 'holiday' : 'non_working_day';
+        return res.status(409).json({
+          success: false,
+          requires_override: true,
+          schedule_type: scheduleType,
+          message: scheduleType === 'holiday'
+            ? `This date is a holiday. Confirm to override and mark this staff member as ${status} anyway.`
+            : `This staff member's branch is closed on this date (${effectiveSchedule?.schedule_note || 'non-working day'}). Confirm to override and mark them as ${status} anyway.`
+        });
+      }
+    }
+
     const updateData: any = {};
     if (status !== undefined) updateData.status = status;
     if (check_in_time !== undefined) updateData.check_in_time = check_in_time;
@@ -637,14 +751,15 @@ router.put('/:id', authenticateJWT, checkPermission('attendance:update'), async 
     const updatedAttendance = await AttendanceModel.update(attendanceId, updateData);
 
     const currentUserId = req.currentUser?.id;
+    const isOverride = status !== undefined && workingStatuses.includes(status) && !!override_non_working_day;
     if (currentUserId) {
       await AuditLogModel.create({
         user_id: currentUserId,
-        action: 'update',
+        action: isOverride ? 'override_non_working_day' : 'update',
         entity_type: 'attendance',
         entity_id: attendanceId,
         before_data: existingAttendance,
-        after_data: updatedAttendance,
+        after_data: isOverride ? { ...updatedAttendance, override_reason } : updatedAttendance,
         ip_address: req.ip as string,
         user_agent: req.headers['user-agent'] as string
       });
