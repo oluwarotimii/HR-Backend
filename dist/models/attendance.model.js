@@ -192,7 +192,7 @@ class AttendanceModel {
         }
         query += `
       GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name
-      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC
+      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC, u.id ASC
     `;
         const [rows] = await database_1.pool.execute(query, params);
         return rows.map((r) => ({
