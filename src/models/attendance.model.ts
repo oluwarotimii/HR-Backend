@@ -358,9 +358,18 @@ class AttendanceModel {
     // recorded check-in (avg is NULL, e.g. all-absent) must sort after
     // everyone who has one, not before — MySQL sorts NULL first in ASC order
     // by default, which would wrongly rank them ahead on ties.
+    //
+    // Final `u.id ASC` is load-bearing, not cosmetic: early in a period (or
+    // with a large branch), it's common for dozens of staff to tie on every
+    // criterion above (same points, no check-ins recorded yet, same present
+    // days). SQL does NOT guarantee a stable sort among fully-tied rows —
+    // without a deterministic last key, MySQL can (and does) return that
+    // tied group in a different physical order on every single call, which
+    // showed up as the leaderboard's top 10 reshuffling to different people
+    // on every refresh even though nothing about their attendance changed.
     query += `
       GROUP BY u.id, u.full_name, s.employee_id, s.branch_id, b.name
-      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC
+      ORDER BY points DESC, (avg_check_in_seconds IS NULL) ASC, avg_check_in_seconds ASC, present_days DESC, u.id ASC
     `;
 
     const [rows] = await pool.execute(query, params) as [any[], any];
