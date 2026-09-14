@@ -352,9 +352,21 @@ export class NotificationService {
    */
   async processNotificationQueue(limit: number = 10): Promise<number> {
     try {
+      // A notification more than 2 days old is stale — e.g. "your leave was
+      // approved" is useless (or actively confusing) delivered three weeks
+      // late. Cancel these outright rather than sending them or letting them
+      // clog every future run; this matters a lot the first time this worker
+      // starts after a period of not running at all, where the queue can
+      // hold a long backlog that would otherwise all fire at once.
+      await this.db.execute(
+        `UPDATE notification_queue
+         SET status = 'failed', error_message = 'Stale — skipped (queued more than 2 days ago)', updated_at = NOW()
+         WHERE status = 'pending' AND scheduled_at <= NOW() AND created_at < (NOW() - INTERVAL 2 DAY)`
+      );
+
       // Get pending notifications that are scheduled to be sent now
       const [rows]: any = await this.db.execute(
-        `SELECT * FROM notification_queue 
+        `SELECT * FROM notification_queue
          WHERE status = 'pending' AND scheduled_at <= NOW()
          ORDER BY priority DESC, scheduled_at ASC
          LIMIT ?`,
