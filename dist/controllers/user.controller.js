@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeUserPermission = exports.addUserPermission = exports.getUserPermissions = exports.terminateUser = exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserById = exports.updateUserRole = exports.resetUserPassword = exports.getAllUsers = void 0;
 const type_utils_1 = require("../utils/type-utils");
 const user_model_1 = __importDefault(require("../models/user.model"));
+const staff_model_1 = __importDefault(require("../models/staff.model"));
 const user_permission_model_1 = __importDefault(require("../models/user-permission.model"));
 const role_model_1 = __importDefault(require("../models/role.model"));
 const permission_service_1 = __importDefault(require("../services/permission.service"));
@@ -301,6 +302,10 @@ const deleteUser = async (req, res) => {
                 message: 'User not found'
             });
         }
+        const linkedStaff = await staff_model_1.default.findByUserId(userId);
+        if (linkedStaff) {
+            await staff_model_1.default.deactivate(linkedStaff.id);
+        }
         return res.json({
             success: true,
             message: 'User deactivated successfully'
@@ -339,6 +344,10 @@ const terminateUser = async (req, res) => {
                 success: false,
                 message: 'User not found'
             });
+        }
+        const linkedStaff = await staff_model_1.default.findByUserId(userId);
+        if (linkedStaff) {
+            await staff_model_1.default.delete(linkedStaff.id);
         }
         return res.json({
             success: true,

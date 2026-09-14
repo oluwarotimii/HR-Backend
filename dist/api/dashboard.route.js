@@ -22,10 +22,10 @@ router.get('/stats', auth_middleware_1.authenticateJWT, async (req, res) => {
       WHERE status = 'pending' OR status = 'submitted'
     `);
         const [departments] = await database_1.pool.execute(`
-      SELECT department, COUNT(*) as count 
-      FROM staff 
-      WHERE department IS NOT NULL AND department != ''
-      GROUP BY department 
+      SELECT department, COUNT(*) as count
+      FROM staff
+      WHERE department IS NOT NULL AND department != '' AND status = 'active'
+      GROUP BY department
       ORDER BY count DESC
     `);
         const [recentLeaves] = await database_1.pool.execute(`

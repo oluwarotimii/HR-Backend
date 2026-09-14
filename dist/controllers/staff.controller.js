@@ -720,6 +720,7 @@ const deleteStaff = async (req, res) => {
                 message: 'Staff not found'
             });
         }
+        await user_model_1.default.delete(existingStaff.user_id);
         const updatedStaff = await staff_model_1.default.findById(staffId);
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.deactivated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
@@ -776,6 +777,7 @@ const terminateStaff = async (req, res) => {
                 message: 'Staff not found'
             });
         }
+        await user_model_1.default.softDelete(existingStaff.user_id);
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.terminated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
         }

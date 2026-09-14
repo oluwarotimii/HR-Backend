@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getNumberQueryParam, getStringQueryParam } from '../utils/type-utils';
 import UserModel, { UserInput, UserUpdate } from '../models/user.model';
+import StaffModel from '../models/staff.model';
 import UserPermissionModel from '../models/user-permission.model';
 import RoleModel from '../models/role.model';
 import PermissionService from '../services/permission.service';
@@ -331,6 +332,13 @@ export const deleteUser = async (req: Request, res: Response) => {
       });
     }
 
+    // Keep the linked staff record's status in sync so they also drop out of
+    // reports/leaderboards, which filter on staff.status independently of users.status.
+    const linkedStaff = await StaffModel.findByUserId(userId);
+    if (linkedStaff) {
+      await StaffModel.deactivate(linkedStaff.id);
+    }
+
     return res.json({
       success: true,
       message: 'User deactivated successfully'
@@ -373,6 +381,13 @@ export const terminateUser = async (req: Request, res: Response) => {
         success: false,
         message: 'User not found'
       });
+    }
+
+    // Keep the linked staff record's status in sync so they also drop out of
+    // reports/leaderboards, which filter on staff.status independently of users.status.
+    const linkedStaff = await StaffModel.findByUserId(userId);
+    if (linkedStaff) {
+      await StaffModel.delete(linkedStaff.id);
     }
 
     return res.json({

@@ -29,7 +29,7 @@ export class AnalyticsService {
         FROM attendance a
         JOIN users u ON a.user_id = u.id
         JOIN staff s ON u.id = s.user_id
-        WHERE a.date BETWEEN ? AND ?
+        WHERE a.date BETWEEN ? AND ? AND s.status = 'active' AND u.status = 'active'
       `;
       const params: any[] = [startDate, endDate];
 
@@ -171,7 +171,7 @@ export class AnalyticsService {
         FROM performance_scores ps
         JOIN users u ON ps.user_id = u.id
         JOIN staff s ON u.id = s.user_id
-        WHERE ps.evaluation_date BETWEEN ? AND ?
+        WHERE ps.evaluation_date BETWEEN ? AND ? AND s.status = 'active' AND u.status = 'active'
       `;
       const params: any[] = [startDate, endDate];
 

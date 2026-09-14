@@ -33,10 +33,10 @@ router.get('/stats', authenticateJWT, async (req: Request, res: Response) => {
 
     // Get department statistics
     const [departments]: any = await pool.execute(`
-      SELECT department, COUNT(*) as count 
-      FROM staff 
-      WHERE department IS NOT NULL AND department != ''
-      GROUP BY department 
+      SELECT department, COUNT(*) as count
+      FROM staff
+      WHERE department IS NOT NULL AND department != '' AND status = 'active'
+      GROUP BY department
       ORDER BY count DESC
     `);
 
