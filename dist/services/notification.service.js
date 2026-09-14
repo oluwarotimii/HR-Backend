@@ -118,7 +118,7 @@ class NotificationService {
                 const placeholder = new RegExp(`\\{${key}\\}`, 'g');
                 message = message.replace(placeholder, String(value));
             }
-            let subject;
+            let subject = null;
             if (template.subject_template) {
                 subject = template.subject_template;
                 for (const [key, value] of Object.entries(payload)) {

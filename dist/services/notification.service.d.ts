@@ -49,7 +49,7 @@ export declare class NotificationService {
     prepareNotificationContent(template: NotificationTemplate, payload: Record<string, any>): Promise<{
         title: string;
         message: string;
-        subject?: string;
+        subject: string | null;
     }>;
     getRecipientData(userId: number, channel: string): Promise<any>;
     getTemplateByName(name: string): Promise<NotificationTemplate | null>;
