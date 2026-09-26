@@ -8,6 +8,7 @@ declare class AttendanceProcessorWorker {
         leave: number;
         skipped: number;
     }>;
+    static processAttendanceForUser(userId: number, date: Date): Promise<'skipped' | 'holiday' | 'leave' | 'weekend' | 'off' | 'absent'>;
     static processYesterdayAttendance(): Promise<{
         processed: number;
         absent: number;

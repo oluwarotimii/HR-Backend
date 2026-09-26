@@ -43,6 +43,7 @@ const leave_request_model_1 = __importDefault(require("../models/leave-request.m
 const leave_type_model_1 = __importDefault(require("../models/leave-type.model"));
 const leave_allocation_model_1 = __importDefault(require("../models/leave-allocation.model"));
 const attachment_service_1 = __importDefault(require("../services/attachment.service"));
+const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const database_1 = require("../config/database");
 const router = (0, express_1.Router)();
 const getLeavePolicy = async () => {
@@ -434,8 +435,8 @@ router.post('/', auth_middleware_1.authenticateJWT, upload_middleware_1.upload.a
                 reason,
                 attachments: null,
                 status: 'submitted'
-            });
-            await attachment_service_1.default.saveAttachments(files, { entityType: 'leave_request', entityId: leaveRequest.id });
+            }, connection);
+            await attachment_service_1.default.saveAttachments(files, { entityType: 'leave_request', entityId: leaveRequest.id }, undefined, connection);
             await connection.commit();
             try {
                 const [approverRows] = await database_1.pool.execute(`SELECT DISTINCT u.id, u.full_name, u.email
@@ -570,6 +571,18 @@ router.put('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
                 }
             }
             await connection.commit();
+            if (isApproving) {
+                try {
+                    const start = new Date(existingRequest.start_date);
+                    const end = new Date(existingRequest.end_date);
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        await shift_scheduling_service_1.ShiftSchedulingService.processAttendanceForDate(existingRequest.user_id, new Date(d));
+                    }
+                }
+                catch (correctionError) {
+                    console.error('Error correcting attendance for approved leave:', correctionError);
+                }
+            }
             return res.json({
                 success: true,
                 message: 'Leave request updated successfully',
@@ -756,20 +769,14 @@ router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.c
              AND status = 'leave'`, [existingRequest.user_id, existingRequest.start_date, existingRequest.end_date]);
                 for (const record of attendanceRecords) {
                     const attendanceDate = new Date(record.date);
-                    const dayOfWeek = attendanceDate.getDay();
-                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                    const [holidayRows] = await connection.execute(`SELECT id FROM holidays
-             WHERE date = ? AND (branch_id IS NULL OR branch_id = (SELECT branch_id FROM users WHERE id = ?))`, [attendanceDate.toISOString().split('T')[0], existingRequest.user_id]);
-                    const isHoliday = holidayRows.length > 0;
+                    const effectiveSchedule = await shift_scheduling_service_1.ShiftSchedulingService.getEffectiveScheduleForDate(existingRequest.user_id, attendanceDate);
                     let newStatus;
-                    if (isHoliday) {
+                    if (effectiveSchedule?.schedule_type === 'holiday') {
                         newStatus = 'holiday';
                     }
-                    else if (isWeekend) {
-                        const [shiftRows] = await connection.execute(`SELECT esa.id FROM employee_shift_assignments esa
-               WHERE esa.user_id = ? AND esa.status = 'active'
-                 AND esa.recurrence_day_of_week = ?`, [existingRequest.user_id, ['sunday', 'saturday'][dayOfWeek === 0 ? 0 : 1]]);
-                        newStatus = shiftRows.length > 0 ? 'absent' : 'holiday';
+                    else if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+                        const dayOfWeek = attendanceDate.getDay();
+                        newStatus = (dayOfWeek === 0 || dayOfWeek === 6) ? 'weekend' : 'off';
                     }
                     else {
                         newStatus = 'absent';

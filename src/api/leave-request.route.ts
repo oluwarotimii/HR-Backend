@@ -5,6 +5,7 @@ import LeaveRequestModel from '../models/leave-request.model';
 import LeaveTypeModel from '../models/leave-type.model';
 import LeaveAllocationModel from '../models/leave-allocation.model';
 import AttachmentService from '../services/attachment.service';
+import { ShiftSchedulingService } from '../services/shift-scheduling.service';
 import { pool } from '../config/database';
 
 const router = Router();
@@ -566,12 +567,14 @@ router.post(
         reason,
         attachments: null, // We're now using the attachments table instead of JSON
         status: 'submitted'
-      });
+      }, connection);
 
       // Handle file attachments (REQUIRED - already validated above)
       await AttachmentService.saveAttachments(
         files,
-        { entityType: 'leave_request', entityId: leaveRequest.id }
+        { entityType: 'leave_request', entityId: leaveRequest.id },
+        undefined,
+        connection
       );
 
       await connection.commit();
@@ -773,6 +776,22 @@ router.put('/:id', authenticateJWT, checkPermission('leave:update'), async (req:
       }
 
       await connection.commit();
+
+      // Correct any attendance already auto-marked 'absent' for the days this
+      // leave now covers — approvals routinely happen after the branch's
+      // auto-mark has already run for that date, so without this the staff
+      // member stays shown as absent despite the leave being approved.
+      if (isApproving) {
+        try {
+          const start = new Date(existingRequest.start_date);
+          const end = new Date(existingRequest.end_date);
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            await ShiftSchedulingService.processAttendanceForDate(existingRequest.user_id, new Date(d));
+          }
+        } catch (correctionError) {
+          console.error('Error correcting attendance for approved leave:', correctionError);
+        }
+      }
 
       return res.json({
         success: true,
@@ -1036,37 +1055,24 @@ router.delete('/:id', authenticateJWT, checkPermission('leave:delete'), async (r
           [existingRequest.user_id, existingRequest.start_date, existingRequest.end_date]
         );
 
-        // Update each attendance record based on the day type
+        // Update each attendance record based on the day type — delegate to
+        // the shared scheduling logic (branch working days, holidays, etc.)
+        // instead of re-deriving it here. This used to query
+        // employee_shift_assignments directly and mislabel a plain weekend as
+        // 'holiday' when no assignment existed — exactly the kind of
+        // duplicated, drifted logic that caused the wrong-absent bugs.
         for (const record of attendanceRecords) {
           const attendanceDate = new Date(record.date);
-          const dayOfWeek = attendanceDate.getDay(); // 0 = Sunday, 6 = Saturday
+          const effectiveSchedule = await ShiftSchedulingService.getEffectiveScheduleForDate(existingRequest.user_id, attendanceDate);
 
-          // Check if it's a weekend
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-          // Check if it's a holiday
-          const [holidayRows]: any = await connection.execute(
-            `SELECT id FROM holidays
-             WHERE date = ? AND (branch_id IS NULL OR branch_id = (SELECT branch_id FROM users WHERE id = ?))`,
-            [attendanceDate.toISOString().split('T')[0], existingRequest.user_id]
-          );
-          const isHoliday = holidayRows.length > 0;
-
-          // Determine new status
           let newStatus: string;
-          if (isHoliday) {
+          if (effectiveSchedule?.schedule_type === 'holiday') {
             newStatus = 'holiday';
-          } else if (isWeekend) {
-            // Check if employee works on weekends based on shift assignment
-            const [shiftRows]: any = await connection.execute(
-              `SELECT esa.id FROM employee_shift_assignments esa
-               WHERE esa.user_id = ? AND esa.status = 'active'
-                 AND esa.recurrence_day_of_week = ?`,
-              [existingRequest.user_id, ['sunday', 'saturday'][dayOfWeek === 0 ? 0 : 1]]
-            );
-            newStatus = shiftRows.length > 0 ? 'absent' : 'holiday';
+          } else if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+            const dayOfWeek = attendanceDate.getDay();
+            newStatus = (dayOfWeek === 0 || dayOfWeek === 6) ? 'weekend' : 'off';
           } else {
-            // Weekday - should be marked as absent since leave is cancelled
+            // A genuine working day - should be marked as absent since leave is cancelled
             newStatus = 'absent';
           }
 

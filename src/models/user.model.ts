@@ -257,10 +257,11 @@ class UserModel {
     return this.findById(id);
   }
 
-  static async delete(id: number): Promise<boolean> {
+  static async delete(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
     // Fetch current user data to know email for cache invalidation
     const user = await this.findById(id);
-    const result: any = await pool.execute(
+    const result: any = await db.execute(
       `UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`,
       [id]
     );
@@ -275,10 +276,11 @@ class UserModel {
     return result.affectedRows > 0;
   }
 
-  static async softDelete(id: number): Promise<boolean> {
+  static async softDelete(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
     // Fetch current user data to know email for cache invalidation
     const user = await this.findById(id);
-    const result: any = await pool.execute(
+    const result: any = await db.execute(
       `UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`,
       [id]
     );

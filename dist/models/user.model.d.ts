@@ -44,8 +44,8 @@ declare class UserModel {
     static findByEmail(email: string): Promise<User | null>;
     static create(userData: UserInput): Promise<User>;
     static update(id: number, userData: UserUpdate): Promise<User | null>;
-    static delete(id: number): Promise<boolean>;
-    static softDelete(id: number): Promise<boolean>;
+    static delete(id: number, connection?: any): Promise<boolean>;
+    static softDelete(id: number, connection?: any): Promise<boolean>;
     static comparePassword(inputPassword: string, hashedPassword: string): Promise<boolean>;
     static setPasswordChangeRequirement(userId: number, mustChange: boolean): Promise<User | null>;
 }

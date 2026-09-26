@@ -173,7 +173,8 @@ class StaffModel {
         }
         return createdItem;
     }
-    static async update(id, staffData) {
+    static async update(id, staffData, connection) {
+        const db = connection || database_1.pool;
         const updates = [];
         const values = [];
         if (staffData.employee_id !== undefined) {
@@ -443,16 +444,18 @@ class StaffModel {
         values.push(id);
         const sql = `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`;
         console.log('[StaffModel] Executing SQL:', sql);
-        await database_1.pool.execute(sql, values);
+        await db.execute(sql, values);
         console.log('[StaffModel] Update completed, fetching updated record...');
         return await this.findById(id);
     }
-    static async delete(id) {
-        const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`, [id]);
+    static async delete(id, connection) {
+        const db = connection || database_1.pool;
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`, [id]);
         return result.affectedRows > 0;
     }
-    static async deactivate(id) {
-        const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
+    static async deactivate(id, connection) {
+        const db = connection || database_1.pool;
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
         return result.affectedRows > 0;
     }
     static async findByDepartment(department, branchId) {

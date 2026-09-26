@@ -1,12 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateJWT, checkPermission } from '../middleware/auth.middleware';
 import AttendanceModel from '../models/attendance.model';
-import ShiftTimingModel from '../models/shift-timing.model';
-import HolidayModel from '../models/holiday.model';
-import BranchModel from '../models/branch.model';
-import StaffModel from '../models/staff.model';
-import LeaveHistoryModel from '../models/leave-history.model';
-import { pool } from '../config/database';
+import AttendanceProcessorWorker from '../workers/attendance-processor.worker';
 
 const router = Router();
 
@@ -37,110 +32,22 @@ router.post('/process', authenticateJWT, checkPermission('attendance:manage'), a
       targetUserId = userId;
     }
 
-    // Check if attendance already exists for this date
-    const existingAttendance = await AttendanceModel.findByUserIdAndDate(targetUserId!, new Date(date));
-    if (existingAttendance) {
+    const outcome = await AttendanceProcessorWorker.processAttendanceForUser(targetUserId!, new Date(date));
+
+    if (outcome === 'skipped') {
       return res.status(409).json({
         success: false,
         message: 'Attendance already processed for this date'
       });
     }
 
-    // Check if it's a holiday
-    const isHoliday = await HolidayModel.isHoliday(new Date(date));
-    if (isHoliday) {
-      const attendanceData = {
-        user_id: targetUserId!,
-        date: new Date(date),
-        status: 'holiday' as const,
-        check_in_time: null,
-        check_out_time: null,
-        location_coordinates: null,
-        location_verified: false,
-        location_address: null,
-        notes: 'Public holiday - no attendance required'
-      };
-
-      const newAttendance = await AttendanceModel.create(attendanceData);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Holiday attendance processed successfully',
-        data: { attendance: newAttendance }
-      });
-    }
-
-    // Check if user has approved leave on this date
-    const leaveHistory = await LeaveHistoryModel.findByUserIdAndDateRange(targetUserId!, new Date(date), new Date(date));
-    if (leaveHistory.length > 0) {
-      const attendanceData = {
-        user_id: targetUserId!,
-        date: new Date(date),
-        status: 'leave' as const,
-        check_in_time: null,
-        check_out_time: null,
-        location_coordinates: null,
-        location_verified: false,
-        location_address: null,
-        notes: 'On approved leave'
-      };
-
-      const newAttendance = await AttendanceModel.create(attendanceData);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Leave attendance processed successfully',
-        data: { attendance: newAttendance }
-      });
-    }
-
-    // Get user's shift for this date
-    const shift = await ShiftTimingModel.findCurrentShiftForUser(targetUserId!, new Date(date));
-    
-    // If no shift is defined for this user on this date, mark as absent
-    if (!shift) {
-      const attendanceData = {
-        user_id: targetUserId!,
-        date: new Date(date),
-        status: 'absent' as const,
-        check_in_time: null,
-        check_out_time: null,
-        location_coordinates: null,
-        location_verified: false,
-        location_address: null,
-        notes: 'No shift assigned for this date'
-      };
-
-      const newAttendance = await AttendanceModel.create(attendanceData);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Absence recorded (no shift assigned)',
-        data: { attendance: newAttendance }
-      });
-    }
-
-    // If shift exists but no check-in time was recorded, mark as absent
-    const attendanceData = {
-      user_id: targetUserId!,
-      date: new Date(date),
-      status: 'absent' as const,
-      check_in_time: null,
-      check_out_time: null,
-      location_coordinates: null,
-      location_verified: false,
-      location_address: null,
-      notes: 'Scheduled shift but no check-in recorded'
-    };
-
-    const newAttendance = await AttendanceModel.create(attendanceData);
+    const newAttendance = await AttendanceModel.findByUserIdAndDate(targetUserId!, new Date(date));
 
     return res.status(201).json({
       success: true,
-      message: 'Absence recorded (shift scheduled but no check-in)',
+      message: `Attendance processed successfully (${outcome})`,
       data: { attendance: newAttendance }
     });
-
   } catch (error) {
     console.error('Process attendance error:', error);
     return res.status(500).json({
@@ -169,56 +76,10 @@ router.post('/process-batch', authenticateJWT, checkPermission('attendance:manag
       });
     }
 
-    // Check if it's a holiday
-    const isHoliday = await HolidayModel.isHoliday(new Date(date));
-    if (isHoliday) {
-      // Process attendance for all users as holiday
-      const results = [];
-      for (const userId of userIds) {
-        // Check if attendance already exists
-        const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
-        if (existingAttendance) {
-          results.push({
-            user_id: userId,
-            status: 'skipped',
-            message: 'Attendance already exists for this date'
-          });
-          continue;
-        }
-
-        const attendanceData = {
-          user_id: userId,
-          date: new Date(date),
-          status: 'holiday' as const,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'Public holiday - no attendance required'
-        };
-
-        const newAttendance = await AttendanceModel.create(attendanceData);
-        results.push({
-          user_id: userId,
-          status: 'success',
-          attendance: newAttendance
-        });
-      }
-
-      return res.status(201).json({
-        success: true,
-        message: 'Holiday attendance processed for all users',
-        data: { results }
-      });
-    }
-
-    // Process attendance for each user individually
     const results = [];
     for (const userId of userIds) {
-      // Check if attendance already exists
-      const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
-      if (existingAttendance) {
+      const outcome = await AttendanceProcessorWorker.processAttendanceForUser(userId, new Date(date));
+      if (outcome === 'skipped') {
         results.push({
           user_id: userId,
           status: 'skipped',
@@ -226,71 +87,7 @@ router.post('/process-batch', authenticateJWT, checkPermission('attendance:manag
         });
         continue;
       }
-
-      // Check if user has approved leave on this date
-      const leaveHistory = await LeaveHistoryModel.findByUserIdAndDateRange(userId, new Date(date), new Date(date));
-      if (leaveHistory.length > 0) {
-        const attendanceData = {
-          user_id: userId,
-          date: new Date(date),
-          status: 'leave' as const,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'On approved leave'
-        };
-
-        const newAttendance = await AttendanceModel.create(attendanceData);
-        results.push({
-          user_id: userId,
-          status: 'success',
-          attendance: newAttendance
-        });
-        continue;
-      }
-
-      // Get user's shift for this date
-      const shift = await ShiftTimingModel.findCurrentShiftForUser(userId, new Date(date));
-      
-      // If no shift is defined for this user on this date, mark as absent
-      if (!shift) {
-        const attendanceData = {
-          user_id: userId,
-          date: new Date(date),
-          status: 'absent' as const,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'No shift assigned for this date'
-        };
-
-        const newAttendance = await AttendanceModel.create(attendanceData);
-        results.push({
-          user_id: userId,
-          status: 'success',
-          attendance: newAttendance
-        });
-        continue;
-      }
-
-      // If shift exists but no check-in time was recorded, mark as absent
-      const attendanceData = {
-        user_id: userId,
-        date: new Date(date),
-        status: 'absent' as const,
-        check_in_time: null,
-        check_out_time: null,
-        location_coordinates: null,
-        location_verified: false,
-        location_address: null,
-        notes: 'Scheduled shift but no check-in recorded'
-      };
-
-      const newAttendance = await AttendanceModel.create(attendanceData);
+      const newAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
       results.push({
         user_id: userId,
         status: 'success',
@@ -303,7 +100,6 @@ router.post('/process-batch', authenticateJWT, checkPermission('attendance:manag
       message: 'Batch attendance processing completed',
       data: { results }
     });
-
   } catch (error) {
     console.error('Batch process attendance error:', error);
     return res.status(500).json({

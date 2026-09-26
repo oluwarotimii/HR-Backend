@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setStaffDynamicValues = exports.getStaffDynamicValues = exports.deleteDynamicField = exports.updateDynamicField = exports.createDynamicField = exports.getDynamicFields = exports.getCurrentUserStaffDetails = exports.getStaffByDepartment = exports.terminateStaff = exports.deleteStaff = exports.updateStaff = exports.createStaff = exports.getStaffById = exports.getAllStaff = void 0;
+const database_1 = require("../config/database");
 const type_utils_1 = require("../utils/type-utils");
 const staff_model_1 = __importDefault(require("../models/staff.model"));
 const user_model_1 = __importDefault(require("../models/user.model"));
@@ -713,14 +714,27 @@ const deleteStaff = async (req, res) => {
                 message: 'Associated user not found'
             });
         }
-        const deactivated = await staff_model_1.default.deactivate(staffId);
-        if (!deactivated) {
-            return res.status(404).json({
-                success: false,
-                message: 'Staff not found'
-            });
+        const connection = await database_1.pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const deactivated = await staff_model_1.default.deactivate(staffId, connection);
+            if (!deactivated) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Staff not found'
+                });
+            }
+            await user_model_1.default.delete(existingStaff.user_id, connection);
+            await connection.commit();
         }
-        await user_model_1.default.delete(existingStaff.user_id);
+        catch (err) {
+            await connection.rollback();
+            throw err;
+        }
+        finally {
+            connection.release();
+        }
         const updatedStaff = await staff_model_1.default.findById(staffId);
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.deactivated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
@@ -770,14 +784,28 @@ const terminateStaff = async (req, res) => {
                 message: 'Associated user not found'
             });
         }
-        const updatedStaff = await staff_model_1.default.update(staffId, { status: 'terminated' });
-        if (!updatedStaff) {
-            return res.status(404).json({
-                success: false,
-                message: 'Staff not found'
-            });
+        const connection = await database_1.pool.getConnection();
+        let updatedStaff;
+        try {
+            await connection.beginTransaction();
+            updatedStaff = await staff_model_1.default.update(staffId, { status: 'terminated' }, connection);
+            if (!updatedStaff) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Staff not found'
+                });
+            }
+            await user_model_1.default.softDelete(existingStaff.user_id, connection);
+            await connection.commit();
         }
-        await user_model_1.default.softDelete(existingStaff.user_id);
+        catch (err) {
+            await connection.rollback();
+            throw err;
+        }
+        finally {
+            connection.release();
+        }
         if (req.currentUser) {
             await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.terminated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
         }

@@ -770,18 +770,24 @@ router.get('/my-locations', authenticateJWT, async (req: Request, res: Response)
 
 router.post('/check-in', authenticateJWT, async (req: Request, res: Response) => {
   try {
-    const { date, check_in_time, location_coordinates, location_address, status: providedStatus } = req.body;
+    const { date, location_coordinates, location_address } = req.body;
     const userId = req.currentUser?.id;
     const userCoords = parseLocationCoordinates(location_coordinates);
     const debug = process.env.ATTENDANCE_DEBUG === 'true';
+
+    // The recorded check-in time (and therefore present/late status) must come
+    // from the server's own clock, never the client's — a client-supplied
+    // check_in_time or status can be trivially spoofed by setting the device
+    // clock backward before checking in.
+    const check_in_time = new Date(`1970-01-01T${new Date().toTimeString().substring(0, 8)}`);
 
     // Basic Validation
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: No user information' });
     }
 
-    if (!date || !check_in_time) {
-      return res.status(400).json({ success: false, message: 'Date and check_in_time are required' });
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'Date is required' });
     }
 
     const requestedDate = new Date(date);
@@ -930,7 +936,9 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
       location_coordinates: locationToWKT(location_coordinates),
       location_verified: verifyResult.verified,
       location_address: location_address || null,
-      status: (providedStatus as any) || 'present'
+      // Placeholder only — updateAttendanceWithScheduleInfo() below immediately
+      // recomputes the real present/late status server-side from check_in_time.
+      status: 'present' as const
     };
 
     let result;
@@ -978,10 +986,13 @@ router.post('/check-in', authenticateJWT, async (req: Request, res: Response) =>
 
 router.post('/check-out', authenticateJWT, async (req: Request, res: Response) => {
   try {
-    const { date, check_out_time, location_coordinates, location_address } = req.body;
+    const { date, location_coordinates, location_address } = req.body;
     const userId = req.currentUser?.id;
     const userCoords = parseLocationCoordinates(location_coordinates);
     const debug = process.env.ATTENDANCE_DEBUG === 'true';
+
+    // Server clock, not the client's — same reasoning as check-in.
+    const check_out_time = new Date(`1970-01-01T${new Date().toTimeString().substring(0, 8)}`);
 
     if (!userId) {
       return res.status(401).json({
@@ -991,10 +1002,10 @@ router.post('/check-out', authenticateJWT, async (req: Request, res: Response) =
     }
 
     // Validate required fields
-    if (!date || !check_out_time) {
+    if (!date) {
       return res.status(400).json({
         success: false,
-        message: 'Date and check_out_time are required'
+        message: 'Date is required'
       });
     }
 

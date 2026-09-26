@@ -46,7 +46,8 @@ class AttachmentService {
   static async saveAttachments(
     files: Express.Multer.File[],
     entity: AttachmentEntity,
-    fieldId?: number
+    fieldId?: number,
+    connection?: any
   ): Promise<Attachment[]> {
     if (!files || files.length === 0) {
       return [];
@@ -75,7 +76,7 @@ class AttachmentService {
       }
       // Add more entity types as needed
 
-      const attachment = await this.create(attachmentInput);
+      const attachment = await this.create(attachmentInput, connection);
       attachments.push(attachment);
     }
 
@@ -151,8 +152,9 @@ class AttachmentService {
   /**
    * Find attachment by ID
    */
-  static async findById(id: number): Promise<Attachment | null> {
-    const [rows] = await pool.execute(
+  static async findById(id: number, connection?: any): Promise<Attachment | null> {
+    const db = connection || pool;
+    const [rows] = await db.execute(
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
       [id]
     );
@@ -160,10 +162,14 @@ class AttachmentService {
   }
 
   /**
-   * Create a single attachment record
+   * Create a single attachment record. Pass `connection` (from pool.getConnection()
+   * + beginTransaction()) when this must be atomic with other writes in the same
+   * request — without it, the insert runs on its own auto-committed connection
+   * and a later failure in the same "transaction" can't roll it back.
    */
-  static async create(attachmentData: AttachmentInput): Promise<Attachment> {
-    const [result]: any = await pool.execute(
+  static async create(attachmentData: AttachmentInput, connection?: any): Promise<Attachment> {
+    const db = connection || pool;
+    const [result]: any = await db.execute(
       `INSERT INTO ${this.tableName}
        (form_submission_id, leave_request_id, field_id, file_name, file_path, file_size, mime_type)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -179,7 +185,7 @@ class AttachmentService {
     );
 
     const insertedId = result.insertId;
-    const createdItem = await this.findById(insertedId);
+    const createdItem = await this.findById(insertedId, connection);
 
     if (!createdItem) {
       throw new Error('Failed to create attachment');

@@ -76,145 +76,6 @@ class ShiftSchedulingService {
                     schedule_note: 'On approved leave'
                 };
             }
-            const [staffBranchDept] = await database_1.pool.execute(`SELECT s.branch_id, d.id AS department_id FROM staff s
-         LEFT JOIN departments d ON d.name = s.department
-         WHERE s.user_id = ?`, [userId]);
-            if (staffBranchDept.length > 0) {
-                const [staffRows] = await database_1.pool.execute(`SELECT id FROM staff WHERE user_id = ? LIMIT 1`, [userId]);
-                if (staffRows.length > 0) {
-                    const staffId = staffRows[0].id;
-                    const [mappings] = await database_1.pool.execute(`SELECT branch_id, staff_id FROM staff_branch_time_mappings
-             WHERE staff_id = ? OR (department_id = ? AND department_id IS NOT NULL)
-             ORDER BY staff_id DESC LIMIT 1`, [staffId, staffBranchDept[0].department_id]);
-                    if (mappings.length > 0) {
-                        const mappedBranchId = mappings[0].branch_id;
-                        const dayOfWeek = date.getDay();
-                        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                        const dayName = dayNames[dayOfWeek];
-                        const [branchHours] = await database_1.pool.execute(`SELECT start_time, end_time, break_duration_minutes, is_working_day
-               FROM branch_working_days
-               WHERE branch_id = ? AND day_of_week = ?`, [mappedBranchId, dayName]);
-                        if (branchHours.length > 0 && branchHours[0].is_working_day) {
-                            return {
-                                start_time: branchHours[0].start_time,
-                                end_time: branchHours[0].end_time,
-                                break_duration_minutes: branchHours[0].break_duration_minutes || 0,
-                                schedule_type: 'branch_time_mapping',
-                                schedule_note: `Time mapped from branch #${mappedBranchId}`
-                            };
-                        }
-                    }
-                }
-            }
-            const [assignments] = await database_1.pool.execute(`SELECT esa.custom_start_time, esa.custom_end_time, esa.custom_break_duration_minutes,
-                st.start_time as template_start_time, st.end_time as template_end_time,
-                st.break_duration_minutes as template_break_duration_minutes,
-                st.recurrence_pattern, st.recurrence_days, st.name as template_name,
-                esa.id as assignment_id, esa.recurrence_pattern as assignment_recurrence_pattern,
-                esa.recurrence_days as assignment_recurrence_days, esa.recurrence_day_of_week
-         FROM employee_shift_assignments esa
-         LEFT JOIN shift_templates st ON esa.shift_template_id = st.id
-         WHERE esa.user_id = ?
-           AND esa.status = 'active'
-           AND ? BETWEEN esa.effective_from AND COALESCE(esa.effective_to, '9999-12-31')`, [userId, dateStr]);
-            if (assignments.length > 0) {
-                const dayOfWeek = date.getDay();
-                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const dayName = dayNames[dayOfWeek];
-                const getDaysFromAssignment = (recurrencePattern, recurrenceDays, recurrenceDayOfWeek) => {
-                    if (!recurrencePattern || recurrencePattern === 'none' || recurrencePattern === 'daily') {
-                        return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-                    }
-                    if (recurrencePattern === 'weekly') {
-                        if (recurrenceDays) {
-                            try {
-                                const parsed = JSON.parse(recurrenceDays);
-                                return Array.isArray(parsed) ? parsed : [];
-                            }
-                            catch {
-                                return [];
-                            }
-                        }
-                        if (recurrenceDayOfWeek) {
-                            return [recurrenceDayOfWeek];
-                        }
-                        return [];
-                    }
-                    if (recurrencePattern === 'monthly') {
-                        if (recurrenceDayOfWeek) {
-                            return [recurrenceDayOfWeek];
-                        }
-                        return [];
-                    }
-                    return [];
-                };
-                for (const assignment of assignments) {
-                    const recurrencePattern = assignment.assignment_recurrence_pattern || assignment.recurrence_pattern || 'none';
-                    const recurrenceDays = assignment.assignment_recurrence_days || assignment.recurrence_days;
-                    const recurrenceDayOfWeek = assignment.recurrence_day_of_week;
-                    const assignedDays = getDaysFromAssignment(recurrencePattern, recurrenceDays, recurrenceDayOfWeek);
-                    if (assignedDays.length > 0 && !assignedDays.includes(dayName) && !assignedDays.includes(dayOfWeek.toString())) {
-                        continue;
-                    }
-                    const assignmentResult = {
-                        start_time: assignment.custom_start_time || assignment.template_start_time,
-                        end_time: assignment.custom_end_time || assignment.template_end_time,
-                        break_duration_minutes: assignment.custom_break_duration_minutes || assignment.template_break_duration_minutes || 0,
-                        schedule_type: `assignment_${assignment.assignment_id}_${recurrencePattern}`,
-                        schedule_note: assignment.template_name || `Shift assignment ${assignment.assignment_id}`
-                    };
-                    if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
-                        const lastSatTime = await this.getLastSaturdayResumptionTime();
-                        if (lastSatTime) {
-                            assignmentResult.start_time = lastSatTime;
-                            assignmentResult.schedule_note += ' (Last Saturday - adjusted start time)';
-                        }
-                    }
-                    return assignmentResult;
-                }
-                return {
-                    start_time: null,
-                    end_time: null,
-                    break_duration_minutes: 0,
-                    schedule_type: 'non_working_day',
-                    schedule_note: 'Non-working day based on recurrence patterns'
-                };
-            }
-            const [shiftTimings] = await database_1.pool.execute(`SELECT shift_name, start_time, end_time, override_branch_id
-         FROM shift_timings
-         WHERE user_id = ? 
-           AND effective_from <= ? 
-           AND (effective_to IS NULL OR effective_to >= ?)
-         ORDER BY id DESC`, [userId, dateStr, dateStr]);
-            if (shiftTimings.length > 0) {
-                const dayOfWeek = date.getDay();
-                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const dayName = dayNames[dayOfWeek];
-                for (const shift of shiftTimings) {
-                    const dayMatch = shift.shift_name.match(/\[(.*?)\]/);
-                    if (dayMatch) {
-                        const days = dayMatch[1].split(',').map((d) => d.trim().toLowerCase());
-                        if (!days.includes(dayName) && !days.includes(dayOfWeek.toString())) {
-                            continue;
-                        }
-                    }
-                    const shiftTimingResult = {
-                        start_time: shift.start_time,
-                        end_time: shift.end_time,
-                        break_duration_minutes: 0,
-                        schedule_type: 'multi_shift_timing',
-                        schedule_note: shift.shift_name
-                    };
-                    if (dayName === 'saturday' && this.isLastSaturdayOfMonth(date)) {
-                        const lastSatTime = await this.getLastSaturdayResumptionTime();
-                        if (lastSatTime) {
-                            shiftTimingResult.start_time = lastSatTime;
-                            shiftTimingResult.schedule_note += ' (Last Saturday - adjusted start time)';
-                        }
-                    }
-                    return shiftTimingResult;
-                }
-            }
             const [staffDetails] = await database_1.pool.execute(`SELECT branch_id, status FROM staff WHERE user_id = ?`, [userId]);
             if (staffDetails.length > 0) {
                 const { branch_id, status } = staffDetails[0];
@@ -383,12 +244,79 @@ class ShiftSchedulingService {
             if (attendanceRecords.length > 0) {
                 const record = attendanceRecords[0];
                 await this.updateAttendanceWithScheduleInfo(record.id, userId, date, 0);
+                await this.correctAttendanceStatusForDate(userId, date);
             }
         }
         catch (error) {
             console.error('Error processing attendance for date:', error);
             throw error;
         }
+    }
+    static async correctAttendanceStatusForDate(userId, date) {
+        const dateStr = date.toISOString().split('T')[0];
+        const [rows] = await database_1.pool.execute(`SELECT id, status, check_in_time FROM attendance WHERE user_id = ? AND date = ?`, [userId, dateStr]);
+        if (rows.length === 0)
+            return false;
+        const record = rows[0];
+        const correction = await this.deriveAttendanceCorrection(userId, date, record.status, record.check_in_time);
+        if (!correction)
+            return false;
+        await database_1.pool.execute(`UPDATE attendance SET status = ?, notes = ? WHERE id = ?`, [correction.status, correction.note, record.id]);
+        return true;
+    }
+    static async deriveAttendanceCorrection(userId, date, currentStatus, checkInTime) {
+        const autoMarkedStatuses = ['absent', 'weekend', 'off'];
+        if (checkInTime || !autoMarkedStatuses.includes(currentStatus)) {
+            return null;
+        }
+        const effectiveSchedule = await this.getEffectiveScheduleForDate(userId, date);
+        let correctStatus;
+        let note;
+        if (effectiveSchedule?.schedule_type === 'holiday') {
+            correctStatus = 'holiday';
+            note = effectiveSchedule.schedule_note;
+        }
+        else if (effectiveSchedule?.schedule_type === 'leave') {
+            correctStatus = 'leave';
+            note = effectiveSchedule.schedule_note;
+        }
+        else if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            correctStatus = isWeekend ? 'weekend' : 'off';
+            note = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
+        }
+        else {
+            return null;
+        }
+        if (correctStatus === currentStatus)
+            return null;
+        return { status: correctStatus, note };
+    }
+    static async bulkCorrectPastAbsences(startDate, endDate, dryRun) {
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status FROM attendance
+       WHERE status = 'absent' AND check_in_time IS NULL AND date BETWEEN ? AND ?
+       ORDER BY date ASC`, [startDate, endDate]);
+        let corrected = 0;
+        const changes = [];
+        for (const record of rows) {
+            const date = new Date(record.date);
+            const correction = await this.deriveAttendanceCorrection(record.user_id, date, record.status, null);
+            if (!correction)
+                continue;
+            corrected++;
+            if (changes.length < 500) {
+                changes.push({
+                    userId: record.user_id,
+                    date: date.toISOString().split('T')[0],
+                    from: record.status,
+                    to: correction.status,
+                });
+            }
+            if (!dryRun) {
+                await database_1.pool.execute(`UPDATE attendance SET status = ?, notes = ? WHERE id = ?`, [correction.status, correction.note, record.id]);
+            }
+        }
+        return { totalChecked: rows.length, corrected, changes };
     }
     static async reprocessLastSaturdayAttendance(specificDate) {
         const dates = [];
