@@ -255,9 +255,15 @@ class StaffModel {
       params.push(department);
     }
 
-    if (status) {
+    if (status && status !== 'all') {
       conditions.push('s.status = ?');
       params.push(status);
+    } else if (!status) {
+      // No explicit status requested — deactivated/terminated staff shouldn't
+      // appear in ordinary staff lists and pickers by default (attendance
+      // filters, assignment dropdowns, etc). Pass status: 'all' explicitly
+      // to opt into seeing everyone, e.g. the admin staff directory's "All" tab.
+      conditions.push("s.status NOT IN ('inactive', 'terminated')");
     }
 
     if (search) {
@@ -284,7 +290,7 @@ class StaffModel {
       // Add only the condition params (not limit/offset)
       if (branchId) countParams.push(branchId);
       if (department) countParams.push(department);
-      if (status) countParams.push(status);
+      if (status && status !== 'all') countParams.push(status);
       if (search) {
         const searchPattern = `%${search}%`;
         countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);

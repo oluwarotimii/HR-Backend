@@ -26,7 +26,7 @@ router.get('/', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPe
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN branches b ON s.branch_id = b.id
       LEFT JOIN attendance_locations al ON s.assigned_location_id = al.id
-      WHERE s.status != 'terminated'
+      WHERE s.status NOT IN ('terminated', 'inactive')
     `;
         const params = [];
         if (branchId) {

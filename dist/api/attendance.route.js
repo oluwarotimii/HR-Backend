@@ -280,7 +280,7 @@ router.get('/records', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.
                  FROM attendance a
                  LEFT JOIN staff s ON a.user_id = s.user_id
                  LEFT JOIN users u ON a.user_id = u.id
-                 WHERE 1=1`;
+                 WHERE (s.status IS NULL OR s.status NOT IN ('inactive', 'terminated'))`;
         const params = [];
         if (userId) {
             const userIdNum = parseInt(userId);
@@ -305,7 +305,9 @@ router.get('/records', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.
         params.push(perPage, offset);
         console.log('Attendance records query:', query);
         console.log('Params:', params);
-        let countQuery = `SELECT COUNT(*) as total FROM attendance a WHERE 1=1`;
+        let countQuery = `SELECT COUNT(*) as total FROM attendance a
+                       LEFT JOIN staff s ON a.user_id = s.user_id
+                       WHERE (s.status IS NULL OR s.status NOT IN ('inactive', 'terminated'))`;
         const countParams = [];
         if (userId) {
             const userIdNum = parseInt(userId);
