@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeUserPermission = exports.addUserPermission = exports.getUserPermissions = exports.terminateUser = exports.deleteUser = exports.updateUser = exports.createUser = exports.getUserById = exports.updateUserRole = exports.resetUserPassword = exports.getAllUsers = void 0;
+const database_1 = require("../config/database");
 const type_utils_1 = require("../utils/type-utils");
 const user_model_1 = __importDefault(require("../models/user.model"));
 const staff_model_1 = __importDefault(require("../models/staff.model"));
@@ -295,21 +296,34 @@ const deleteUser = async (req, res) => {
                 message: 'Invalid user ID'
             });
         }
-        const deleted = await user_model_1.default.delete(userId);
-        if (!deleted) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
+        const connection = await database_1.pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const deleted = await user_model_1.default.delete(userId, connection);
+            if (!deleted) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+            const linkedStaff = await staff_model_1.default.findByUserId(userId);
+            if (linkedStaff) {
+                await staff_model_1.default.deactivate(linkedStaff.id, connection);
+            }
+            await connection.commit();
+            return res.json({
+                success: true,
+                message: 'User deactivated successfully'
             });
         }
-        const linkedStaff = await staff_model_1.default.findByUserId(userId);
-        if (linkedStaff) {
-            await staff_model_1.default.deactivate(linkedStaff.id);
+        catch (err) {
+            await connection.rollback();
+            throw err;
         }
-        return res.json({
-            success: true,
-            message: 'User deactivated successfully'
-        });
+        finally {
+            connection.release();
+        }
     }
     catch (error) {
         console.error('Deactivate user error:', error);
@@ -338,21 +352,34 @@ const terminateUser = async (req, res) => {
                 message: 'User not found'
             });
         }
-        const terminated = await user_model_1.default.softDelete(userId);
-        if (!terminated) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
+        const connection = await database_1.pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const terminated = await user_model_1.default.softDelete(userId, connection);
+            if (!terminated) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+            const linkedStaff = await staff_model_1.default.findByUserId(userId);
+            if (linkedStaff) {
+                await staff_model_1.default.delete(linkedStaff.id, connection);
+            }
+            await connection.commit();
+            return res.json({
+                success: true,
+                message: 'User terminated successfully'
             });
         }
-        const linkedStaff = await staff_model_1.default.findByUserId(userId);
-        if (linkedStaff) {
-            await staff_model_1.default.delete(linkedStaff.id);
+        catch (err) {
+            await connection.rollback();
+            throw err;
         }
-        return res.json({
-            success: true,
-            message: 'User terminated successfully'
-        });
+        finally {
+            connection.release();
+        }
     }
     catch (error) {
         console.error('Terminate user error:', error);

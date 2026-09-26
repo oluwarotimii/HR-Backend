@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { pool } from '../config/database';
 import { getNumberQueryParam } from '../utils/type-utils';
 import StaffModel, { Staff, StaffInput, StaffUpdate } from '../models/staff.model';
 import UserModel from '../models/user.model';
@@ -831,18 +832,32 @@ export const deleteStaff = async (req: Request, res: Response) => {
       });
     }
 
-    // Instead of hard deleting, we'll deactivate the staff
-    const deactivated = await StaffModel.deactivate(staffId);
-    if (!deactivated) {
-      return res.status(404).json({
-        success: false,
-        message: 'Staff not found'
-      });
-    }
+    // Instead of hard deleting, we'll deactivate the staff. users.status and
+    // staff.status must move together atomically — if either update fails the
+    // other must not stick, since login-blocking and report-filtering key off
+    // different columns.
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    // Keep the linked user's status in sync so login is blocked immediately
-    // (auth middleware and login/refresh checks key off users.status, not staff.status).
-    await UserModel.delete(existingStaff.user_id);
+      const deactivated = await StaffModel.deactivate(staffId, connection);
+      if (!deactivated) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Staff not found'
+        });
+      }
+
+      await UserModel.delete(existingStaff.user_id, connection);
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
 
     // Get updated staff record
     const updatedStaff = await StaffModel.findById(staffId);
@@ -909,18 +924,30 @@ export const terminateStaff = async (req: Request, res: Response) => {
       });
     }
 
-    // Update staff status to terminated
-    const updatedStaff = await StaffModel.update(staffId, { status: 'terminated' });
-    if (!updatedStaff) {
-      return res.status(404).json({
-        success: false,
-        message: 'Staff not found'
-      });
-    }
+    // Update staff status to terminated, keeping users.status in sync atomically.
+    const connection = await pool.getConnection();
+    let updatedStaff;
+    try {
+      await connection.beginTransaction();
 
-    // Keep the linked user's status in sync so login is blocked immediately
-    // (auth middleware and login/refresh checks key off users.status, not staff.status).
-    await UserModel.softDelete(existingStaff.user_id);
+      updatedStaff = await StaffModel.update(staffId, { status: 'terminated' }, connection);
+      if (!updatedStaff) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Staff not found'
+        });
+      }
+
+      await UserModel.softDelete(existingStaff.user_id, connection);
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
 
     // Log the staff termination
     if (req.currentUser) {

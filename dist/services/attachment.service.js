@@ -8,7 +8,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 class AttachmentService {
     static tableName = 'form_attachments';
-    static async saveAttachments(files, entity, fieldId) {
+    static async saveAttachments(files, entity, fieldId, connection) {
         if (!files || files.length === 0) {
             return [];
         }
@@ -29,7 +29,7 @@ class AttachmentService {
                     attachmentInput.field_id = fieldId;
                 }
             }
-            const attachment = await this.create(attachmentInput);
+            const attachment = await this.create(attachmentInput, connection);
             attachments.push(attachment);
         }
         return attachments;
@@ -75,12 +75,14 @@ class AttachmentService {
         const result = await database_1.pool.execute(query, params);
         return result.affectedRows > 0;
     }
-    static async findById(id) {
-        const [rows] = await database_1.pool.execute(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
+    static async findById(id, connection) {
+        const db = connection || database_1.pool;
+        const [rows] = await db.execute(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
         return rows[0] || null;
     }
-    static async create(attachmentData) {
-        const [result] = await database_1.pool.execute(`INSERT INTO ${this.tableName}
+    static async create(attachmentData, connection) {
+        const db = connection || database_1.pool;
+        const [result] = await db.execute(`INSERT INTO ${this.tableName}
        (form_submission_id, leave_request_id, field_id, file_name, file_path, file_size, mime_type)
        VALUES (?, ?, ?, ?, ?, ?, ?)`, [
             attachmentData.form_submission_id || null,
@@ -92,7 +94,7 @@ class AttachmentService {
             attachmentData.mime_type || null
         ]);
         const insertedId = result.insertId;
-        const createdItem = await this.findById(insertedId);
+        const createdItem = await this.findById(insertedId, connection);
         if (!createdItem) {
             throw new Error('Failed to create attachment');
         }

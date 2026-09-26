@@ -24,12 +24,12 @@ export interface AttachmentEntity {
 }
 declare class AttachmentService {
     private static tableName;
-    static saveAttachments(files: Express.Multer.File[], entity: AttachmentEntity, fieldId?: number): Promise<Attachment[]>;
+    static saveAttachments(files: Express.Multer.File[], entity: AttachmentEntity, fieldId?: number, connection?: any): Promise<Attachment[]>;
     static getAttachments(entity: AttachmentEntity): Promise<Attachment[]>;
     static deleteAttachment(attachmentId: number): Promise<boolean>;
     static deleteByEntity(entity: AttachmentEntity): Promise<boolean>;
-    static findById(id: number): Promise<Attachment | null>;
-    static create(attachmentData: AttachmentInput): Promise<Attachment>;
+    static findById(id: number, connection?: any): Promise<Attachment | null>;
+    static create(attachmentData: AttachmentInput, connection?: any): Promise<Attachment>;
 }
 export default AttachmentService;
 //# sourceMappingURL=attachment.service.d.ts.map

@@ -58,124 +58,14 @@ class AttendanceProcessorWorker {
       let skippedCount = 0;
 
       for (const userId of userIds) {
-        // Check if attendance already exists
-        const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, date);
-        if (existingAttendance) {
-          console.log(`${logPrefix} Attendance already exists for user ${userId} on ${dateStr}, skipping`);
-          skippedCount++;
-          continue;
+        const outcome = await this.processAttendanceForUser(userId, date);
+        switch (outcome) {
+          case 'skipped': skippedCount++; break;
+          case 'holiday': holidayProcessedCount++; break;
+          case 'leave': leaveProcessedCount++; break;
+          case 'weekend': case 'off': skippedCount++; break; // count off-days as skipped for summary
+          case 'absent': absentProcessedCount++; break;
         }
-
-        // Get user's effective schedule for this date using the new shift scheduling system
-        // This handles exceptions, holidays, custom shifts, and branch defaults
-        const effectiveSchedule = await ShiftSchedulingService.getEffectiveScheduleForDate(userId, date);
-
-        if (effectiveSchedule && effectiveSchedule.schedule_type === 'holiday') {
-          // Employee has no exception to work, so they get the day off for the holiday
-          const attendanceData = {
-            user_id: userId,
-            date: date,
-            status: 'holiday' as const,
-            check_in_time: null,
-            check_out_time: null,
-            location_coordinates: null,
-            location_verified: false,
-            location_address: null,
-            notes: effectiveSchedule.schedule_note
-          };
-          await AttendanceModel.create(attendanceData);
-          holidayProcessedCount++;
-          console.log(`${logPrefix} Holiday attendance processed for user ${userId}`);
-          continue;
-        }
-
-        // Check if user has approved leave on this date
-        // Note: leave_history and leave_requests could logically be integrated into ShiftSchedulingService later,
-        // but for now we keep the existing leave checks here.
-        const leaveHistory = await LeaveHistoryModel.findByUserIdAndDateRange(userId, date, date);
-        if (leaveHistory.length > 0) {
-          const activeApprovedLeave = leaveHistory.filter(leave => leave.status === 'approved');
-          if (activeApprovedLeave.length > 0) {
-            const attendanceData = {
-              user_id: userId,
-              date: date,
-              status: 'leave' as any,
-              check_in_time: null,
-              check_out_time: null,
-              location_coordinates: null,
-              location_verified: false,
-              location_address: null,
-              notes: 'On approved leave'
-            };
-            await AttendanceModel.create(attendanceData);
-            leaveProcessedCount++;
-            console.log(`${logPrefix} Leave attendance processed for user ${userId}`);
-            continue;
-          }
-        }
-
-        const [leaveRequests]: any = await pool.execute(
-          `SELECT * FROM leave_requests WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved' AND (cancelled_by IS NULL OR cancelled_at IS NULL)`,
-          [userId, date]
-        );
-
-        if (leaveRequests.length > 0) {
-          const attendanceData = {
-            user_id: userId,
-            date: date,
-            status: 'leave' as any,
-            check_in_time: null,
-            check_out_time: null,
-            location_coordinates: null,
-            location_verified: false,
-            location_address: null,
-            notes: 'On approved leave'
-          };
-          await AttendanceModel.create(attendanceData);
-          leaveProcessedCount++;
-          console.log(`${logPrefix} Leave attendance processed for user ${userId} from leave_requests`);
-          continue;
-        }
-
-        // If no schedule is defined for this user on this date, it's a weekend or off day
-        if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
-          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-          const status = isWeekend ? 'weekend' : 'off';
-          let notes = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
-
-          const attendanceData = {
-            user_id: userId,
-            date: date,
-            status: status as any,
-            check_in_time: null,
-            check_out_time: null,
-            location_coordinates: null,
-            location_verified: false,
-            location_address: null,
-            notes: notes
-          };
-          await AttendanceModel.create(attendanceData);
-          skippedCount++; // count off-days as skipped for summary
-          console.log(`${logPrefix} Non-working day (${status}) for user ${userId} on ${dateStr}, marking as ${status}`);
-          continue;
-        }
-
-        // If a valid working schedule exists but no check-in time was recorded, mark as absent
-        const attendanceData = {
-          user_id: userId,
-          date: date,
-          status: 'absent' as any,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'Scheduled shift but no check-in recorded'
-        };
-
-        await AttendanceModel.create(attendanceData);
-        absentProcessedCount++;
-        console.log(`${logPrefix} Absent attendance recorded for user ${userId} (scheduled shift but no check-in)`);
       }
 
       const result = {
@@ -196,6 +86,117 @@ class AttendanceProcessorWorker {
       console.error(`${logPrefix} Error processing attendance:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Decide and record what a single user's attendance status should be for a
+   * date with no existing record and no check-in — holiday, leave, weekend/off,
+   * or absent. This is the ONE place that decision gets made; every endpoint
+   * that processes attendance (the auto-mark cron here, and the manual
+   * "Process Attendance" admin action in attendance-process.route.ts) must call
+   * this instead of re-implementing the same logic separately. That duplication
+   * is exactly how the manual endpoint drifted out of sync and kept marking
+   * people 'absent' on weekends/off days after the scheduling logic was fixed
+   * here but not there.
+   */
+  static async processAttendanceForUser(
+    userId: number,
+    date: Date
+  ): Promise<'skipped' | 'holiday' | 'leave' | 'weekend' | 'off' | 'absent'> {
+    const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, date);
+    if (existingAttendance) {
+      return 'skipped';
+    }
+
+    // Get user's effective schedule for this date using the shift scheduling
+    // system. This handles exceptions, holidays, and branch defaults.
+    const effectiveSchedule = await ShiftSchedulingService.getEffectiveScheduleForDate(userId, date);
+
+    if (effectiveSchedule && effectiveSchedule.schedule_type === 'holiday') {
+      await AttendanceModel.create({
+        user_id: userId,
+        date: date,
+        status: 'holiday' as const,
+        check_in_time: null,
+        check_out_time: null,
+        location_coordinates: null,
+        location_verified: false,
+        location_address: null,
+        notes: effectiveSchedule.schedule_note
+      });
+      return 'holiday';
+    }
+
+    // Check if user has approved leave on this date
+    const leaveHistory = await LeaveHistoryModel.findByUserIdAndDateRange(userId, date, date);
+    const activeApprovedLeave = leaveHistory.filter(leave => leave.status === 'approved');
+    if (activeApprovedLeave.length > 0) {
+      await AttendanceModel.create({
+        user_id: userId,
+        date: date,
+        status: 'leave' as any,
+        check_in_time: null,
+        check_out_time: null,
+        location_coordinates: null,
+        location_verified: false,
+        location_address: null,
+        notes: 'On approved leave'
+      });
+      return 'leave';
+    }
+
+    const [leaveRequests]: any = await pool.execute(
+      `SELECT * FROM leave_requests WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved' AND (cancelled_by IS NULL OR cancelled_at IS NULL)`,
+      [userId, date]
+    );
+    if (leaveRequests.length > 0) {
+      await AttendanceModel.create({
+        user_id: userId,
+        date: date,
+        status: 'leave' as any,
+        check_in_time: null,
+        check_out_time: null,
+        location_coordinates: null,
+        location_verified: false,
+        location_address: null,
+        notes: 'On approved leave'
+      });
+      return 'leave';
+    }
+
+    // If no schedule is defined for this user on this date, it's a weekend or off day
+    if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const status = isWeekend ? 'weekend' : 'off';
+      const notes = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
+
+      await AttendanceModel.create({
+        user_id: userId,
+        date: date,
+        status: status as any,
+        check_in_time: null,
+        check_out_time: null,
+        location_coordinates: null,
+        location_verified: false,
+        location_address: null,
+        notes: notes
+      });
+      return status;
+    }
+
+    // A valid working schedule exists but no check-in time was recorded
+    await AttendanceModel.create({
+      user_id: userId,
+      date: date,
+      status: 'absent' as any,
+      check_in_time: null,
+      check_out_time: null,
+      location_coordinates: null,
+      location_verified: false,
+      location_address: null,
+      notes: 'Scheduled shift but no check-in recorded'
+    });
+    return 'absent';
   }
 
   /**

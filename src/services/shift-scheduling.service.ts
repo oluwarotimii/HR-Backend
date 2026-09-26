@@ -125,6 +125,17 @@ export class ShiftSchedulingService {
         };
       }
 
+      /* ─────────────────────────────────────────────────────────────────────
+       * DISABLED: per-staff branch-time mapping, individual shift assignments,
+       * and multi-shift timings. Every one of the "absent on a day with no
+       * real shift" bugs traced back to this block — a stale or malformed row
+       * in one of these tables could silently produce a fake "working" answer
+       * that overrode the person's actual branch hours. Per decision: everyone
+       * now follows their branch's configured working days only. Commented out
+       * rather than deleted so it can be restored if per-person scheduling is
+       * ever needed again — the underlying tables and data are untouched.
+       * ───────────────────────────────────────────────────────────────────── */
+      /*
       // Check for branch time mapping override (staff-specific or department-wide)
       // If a mapping exists, use that branch's working days, overriding personal shifts and branch default
       const [staffBranchDept]: any = await pool.execute(
@@ -166,6 +177,22 @@ export class ShiftSchedulingService {
                 schedule_note: `Time mapped from branch #${mappedBranchId}`
               };
             }
+
+            // A mapping exists but the mapped branch is explicitly closed (or has
+            // no hours configured) for this day. The comment above this block says
+            // the mapping should override personal shifts and the branch default —
+            // silently falling through here broke that promise: it let a stale
+            // personal shift assignment or the user's own (unmapped) branch decide
+            // the day instead, which is how someone with a mapping to a closed
+            // branch could still end up scheduled and then marked absent. Once a
+            // mapping applies, its answer is final.
+            return {
+              start_time: null,
+              end_time: null,
+              break_duration_minutes: 0,
+              schedule_type: 'non_working_day',
+              schedule_note: `Mapped branch #${mappedBranchId} is closed on ${dayName}`
+            };
           }
         }
       }
@@ -232,8 +259,16 @@ export class ShiftSchedulingService {
 
           const assignedDays = getDaysFromAssignment(recurrencePattern, recurrenceDays, recurrenceDayOfWeek);
 
-          // Check if this assignment includes the current day
-          if (assignedDays.length > 0 && !assignedDays.includes(dayName) && !assignedDays.includes(dayOfWeek.toString())) {
+          // Check if this assignment includes the current day. An assignment
+          // whose recurrence config resolves to NO days (e.g. 'weekly'/'monthly'
+          // with neither recurrence_days nor recurrence_day_of_week set) must be
+          // treated as matching nothing — not as matching every day. Previously
+          // `assignedDays.length > 0` in this condition meant an empty/malformed
+          // recurrence silently skipped the day-check entirely, so a shift with
+          // no real day config was treated as covering every single day of the
+          // week, including weekends and approved off days — that's what was
+          // marking people 'absent' on days they were never scheduled to work.
+          if (assignedDays.length === 0 || (!assignedDays.includes(dayName) && !assignedDays.includes(dayOfWeek.toString()))) {
             continue; // This assignment doesn't cover this day, try next one
           }
 
@@ -328,6 +363,7 @@ export class ShiftSchedulingService {
           return shiftTimingResult;
         }
       }
+      */
 
       // Finally, fall back to branch working hours if no specific user assignment exists
       const [staffDetails]: any = await pool.execute(
@@ -592,7 +628,10 @@ export class ShiftSchedulingService {
   }
 
   /**
-   * Process attendance for a specific user and date
+   * Process attendance for a specific user and date. Called by every shift/
+   * exception/schedule-change endpoint after they modify a user's schedule for
+   * a date that may already have an attendance row, to bring that row back in
+   * line with the new effective schedule.
    */
   static async processAttendanceForDate(userId: number, date: Date): Promise<void> {
     try {
@@ -614,11 +653,149 @@ export class ShiftSchedulingService {
           date,
           0 // Default grace period for batch processing
         );
+
+        // updateAttendanceWithScheduleInfo only recomputes late/early-departure
+        // metrics from an existing check-in — with no check-in to work from it
+        // can't change `status`, so a stale 'absent'/'weekend'/'off' placeholder
+        // survives even after the schedule change that should have cleared it.
+        // Explicitly re-derive and fix the status too.
+        await this.correctAttendanceStatusForDate(userId, date);
       }
     } catch (error) {
       console.error('Error processing attendance for date:', error);
       throw error;
     }
+  }
+
+  /**
+   * Correct an already-created attendance record's status after a leave request,
+   * floating-day-off, or other exception is approved for that date.
+   *
+   * Why this exists: the nightly/branch auto-mark worker creates an attendance
+   * row (status 'absent'/'weekend'/'off') for every active staff member who
+   * hasn't checked in. If HR approves a leave or floating-day request for that
+   * same date *after* that row already exists — which is the normal case,
+   * since approvals often happen hours or days later — nothing was previously
+   * going back to fix the row: `processAttendanceForDate` only recomputes
+   * late/early-departure metrics from an existing check-in, and with no
+   * check-in to work from it leaves `status` untouched via `COALESCE`. That's
+   * why staff on an approved leave or off day kept showing 'absent'.
+   *
+   * This only ever touches a record that has no real check-in and whose status
+   * is one of the auto-marked placeholders — it will never overwrite a status
+   * an admin set directly or a record with actual clock-in data.
+   */
+  static async correctAttendanceStatusForDate(userId: number, date: Date): Promise<boolean> {
+    const dateStr = date.toISOString().split('T')[0];
+    const [rows]: any = await pool.execute(
+      `SELECT id, status, check_in_time FROM attendance WHERE user_id = ? AND date = ?`,
+      [userId, dateStr]
+    );
+    if (rows.length === 0) return false;
+
+    const record = rows[0];
+    const correction = await this.deriveAttendanceCorrection(userId, date, record.status, record.check_in_time);
+    if (!correction) return false;
+
+    await pool.execute(`UPDATE attendance SET status = ?, notes = ? WHERE id = ?`, [correction.status, correction.note, record.id]);
+    return true;
+  }
+
+  /**
+   * Shared logic: given an existing attendance row's current status/check-in,
+   * work out what it *should* be under today's effective-schedule rules, or
+   * return null if no change is warranted (real check-in present, status
+   * wasn't an auto-marked placeholder, or it's genuinely still correct).
+   */
+  private static async deriveAttendanceCorrection(
+    userId: number,
+    date: Date,
+    currentStatus: string,
+    checkInTime: string | null
+  ): Promise<{ status: string; note: string } | null> {
+    const autoMarkedStatuses = ['absent', 'weekend', 'off'];
+    if (checkInTime || !autoMarkedStatuses.includes(currentStatus)) {
+      return null;
+    }
+
+    const effectiveSchedule = await this.getEffectiveScheduleForDate(userId, date);
+
+    let correctStatus: string;
+    let note: string;
+    if (effectiveSchedule?.schedule_type === 'holiday') {
+      correctStatus = 'holiday';
+      note = effectiveSchedule.schedule_note;
+    } else if (effectiveSchedule?.schedule_type === 'leave') {
+      correctStatus = 'leave';
+      note = effectiveSchedule.schedule_note;
+    } else if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      correctStatus = isWeekend ? 'weekend' : 'off';
+      note = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
+    } else {
+      // Effective schedule now says this is still a genuine working day —
+      // the current status is correct as-is, nothing to fix.
+      return null;
+    }
+
+    if (correctStatus === currentStatus) return null;
+    return { status: correctStatus, note };
+  }
+
+  /**
+   * One-time historical cleanup for the "absent" bugs fixed in
+   * getEffectiveScheduleForDate (empty-recurrence-days matching every day,
+   * branch-mapping falling through to a stale personal schedule, etc.) and for
+   * approvals that came in after auto-mark had already run. Scans every
+   * 'absent' record with no real check-in in the given date range, re-derives
+   * what it should be under the current (fixed) logic, and — unless dryRun —
+   * corrects it.
+   *
+   * Deliberately narrow: only ever touches rows with status='absent' and no
+   * check_in_time. Never touches a record with real clock-in data, and the
+   * date range is required so this can't accidentally sweep the entire
+   * history of the company in one call.
+   */
+  static async bulkCorrectPastAbsences(
+    startDate: string,
+    endDate: string,
+    dryRun: boolean
+  ): Promise<{
+    totalChecked: number;
+    corrected: number;
+    changes: { userId: number; date: string; from: string; to: string }[];
+  }> {
+    const [rows]: any = await pool.execute(
+      `SELECT id, user_id, date, status FROM attendance
+       WHERE status = 'absent' AND check_in_time IS NULL AND date BETWEEN ? AND ?
+       ORDER BY date ASC`,
+      [startDate, endDate]
+    );
+
+    let corrected = 0;
+    const changes: { userId: number; date: string; from: string; to: string }[] = [];
+
+    for (const record of rows) {
+      const date = new Date(record.date);
+      const correction = await this.deriveAttendanceCorrection(record.user_id, date, record.status, null);
+      if (!correction) continue;
+
+      corrected++;
+      if (changes.length < 500) {
+        changes.push({
+          userId: record.user_id,
+          date: date.toISOString().split('T')[0],
+          from: record.status,
+          to: correction.status,
+        });
+      }
+
+      if (!dryRun) {
+        await pool.execute(`UPDATE attendance SET status = ?, notes = ? WHERE id = ?`, [correction.status, correction.note, record.id]);
+      }
+    }
+
+    return { totalChecked: rows.length, corrected, changes };
   }
 
   /**

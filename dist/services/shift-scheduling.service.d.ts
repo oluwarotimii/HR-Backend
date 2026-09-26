@@ -19,6 +19,18 @@ export declare class ShiftSchedulingService {
     }>;
     static updateAttendanceWithScheduleInfo(attendanceId: number, userId: number, date: Date, gracePeriodMinutes?: number, existingSchedule?: any): Promise<boolean>;
     static processAttendanceForDate(userId: number, date: Date): Promise<void>;
+    static correctAttendanceStatusForDate(userId: number, date: Date): Promise<boolean>;
+    private static deriveAttendanceCorrection;
+    static bulkCorrectPastAbsences(startDate: string, endDate: string, dryRun: boolean): Promise<{
+        totalChecked: number;
+        corrected: number;
+        changes: {
+            userId: number;
+            date: string;
+            from: string;
+            to: string;
+        }[];
+    }>;
     static reprocessLastSaturdayAttendance(specificDate?: string): Promise<{
         reprocessed: number;
         dates: string[];

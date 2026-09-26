@@ -990,127 +990,27 @@ router.post('/process-daily', authenticateJWT, checkPermission('attendance:manag
 
     // Get all active staff members
     const [staffResults] = await pool.execute(
-      `SELECT s.user_id FROM staff s 
-       JOIN users u ON s.user_id = u.id 
+      `SELECT s.user_id FROM staff s
+       JOIN users u ON s.user_id = u.id
        WHERE s.status = 'active' AND u.status = 'active'`
     ) as [any[], any];
 
     const userIds = staffResults.map((staff: any) => staff.user_id);
 
-    // Check if it's a holiday
-    const isHoliday = await HolidayModel.isHoliday(new Date(date));
-    if (isHoliday) {
-      // Process attendance for all users as holiday
-      const results = [];
-      for (const userId of userIds) {
-        // Check if attendance already exists
-        const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
-        if (existingAttendance) {
-          results.push({
-            user_id: userId,
-            status: 'skipped',
-            message: 'Attendance already exists for this date'
-          });
-          continue;
-        }
-
-        const attendanceData = {
-          user_id: userId,
-          date: new Date(date),
-          status: 'holiday' as const,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'Public holiday - no attendance required'
-        };
-
-        const newAttendance = await AttendanceModel.create(attendanceData);
-        results.push({
-          user_id: userId,
-          status: 'success',
-          attendance: newAttendance
-        });
-      }
-
-      return res.status(201).json({
-        success: true,
-        message: 'Holiday attendance processed for all active staff',
-        data: { results }
-      });
-    }
-
-    // Process attendance for each user individually
+    // Delegate to the single shared decision logic (holiday/leave/branch
+    // working-days/absent) instead of re-implementing it here — this endpoint
+    // used to check the legacy shift_timings table directly with no branch or
+    // weekend awareness at all, which is exactly the bug class fixed elsewhere
+    // this session.
     const results = [];
     for (const userId of userIds) {
-      // Check if attendance already exists
-      const existingAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
-      if (existingAttendance) {
-        results.push({
-          user_id: userId,
-          status: 'skipped',
-          message: 'Attendance already exists for this date'
-        });
+      const outcome = await AttendanceProcessorWorker.processAttendanceForUser(userId, new Date(date));
+      if (outcome === 'skipped') {
+        results.push({ user_id: userId, status: 'skipped', message: 'Attendance already exists for this date' });
         continue;
       }
-
-      // Check if user has approved leave on this date
-      const leaveHistory = await LeaveHistoryModel.findByUserIdAndDateRange(userId, new Date(date), new Date(date));
-      if (leaveHistory.length > 0) {
-        const attendanceData = {
-          user_id: userId,
-          date: new Date(date),
-          status: 'leave' as const,
-          check_in_time: null,
-          check_out_time: null,
-          location_coordinates: null,
-          location_verified: false,
-          location_address: null,
-          notes: 'On approved leave'
-        };
-
-        const newAttendance = await AttendanceModel.create(attendanceData);
-        results.push({
-          user_id: userId,
-          status: 'success',
-          attendance: newAttendance
-        });
-        continue;
-      }
-
-      // Get user's shift for this date
-      const shift = await ShiftTimingModel.findCurrentShiftForUser(userId, new Date(date));
-      
-      // If no shift is defined for this user on this date, don't mark attendance (they're not scheduled)
-      if (!shift) {
-        results.push({
-          user_id: userId,
-          status: 'skipped',
-          message: 'No shift assigned for this date'
-        });
-        continue;
-      }
-
-      // If shift exists but no check-in time was recorded, mark as absent
-      const attendanceData = {
-        user_id: userId,
-        date: new Date(date),
-        status: 'absent' as const,
-        check_in_time: null,
-        check_out_time: null,
-        location_coordinates: null,
-        location_verified: false,
-        location_address: null,
-        notes: 'Scheduled shift but no check-in recorded'
-      };
-
-      const newAttendance = await AttendanceModel.create(attendanceData);
-      results.push({
-        user_id: userId,
-        status: 'success',
-        attendance: newAttendance
-      });
+      const newAttendance = await AttendanceModel.findByUserIdAndDate(userId, new Date(date));
+      results.push({ user_id: userId, status: 'success', attendance: newAttendance });
     }
 
     return res.status(201).json({
@@ -1242,6 +1142,38 @@ router.get('/:id', authenticateJWT, checkPermission('attendance:read'), async (r
     });
   } catch (error) {
     console.error('Get attendance by ID error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/attendance/correct-historical - One-time cleanup for staff wrongly
+// marked 'absent' in the past by the shift-scheduling bugs fixed this session.
+// Always run with dryRun:true first to review what would change before applying.
+router.post('/correct-historical', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, dryRun } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and endDate are required (YYYY-MM-DD) — this only ever corrects records in that range.'
+      });
+    }
+
+    const result = await ShiftSchedulingService.bulkCorrectPastAbsences(startDate, endDate, dryRun !== false);
+
+    return res.json({
+      success: true,
+      message: dryRun === false
+        ? `Corrected ${result.corrected} of ${result.totalChecked} 'absent' records.`
+        : `Dry run: ${result.corrected} of ${result.totalChecked} 'absent' records would be corrected. Re-run with dryRun:false to apply.`,
+      data: result
+    });
+  } catch (error) {
+    console.error('Correct historical attendance error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'

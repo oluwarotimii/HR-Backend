@@ -7,9 +7,7 @@ const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const attendance_model_1 = __importDefault(require("../models/attendance.model"));
 const audit_log_model_1 = __importDefault(require("../models/audit-log.model"));
-const shift_timing_model_1 = __importDefault(require("../models/shift-timing.model"));
 const holiday_model_1 = __importDefault(require("../models/holiday.model"));
-const leave_history_model_1 = __importDefault(require("../models/leave-history.model"));
 const shift_scheduling_service_1 = require("../services/shift-scheduling.service");
 const attendance_processor_worker_1 = __importDefault(require("../workers/attendance-processor.worker"));
 const attendance_process_route_1 = __importDefault(require("./attendance-process.route"));
@@ -823,105 +821,19 @@ router.post('/process-daily', auth_middleware_1.authenticateJWT, (0, auth_middle
                 message: 'Date is required'
             });
         }
-        const [staffResults] = await database_1.pool.execute(`SELECT s.user_id FROM staff s 
-       JOIN users u ON s.user_id = u.id 
+        const [staffResults] = await database_1.pool.execute(`SELECT s.user_id FROM staff s
+       JOIN users u ON s.user_id = u.id
        WHERE s.status = 'active' AND u.status = 'active'`);
         const userIds = staffResults.map((staff) => staff.user_id);
-        const isHoliday = await holiday_model_1.default.isHoliday(new Date(date));
-        if (isHoliday) {
-            const results = [];
-            for (const userId of userIds) {
-                const existingAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, new Date(date));
-                if (existingAttendance) {
-                    results.push({
-                        user_id: userId,
-                        status: 'skipped',
-                        message: 'Attendance already exists for this date'
-                    });
-                    continue;
-                }
-                const attendanceData = {
-                    user_id: userId,
-                    date: new Date(date),
-                    status: 'holiday',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'Public holiday - no attendance required'
-                };
-                const newAttendance = await attendance_model_1.default.create(attendanceData);
-                results.push({
-                    user_id: userId,
-                    status: 'success',
-                    attendance: newAttendance
-                });
-            }
-            return res.status(201).json({
-                success: true,
-                message: 'Holiday attendance processed for all active staff',
-                data: { results }
-            });
-        }
         const results = [];
         for (const userId of userIds) {
-            const existingAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, new Date(date));
-            if (existingAttendance) {
-                results.push({
-                    user_id: userId,
-                    status: 'skipped',
-                    message: 'Attendance already exists for this date'
-                });
+            const outcome = await attendance_processor_worker_1.default.processAttendanceForUser(userId, new Date(date));
+            if (outcome === 'skipped') {
+                results.push({ user_id: userId, status: 'skipped', message: 'Attendance already exists for this date' });
                 continue;
             }
-            const leaveHistory = await leave_history_model_1.default.findByUserIdAndDateRange(userId, new Date(date), new Date(date));
-            if (leaveHistory.length > 0) {
-                const attendanceData = {
-                    user_id: userId,
-                    date: new Date(date),
-                    status: 'leave',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'On approved leave'
-                };
-                const newAttendance = await attendance_model_1.default.create(attendanceData);
-                results.push({
-                    user_id: userId,
-                    status: 'success',
-                    attendance: newAttendance
-                });
-                continue;
-            }
-            const shift = await shift_timing_model_1.default.findCurrentShiftForUser(userId, new Date(date));
-            if (!shift) {
-                results.push({
-                    user_id: userId,
-                    status: 'skipped',
-                    message: 'No shift assigned for this date'
-                });
-                continue;
-            }
-            const attendanceData = {
-                user_id: userId,
-                date: new Date(date),
-                status: 'absent',
-                check_in_time: null,
-                check_out_time: null,
-                location_coordinates: null,
-                location_verified: false,
-                location_address: null,
-                notes: 'Scheduled shift but no check-in recorded'
-            };
-            const newAttendance = await attendance_model_1.default.create(attendanceData);
-            results.push({
-                user_id: userId,
-                status: 'success',
-                attendance: newAttendance
-            });
+            const newAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, new Date(date));
+            results.push({ user_id: userId, status: 'success', attendance: newAttendance });
         }
         return res.status(201).json({
             success: true,
@@ -1028,6 +940,32 @@ router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
     }
     catch (error) {
         console.error('Get attendance by ID error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+router.post('/correct-historical', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:manage'), async (req, res) => {
+    try {
+        const { startDate, endDate, dryRun } = req.body;
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'startDate and endDate are required (YYYY-MM-DD) — this only ever corrects records in that range.'
+            });
+        }
+        const result = await shift_scheduling_service_1.ShiftSchedulingService.bulkCorrectPastAbsences(startDate, endDate, dryRun !== false);
+        return res.json({
+            success: true,
+            message: dryRun === false
+                ? `Corrected ${result.corrected} of ${result.totalChecked} 'absent' records.`
+                : `Dry run: ${result.corrected} of ${result.totalChecked} 'absent' records would be corrected. Re-run with dryRun:false to apply.`,
+            data: result
+        });
+    }
+    catch (error) {
+        console.error('Correct historical attendance error:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal server error'

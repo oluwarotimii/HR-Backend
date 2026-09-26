@@ -434,7 +434,8 @@ class StaffModel {
     return createdItem;
   }
 
-  static async update(id: number, staffData: StaffUpdate): Promise<Staff | null> {
+  static async update(id: number, staffData: StaffUpdate, connection?: any): Promise<Staff | null> {
+    const db = connection || pool;
     const updates: string[] = [];
     const values: any[] = [];
 
@@ -773,14 +774,15 @@ class StaffModel {
     const sql = `UPDATE ${this.tableName} SET ${updates.join(', ')} WHERE id = ?`;
     console.log('[StaffModel] Executing SQL:', sql);
     
-    await pool.execute(sql, values);
+    await db.execute(sql, values);
 
     console.log('[StaffModel] Update completed, fetching updated record...');
     return await this.findById(id);
   }
 
-  static async delete(id: number): Promise<boolean> {
-    const result: any = await pool.execute(
+  static async delete(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
+    const result: any = await db.execute(
       `UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`,
       [id]
     );
@@ -789,8 +791,9 @@ class StaffModel {
   }
 
   // Soft delete - deactivate staff
-  static async deactivate(id: number): Promise<boolean> {
-    const result: any = await pool.execute(
+  static async deactivate(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
+    const result: any = await db.execute(
       `UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`,
       [id]
     );

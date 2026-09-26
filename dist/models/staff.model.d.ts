@@ -225,9 +225,9 @@ declare class StaffModel {
     static findByUserId(userId: number): Promise<Staff | null>;
     static findByEmployeeId(employeeId: string): Promise<Staff | null>;
     static create(staffData: StaffInput): Promise<Staff>;
-    static update(id: number, staffData: StaffUpdate): Promise<Staff | null>;
-    static delete(id: number): Promise<boolean>;
-    static deactivate(id: number): Promise<boolean>;
+    static update(id: number, staffData: StaffUpdate, connection?: any): Promise<Staff | null>;
+    static delete(id: number, connection?: any): Promise<boolean>;
+    static deactivate(id: number, connection?: any): Promise<boolean>;
     static findByDepartment(department: string, branchId?: number): Promise<Staff[]>;
     static findByBranch(branchId: number): Promise<Staff[]>;
 }

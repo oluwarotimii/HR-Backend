@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { pool } from '../config/database';
 import { getNumberQueryParam, getStringQueryParam } from '../utils/type-utils';
 import UserModel, { UserInput, UserUpdate } from '../models/user.model';
 import StaffModel from '../models/staff.model';
@@ -323,26 +324,38 @@ export const deleteUser = async (req: Request, res: Response) => {
       });
     }
 
-    // Soft delete the user (set status to 'inactive')
-    const deleted = await UserModel.delete(userId);
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
+    // Keep users.status and staff.status in sync atomically — if the staff-side
+    // update fails, the user-side one must not silently stick either.
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const deleted = await UserModel.delete(userId, connection);
+      if (!deleted) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      const linkedStaff = await StaffModel.findByUserId(userId);
+      if (linkedStaff) {
+        await StaffModel.deactivate(linkedStaff.id, connection);
+      }
+
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'User deactivated successfully'
       });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
     }
-
-    // Keep the linked staff record's status in sync so they also drop out of
-    // reports/leaderboards, which filter on staff.status independently of users.status.
-    const linkedStaff = await StaffModel.findByUserId(userId);
-    if (linkedStaff) {
-      await StaffModel.deactivate(linkedStaff.id);
-    }
-
-    return res.json({
-      success: true,
-      message: 'User deactivated successfully'
-    });
   } catch (error) {
     console.error('Deactivate user error:', error);
     return res.status(500).json({
@@ -374,26 +387,37 @@ export const terminateUser = async (req: Request, res: Response) => {
       });
     }
 
-    // Terminate the user (set status to 'terminated')
-    const terminated = await UserModel.softDelete(userId);
-    if (!terminated) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
+    // Keep users.status and staff.status in sync atomically.
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const terminated = await UserModel.softDelete(userId, connection);
+      if (!terminated) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      const linkedStaff = await StaffModel.findByUserId(userId);
+      if (linkedStaff) {
+        await StaffModel.delete(linkedStaff.id, connection);
+      }
+
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'User terminated successfully'
       });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
     }
-
-    // Keep the linked staff record's status in sync so they also drop out of
-    // reports/leaderboards, which filter on staff.status independently of users.status.
-    const linkedStaff = await StaffModel.findByUserId(userId);
-    if (linkedStaff) {
-      await StaffModel.delete(linkedStaff.id);
-    }
-
-    return res.json({
-      success: true,
-      message: 'User terminated successfully'
-    });
   } catch (error) {
     console.error('Terminate user error:', error);
     return res.status(500).json({

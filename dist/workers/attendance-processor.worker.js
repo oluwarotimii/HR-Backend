@@ -38,103 +38,25 @@ class AttendanceProcessorWorker {
             let holidayProcessedCount = 0;
             let skippedCount = 0;
             for (const userId of userIds) {
-                const existingAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, date);
-                if (existingAttendance) {
-                    console.log(`${logPrefix} Attendance already exists for user ${userId} on ${dateStr}, skipping`);
-                    skippedCount++;
-                    continue;
-                }
-                const effectiveSchedule = await shift_scheduling_service_1.ShiftSchedulingService.getEffectiveScheduleForDate(userId, date);
-                if (effectiveSchedule && effectiveSchedule.schedule_type === 'holiday') {
-                    const attendanceData = {
-                        user_id: userId,
-                        date: date,
-                        status: 'holiday',
-                        check_in_time: null,
-                        check_out_time: null,
-                        location_coordinates: null,
-                        location_verified: false,
-                        location_address: null,
-                        notes: effectiveSchedule.schedule_note
-                    };
-                    await attendance_model_1.default.create(attendanceData);
-                    holidayProcessedCount++;
-                    console.log(`${logPrefix} Holiday attendance processed for user ${userId}`);
-                    continue;
-                }
-                const leaveHistory = await leave_history_model_1.default.findByUserIdAndDateRange(userId, date, date);
-                if (leaveHistory.length > 0) {
-                    const activeApprovedLeave = leaveHistory.filter(leave => leave.status === 'approved');
-                    if (activeApprovedLeave.length > 0) {
-                        const attendanceData = {
-                            user_id: userId,
-                            date: date,
-                            status: 'leave',
-                            check_in_time: null,
-                            check_out_time: null,
-                            location_coordinates: null,
-                            location_verified: false,
-                            location_address: null,
-                            notes: 'On approved leave'
-                        };
-                        await attendance_model_1.default.create(attendanceData);
+                const outcome = await this.processAttendanceForUser(userId, date);
+                switch (outcome) {
+                    case 'skipped':
+                        skippedCount++;
+                        break;
+                    case 'holiday':
+                        holidayProcessedCount++;
+                        break;
+                    case 'leave':
                         leaveProcessedCount++;
-                        console.log(`${logPrefix} Leave attendance processed for user ${userId}`);
-                        continue;
-                    }
+                        break;
+                    case 'weekend':
+                    case 'off':
+                        skippedCount++;
+                        break;
+                    case 'absent':
+                        absentProcessedCount++;
+                        break;
                 }
-                const [leaveRequests] = await database_1.pool.execute(`SELECT * FROM leave_requests WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved' AND (cancelled_by IS NULL OR cancelled_at IS NULL)`, [userId, date]);
-                if (leaveRequests.length > 0) {
-                    const attendanceData = {
-                        user_id: userId,
-                        date: date,
-                        status: 'leave',
-                        check_in_time: null,
-                        check_out_time: null,
-                        location_coordinates: null,
-                        location_verified: false,
-                        location_address: null,
-                        notes: 'On approved leave'
-                    };
-                    await attendance_model_1.default.create(attendanceData);
-                    leaveProcessedCount++;
-                    console.log(`${logPrefix} Leave attendance processed for user ${userId} from leave_requests`);
-                    continue;
-                }
-                if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    const status = isWeekend ? 'weekend' : 'off';
-                    let notes = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
-                    const attendanceData = {
-                        user_id: userId,
-                        date: date,
-                        status: status,
-                        check_in_time: null,
-                        check_out_time: null,
-                        location_coordinates: null,
-                        location_verified: false,
-                        location_address: null,
-                        notes: notes
-                    };
-                    await attendance_model_1.default.create(attendanceData);
-                    skippedCount++;
-                    console.log(`${logPrefix} Non-working day (${status}) for user ${userId} on ${dateStr}, marking as ${status}`);
-                    continue;
-                }
-                const attendanceData = {
-                    user_id: userId,
-                    date: date,
-                    status: 'absent',
-                    check_in_time: null,
-                    check_out_time: null,
-                    location_coordinates: null,
-                    location_verified: false,
-                    location_address: null,
-                    notes: 'Scheduled shift but no check-in recorded'
-                };
-                await attendance_model_1.default.create(attendanceData);
-                absentProcessedCount++;
-                console.log(`${logPrefix} Absent attendance recorded for user ${userId} (scheduled shift but no check-in)`);
             }
             const result = {
                 processed: absentProcessedCount + leaveProcessedCount + skippedCount,
@@ -152,6 +74,87 @@ class AttendanceProcessorWorker {
             console.error(`${logPrefix} Error processing attendance:`, error);
             throw error;
         }
+    }
+    static async processAttendanceForUser(userId, date) {
+        const existingAttendance = await attendance_model_1.default.findByUserIdAndDate(userId, date);
+        if (existingAttendance) {
+            return 'skipped';
+        }
+        const effectiveSchedule = await shift_scheduling_service_1.ShiftSchedulingService.getEffectiveScheduleForDate(userId, date);
+        if (effectiveSchedule && effectiveSchedule.schedule_type === 'holiday') {
+            await attendance_model_1.default.create({
+                user_id: userId,
+                date: date,
+                status: 'holiday',
+                check_in_time: null,
+                check_out_time: null,
+                location_coordinates: null,
+                location_verified: false,
+                location_address: null,
+                notes: effectiveSchedule.schedule_note
+            });
+            return 'holiday';
+        }
+        const leaveHistory = await leave_history_model_1.default.findByUserIdAndDateRange(userId, date, date);
+        const activeApprovedLeave = leaveHistory.filter(leave => leave.status === 'approved');
+        if (activeApprovedLeave.length > 0) {
+            await attendance_model_1.default.create({
+                user_id: userId,
+                date: date,
+                status: 'leave',
+                check_in_time: null,
+                check_out_time: null,
+                location_coordinates: null,
+                location_verified: false,
+                location_address: null,
+                notes: 'On approved leave'
+            });
+            return 'leave';
+        }
+        const [leaveRequests] = await database_1.pool.execute(`SELECT * FROM leave_requests WHERE user_id = ? AND ? BETWEEN start_date AND end_date AND status = 'approved' AND (cancelled_by IS NULL OR cancelled_at IS NULL)`, [userId, date]);
+        if (leaveRequests.length > 0) {
+            await attendance_model_1.default.create({
+                user_id: userId,
+                date: date,
+                status: 'leave',
+                check_in_time: null,
+                check_out_time: null,
+                location_coordinates: null,
+                location_verified: false,
+                location_address: null,
+                notes: 'On approved leave'
+            });
+            return 'leave';
+        }
+        if (!effectiveSchedule || !effectiveSchedule.start_time || !effectiveSchedule.end_time) {
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            const status = isWeekend ? 'weekend' : 'off';
+            const notes = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
+            await attendance_model_1.default.create({
+                user_id: userId,
+                date: date,
+                status: status,
+                check_in_time: null,
+                check_out_time: null,
+                location_coordinates: null,
+                location_verified: false,
+                location_address: null,
+                notes: notes
+            });
+            return status;
+        }
+        await attendance_model_1.default.create({
+            user_id: userId,
+            date: date,
+            status: 'absent',
+            check_in_time: null,
+            check_out_time: null,
+            location_coordinates: null,
+            location_verified: false,
+            location_address: null,
+            notes: 'Scheduled shift but no check-in recorded'
+        });
+        return 'absent';
     }
     static async processYesterdayAttendance() {
         const yesterday = new Date();

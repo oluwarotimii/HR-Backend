@@ -148,9 +148,10 @@ class UserModel {
         }
         return this.findById(id);
     }
-    static async delete(id) {
+    static async delete(id, connection) {
+        const db = connection || database_1.pool;
         const user = await this.findById(id);
-        const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
         if (result.affectedRows > 0) {
             await cache_service_1.CacheService.del(`user:${id}`);
             if (user?.email) {
@@ -159,9 +160,10 @@ class UserModel {
         }
         return result.affectedRows > 0;
     }
-    static async softDelete(id) {
+    static async softDelete(id, connection) {
+        const db = connection || database_1.pool;
         const user = await this.findById(id);
-        const result = await database_1.pool.execute(`UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`, [id]);
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`, [id]);
         if (result.affectedRows > 0) {
             await cache_service_1.CacheService.del(`user:${id}`);
             if (user?.email) {

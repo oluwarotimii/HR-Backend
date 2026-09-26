@@ -211,15 +211,16 @@ router.get('/my-locations', auth_middleware_1.authenticateJWT, async (req, res) 
 });
 router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
-        const { date, check_in_time, location_coordinates, location_address, status: providedStatus } = req.body;
+        const { date, location_coordinates, location_address } = req.body;
         const userId = req.currentUser?.id;
         const userCoords = parseLocationCoordinates(location_coordinates);
         const debug = process.env.ATTENDANCE_DEBUG === 'true';
+        const check_in_time = new Date(`1970-01-01T${new Date().toTimeString().substring(0, 8)}`);
         if (!userId) {
             return res.status(401).json({ success: false, message: 'Unauthorized: No user information' });
         }
-        if (!date || !check_in_time) {
-            return res.status(400).json({ success: false, message: 'Date and check_in_time are required' });
+        if (!date) {
+            return res.status(400).json({ success: false, message: 'Date is required' });
         }
         const requestedDate = new Date(date);
         let attendanceRecord = await attendance_model_1.default.findByUserIdAndDate(userId, requestedDate);
@@ -326,7 +327,7 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
             location_coordinates: (0, attendance_model_1.locationToWKT)(location_coordinates),
             location_verified: verifyResult.verified,
             location_address: location_address || null,
-            status: providedStatus || 'present'
+            status: 'present'
         };
         let result;
         if (attendanceRecord) {
@@ -363,20 +364,21 @@ router.post('/check-in', auth_middleware_1.authenticateJWT, async (req, res) => 
 });
 router.post('/check-out', auth_middleware_1.authenticateJWT, async (req, res) => {
     try {
-        const { date, check_out_time, location_coordinates, location_address } = req.body;
+        const { date, location_coordinates, location_address } = req.body;
         const userId = req.currentUser?.id;
         const userCoords = parseLocationCoordinates(location_coordinates);
         const debug = process.env.ATTENDANCE_DEBUG === 'true';
+        const check_out_time = new Date(`1970-01-01T${new Date().toTimeString().substring(0, 8)}`);
         if (!userId) {
             return res.status(401).json({
                 success: false,
                 message: 'Unauthorized: No user information'
             });
         }
-        if (!date || !check_out_time) {
+        if (!date) {
             return res.status(400).json({
                 success: false,
-                message: 'Date and check_out_time are required'
+                message: 'Date is required'
             });
         }
         const requestedDate = new Date(date);

@@ -312,7 +312,8 @@ router.put('/:id/approve', authenticateJWT, checkPermission('floating_day:approv
         [request.user_id, dateStr, request.reason || 'Floating day off', approverId]
       );
 
-      // Re-process attendance
+      // Re-process attendance — also corrects an existing 'absent' row now that
+      // this date has an approved day-off exception (see processAttendanceForDate).
       await ShiftSchedulingService.processAttendanceForDate(
         request.user_id,
         new Date(dateStr + 'T00:00:00Z')
