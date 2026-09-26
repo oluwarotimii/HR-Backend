@@ -28,7 +28,7 @@ router.get('/', authenticateJWT, checkPermission('staff:read'), async (req: Requ
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN branches b ON s.branch_id = b.id
       LEFT JOIN attendance_locations al ON s.assigned_location_id = al.id
-      WHERE s.status != 'terminated'
+      WHERE s.status NOT IN ('terminated', 'inactive')
     `;
     
     const params: any[] = [];

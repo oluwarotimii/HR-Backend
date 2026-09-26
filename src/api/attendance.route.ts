@@ -343,11 +343,14 @@ router.get('/records', authenticateJWT, checkPermission('attendance:read'), asyn
     const offset = (currentPage - 1) * perPage;
 
     // Build query conditions
+    // Deactivated/terminated staff shouldn't clutter the ordinary attendance
+    // list — a NULL s.status (no staff row) is kept, since that's not a
+    // deactivation case.
     let query = `SELECT a.*, u.full_name, s.employee_id
                  FROM attendance a
                  LEFT JOIN staff s ON a.user_id = s.user_id
                  LEFT JOIN users u ON a.user_id = u.id
-                 WHERE 1=1`;
+                 WHERE (s.status IS NULL OR s.status NOT IN ('inactive', 'terminated'))`;
     const params: any[] = [];
 
     if (userId) {
@@ -379,7 +382,9 @@ router.get('/records', authenticateJWT, checkPermission('attendance:read'), asyn
     console.log('Params:', params);
 
     // Also get total count for pagination metadata
-    let countQuery = `SELECT COUNT(*) as total FROM attendance a WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) as total FROM attendance a
+                       LEFT JOIN staff s ON a.user_id = s.user_id
+                       WHERE (s.status IS NULL OR s.status NOT IN ('inactive', 'terminated'))`;
     const countParams: any[] = [];
 
     if (userId) {

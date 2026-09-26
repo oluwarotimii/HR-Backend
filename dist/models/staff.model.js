@@ -21,9 +21,12 @@ class StaffModel {
             conditions.push('s.department = ?');
             params.push(department);
         }
-        if (status) {
+        if (status && status !== 'all') {
             conditions.push('s.status = ?');
             params.push(status);
+        }
+        else if (!status) {
+            conditions.push("s.status NOT IN ('inactive', 'terminated')");
         }
         if (search) {
             conditions.push('(u.full_name LIKE ? OR u.email LIKE ? OR s.employee_id LIKE ? OR s.designation LIKE ?)');
@@ -44,7 +47,7 @@ class StaffModel {
                 countParams.push(branchId);
             if (department)
                 countParams.push(department);
-            if (status)
+            if (status && status !== 'all')
                 countParams.push(status);
             if (search) {
                 const searchPattern = `%${search}%`;
