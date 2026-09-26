@@ -83,8 +83,17 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// Detailed health check with Redis stats
+// Detailed health check with Redis stats — gated behind LOGS_SECRET since it
+// leaks internal info (DB error messages, Redis version/memory/uptime) with
+// no auth otherwise. Not used by either frontend; ops-only diagnostic.
 router.get('/details', async (req: Request, res: Response) => {
+  if (!LOGS_SECRET) {
+    return res.status(503).json({ success: false, message: 'Detailed health endpoint is not configured' });
+  }
+  const secret = (req.query.secret as string) || req.headers['x-logs-secret'] as string;
+  if (secret !== LOGS_SECRET) {
+    return res.status(401).json({ success: false, message: 'Invalid or missing secret' });
+  }
   try {
     // Check database connectivity
     let dbHealthy = false;
@@ -163,10 +172,17 @@ router.get('/details', async (req: Request, res: Response) => {
   }
 });
 
-// System logs endpoint (protected by LOGS_SECRET env var)
+// System logs endpoint (protected by LOGS_SECRET env var). Was fail-open: if
+// LOGS_SECRET was never set on the server, the `LOGS_SECRET &&` short-circuit
+// skipped the check entirely and made internal application logs public to
+// anyone. Now fails closed instead — no configured secret means no access.
 router.get('/logs', (req: Request, res: Response) => {
+  if (!LOGS_SECRET) {
+    res.status(503).json({ success: false, message: 'Logs endpoint is not configured' });
+    return;
+  }
   const secret = (req.query.secret as string) || req.headers['x-logs-secret'] as string;
-  if (LOGS_SECRET && secret !== LOGS_SECRET) {
+  if (secret !== LOGS_SECRET) {
     res.status(401).json({ success: false, message: 'Invalid or missing logs secret' });
     return;
   }

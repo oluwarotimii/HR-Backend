@@ -53,8 +53,10 @@ const upload = multer({
   }
 });
 
-// Serve uploaded files
-router.get('/uploads/staff-documents/:filename', serveStaffDocument);
+// Serve uploaded files — requires login. These are staff CVs/personal
+// documents; the URL previously had no auth at all, meaning anyone with (or
+// guessing) a filename could view them without being logged in.
+router.get('/uploads/staff-documents/:filename', authenticateJWT, serveStaffDocument);
 
 // --- Admin routes (require permissions) ---
 router.get('/staff/:id/documents', authenticateJWT, checkPermission('documents:read'), getStaffDocuments);

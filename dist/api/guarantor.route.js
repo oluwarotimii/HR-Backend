@@ -41,7 +41,7 @@ const upload = (0, multer_1.default)({
         }
     }
 });
-router.get('/uploads/:filename', (req, res) => {
+router.get('/uploads/:filename', auth_middleware_1.authenticateJWT, (req, res) => {
     const filename = req.params.filename;
     const filePath = path_1.default.join(process.cwd(), 'uploads', 'guarantors', req.params.filename);
     if (!fs_1.default.existsSync(filePath)) {
@@ -50,7 +50,6 @@ router.get('/uploads/:filename', (req, res) => {
             message: 'File not found'
         });
     }
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.sendFile(filePath);
 });
 router.get('/staff/:staffId', auth_middleware_1.authenticateJWT, guarantor_controller_1.getGuarantors);
