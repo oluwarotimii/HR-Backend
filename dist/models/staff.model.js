@@ -207,6 +207,11 @@ class StaffModel {
         if (staffData.status !== undefined) {
             updates.push('status = ?');
             values.push(staffData.status);
+            if ((staffData.status === 'inactive' || staffData.status === 'terminated') && staffData.resignation_date === undefined) {
+                const today = new Date().toISOString().split('T')[0];
+                updates.push('resignation_date = ?', 'last_working_date = ?');
+                values.push(today, today);
+            }
         }
         if (staffData.reporting_manager_id !== undefined) {
             updates.push('reporting_manager_id = ?');
@@ -453,12 +458,19 @@ class StaffModel {
     }
     static async delete(id, connection) {
         const db = connection || database_1.pool;
-        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`, [id]);
+        const today = new Date().toISOString().split('T')[0];
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'terminated', resignation_date = ?, last_working_date = ? WHERE id = ?`, [today, today, id]);
         return result.affectedRows > 0;
     }
     static async deactivate(id, connection) {
         const db = connection || database_1.pool;
-        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`, [id]);
+        const today = new Date().toISOString().split('T')[0];
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'inactive', resignation_date = ?, last_working_date = ? WHERE id = ?`, [today, today, id]);
+        return result.affectedRows > 0;
+    }
+    static async reactivate(id, connection) {
+        const db = connection || database_1.pool;
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'active', resignation_date = NULL, last_working_date = NULL WHERE id = ?`, [id]);
         return result.affectedRows > 0;
     }
     static async findByDepartment(department, branchId) {

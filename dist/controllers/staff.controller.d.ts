@@ -4,6 +4,7 @@ export declare const getStaffById: (req: Request, res: Response) => Promise<Resp
 export declare const createStaff: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const updateStaff: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const deleteStaff: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const activateStaff: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const terminateStaff: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getStaffByDepartment: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
 export declare const getCurrentUserStaffDetails: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;

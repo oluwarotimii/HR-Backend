@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setStaffDynamicValues = exports.getStaffDynamicValues = exports.deleteDynamicField = exports.updateDynamicField = exports.createDynamicField = exports.getDynamicFields = exports.getCurrentUserStaffDetails = exports.getStaffByDepartment = exports.terminateStaff = exports.deleteStaff = exports.updateStaff = exports.createStaff = exports.getStaffById = exports.getAllStaff = void 0;
+exports.setStaffDynamicValues = exports.getStaffDynamicValues = exports.deleteDynamicField = exports.updateDynamicField = exports.createDynamicField = exports.getDynamicFields = exports.getCurrentUserStaffDetails = exports.getStaffByDepartment = exports.terminateStaff = exports.activateStaff = exports.deleteStaff = exports.updateStaff = exports.createStaff = exports.getStaffById = exports.getAllStaff = void 0;
 const database_1 = require("../config/database");
 const type_utils_1 = require("../utils/type-utils");
 const staff_model_1 = __importDefault(require("../models/staff.model"));
@@ -753,6 +753,76 @@ const deleteStaff = async (req, res) => {
     }
 };
 exports.deleteStaff = deleteStaff;
+const activateStaff = async (req, res) => {
+    try {
+        let staffId;
+        if (req.numericId !== undefined) {
+            staffId = req.numericId;
+        }
+        else {
+            const idParam = req.params.id;
+            const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+            staffId = parseInt(typeof idStr === 'string' ? idStr : '');
+            if (isNaN(staffId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid staff ID'
+                });
+            }
+        }
+        const existingStaff = await staff_model_1.default.findById(staffId);
+        if (!existingStaff) {
+            return res.status(404).json({
+                success: false,
+                message: 'Staff not found'
+            });
+        }
+        const user = await user_model_1.default.findById(existingStaff.user_id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'Associated user not found'
+            });
+        }
+        const connection = await database_1.pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const reactivated = await staff_model_1.default.reactivate(staffId, connection);
+            if (!reactivated) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Staff not found'
+                });
+            }
+            await user_model_1.default.reactivate(existingStaff.user_id, connection);
+            await connection.commit();
+        }
+        catch (err) {
+            await connection.rollback();
+            throw err;
+        }
+        finally {
+            connection.release();
+        }
+        const updatedStaff = await staff_model_1.default.findById(staffId);
+        if (req.currentUser) {
+            await audit_log_model_1.default.logStaffOperation(req.currentUser.id, 'staff.reactivated', staffId, existingStaff, updatedStaff, req.ip, req.get('User-Agent') || undefined);
+        }
+        return res.json({
+            success: true,
+            message: 'Staff reactivated successfully'
+        });
+    }
+    catch (error) {
+        console.error('Activate staff error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+};
+exports.activateStaff = activateStaff;
 const terminateStaff = async (req, res) => {
     try {
         let staffId;

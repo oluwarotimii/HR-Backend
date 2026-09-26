@@ -45,6 +45,7 @@ declare class UserModel {
     static create(userData: UserInput): Promise<User>;
     static update(id: number, userData: UserUpdate): Promise<User | null>;
     static delete(id: number, connection?: any): Promise<boolean>;
+    static reactivate(id: number, connection?: any): Promise<boolean>;
     static softDelete(id: number, connection?: any): Promise<boolean>;
     static comparePassword(inputPassword: string, hashedPassword: string): Promise<boolean>;
     static setPasswordChangeRequirement(userId: number, mustChange: boolean): Promise<User | null>;

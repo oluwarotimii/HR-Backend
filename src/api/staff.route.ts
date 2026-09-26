@@ -5,6 +5,7 @@ import {
   createStaff,
   updateStaff,
   deleteStaff,
+  activateStaff,
   terminateStaff,
   getStaffByDepartment,
   getCurrentUserStaffDetails,
@@ -182,6 +183,7 @@ router.put('/:userId', authenticateJWT, validateNumericId, async (req: Request, 
 });
 
 router.delete('/:id', authenticateJWT, checkPermission('staff.delete'), validateNumericId, deleteStaff);
+router.patch('/:id/activate', authenticateJWT, checkPermission('staff.delete'), validateNumericId, activateStaff);
 router.patch('/:id/terminate', authenticateJWT, checkPermission('staff.terminate'), validateNumericId, terminateStaff);
 
 // Get staff by department

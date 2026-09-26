@@ -276,6 +276,24 @@ class UserModel {
     return result.affectedRows > 0;
   }
 
+  static async reactivate(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
+    const user = await this.findById(id);
+    const result: any = await db.execute(
+      `UPDATE ${this.tableName} SET status = 'active' WHERE id = ?`,
+      [id]
+    );
+
+    if (result.affectedRows > 0) {
+      await CacheService.del(`user:${id}`);
+      if (user?.email) {
+        await CacheService.del(`user:email:${user.email}`);
+      }
+    }
+
+    return result.affectedRows > 0;
+  }
+
   static async softDelete(id: number, connection?: any): Promise<boolean> {
     const db = connection || pool;
     // Fetch current user data to know email for cache invalidation

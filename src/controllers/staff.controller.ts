@@ -888,6 +888,92 @@ export const deleteStaff = async (req: Request, res: Response) => {
   }
 };
 
+export const activateStaff = async (req: Request, res: Response) => {
+  try {
+    let staffId: number;
+    if (req.numericId !== undefined) {
+      staffId = req.numericId;
+    } else {
+      const idParam = req.params.id;
+      const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+      staffId = parseInt(typeof idStr === 'string' ? idStr : '');
+
+      if (isNaN(staffId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid staff ID'
+        });
+      }
+    }
+
+    const existingStaff = await StaffModel.findById(staffId);
+    if (!existingStaff) {
+      return res.status(404).json({
+        success: false,
+        message: 'Staff not found'
+      });
+    }
+
+    const user = await UserModel.findById(existingStaff.user_id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Associated user not found'
+      });
+    }
+
+    // users.status and staff.status must move together atomically, same as
+    // deactivate/terminate.
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const reactivated = await StaffModel.reactivate(staffId, connection);
+      if (!reactivated) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'Staff not found'
+        });
+      }
+
+      await UserModel.reactivate(existingStaff.user_id, connection);
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+    const updatedStaff = await StaffModel.findById(staffId);
+
+    if (req.currentUser) {
+      await AuditLogModel.logStaffOperation(
+        req.currentUser.id,
+        'staff.reactivated',
+        staffId,
+        existingStaff,
+        updatedStaff,
+        req.ip,
+        req.get('User-Agent') || undefined
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: 'Staff reactivated successfully'
+    });
+  } catch (error) {
+    console.error('Activate staff error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
 export const terminateStaff = async (req: Request, res: Response) => {
   try {
     // Use the validated numeric ID from middleware if available, otherwise parse from params
