@@ -159,6 +159,7 @@ router.put('/:userId', auth_middleware_1.authenticateJWT, validateNumericId, asy
     return Promise.resolve().then(() => __importStar(require('../controllers/staff.controller'))).then(({ updateStaff }) => updateStaff(req, res));
 });
 router.delete('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.delete'), validateNumericId, staff_controller_1.deleteStaff);
+router.patch('/:id/activate', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.delete'), validateNumericId, staff_controller_1.activateStaff);
 router.patch('/:id/terminate', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff.terminate'), validateNumericId, staff_controller_1.terminateStaff);
 router.get('/department/:department', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff:read'), staff_controller_1.getStaffByDepartment);
 router.get('/dynamic-fields', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('staff:read'), staff_controller_1.getDynamicFields);

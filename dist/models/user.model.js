@@ -160,6 +160,18 @@ class UserModel {
         }
         return result.affectedRows > 0;
     }
+    static async reactivate(id, connection) {
+        const db = connection || database_1.pool;
+        const user = await this.findById(id);
+        const result = await db.execute(`UPDATE ${this.tableName} SET status = 'active' WHERE id = ?`, [id]);
+        if (result.affectedRows > 0) {
+            await cache_service_1.CacheService.del(`user:${id}`);
+            if (user?.email) {
+                await cache_service_1.CacheService.del(`user:email:${user.email}`);
+            }
+        }
+        return result.affectedRows > 0;
+    }
     static async softDelete(id, connection) {
         const db = connection || database_1.pool;
         const user = await this.findById(id);

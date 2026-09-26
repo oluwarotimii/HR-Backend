@@ -478,6 +478,15 @@ class StaffModel {
     if (staffData.status !== undefined) {
       updates.push('status = ?');
       values.push(staffData.status);
+
+      // Deactivating/terminating a staff member IS how they're recorded as
+      // resigned — the admin doesn't fill out a separate resignation form,
+      // the deactivation date becomes the resignation date automatically.
+      if ((staffData.status === 'inactive' || staffData.status === 'terminated') && staffData.resignation_date === undefined) {
+        const today = new Date().toISOString().split('T')[0];
+        updates.push('resignation_date = ?', 'last_working_date = ?');
+        values.push(today, today);
+      }
     }
 
     if (staffData.reporting_manager_id !== undefined) {
@@ -788,9 +797,12 @@ class StaffModel {
 
   static async delete(id: number, connection?: any): Promise<boolean> {
     const db = connection || pool;
+    // Termination IS the resignation record — today becomes the resignation
+    // and last working date, no separate form to fill out.
+    const today = new Date().toISOString().split('T')[0];
     const result: any = await db.execute(
-      `UPDATE ${this.tableName} SET status = 'terminated' WHERE id = ?`,
-      [id]
+      `UPDATE ${this.tableName} SET status = 'terminated', resignation_date = ?, last_working_date = ? WHERE id = ?`,
+      [today, today, id]
     );
 
     return result.affectedRows > 0;
@@ -799,8 +811,24 @@ class StaffModel {
   // Soft delete - deactivate staff
   static async deactivate(id: number, connection?: any): Promise<boolean> {
     const db = connection || pool;
+    // Deactivation IS the resignation record — today becomes the resignation
+    // and last working date, no separate form to fill out.
+    const today = new Date().toISOString().split('T')[0];
     const result: any = await db.execute(
-      `UPDATE ${this.tableName} SET status = 'inactive' WHERE id = ?`,
+      `UPDATE ${this.tableName} SET status = 'inactive', resignation_date = ?, last_working_date = ? WHERE id = ?`,
+      [today, today, id]
+    );
+
+    return result.affectedRows > 0;
+  }
+
+  // Reactivate a deactivated/terminated staff member — clears the
+  // resignation record that was auto-stamped on deactivation, since they're
+  // no longer resigned.
+  static async reactivate(id: number, connection?: any): Promise<boolean> {
+    const db = connection || pool;
+    const result: any = await db.execute(
+      `UPDATE ${this.tableName} SET status = 'active', resignation_date = NULL, last_working_date = NULL WHERE id = ?`,
       [id]
     );
 

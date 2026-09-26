@@ -228,6 +228,7 @@ declare class StaffModel {
     static update(id: number, staffData: StaffUpdate, connection?: any): Promise<Staff | null>;
     static delete(id: number, connection?: any): Promise<boolean>;
     static deactivate(id: number, connection?: any): Promise<boolean>;
+    static reactivate(id: number, connection?: any): Promise<boolean>;
     static findByDepartment(department: string, branchId?: number): Promise<Staff[]>;
     static findByBranch(branchId: number): Promise<Staff[]>;
 }
