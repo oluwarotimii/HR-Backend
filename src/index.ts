@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { testConnection, initializeRedis } from './config/database';
 import { SystemInitService } from './services/system-init.service';
+import { authenticateJWT } from './middleware/auth.middleware';
 import authRoutes from './api/auth.route';
 import roleRoutes from './api/role.route';
 import userRoutes from './api/user.route';
@@ -299,10 +300,15 @@ const staticFileOptions = {
     res.setHeader('Cache-Control', 'public, max-age=86400'); // 24h cache
   }
 };
-app.use('/api/uploads/leave-requests', express.static(path.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
-app.use('/api/uploads/attachments', express.static(path.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
+// Leave-request attachments can include sensitive personal documents (e.g.
+// medical certificates for sick leave) — require login to fetch them.
+app.use('/api/uploads/leave-requests', authenticateJWT, express.static(path.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
+app.use('/api/uploads/attachments', authenticateJWT, express.static(path.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
 app.use('/api/uploads/profile-photos', express.static(path.join(process.cwd(), 'uploads', 'profile-photos'), staticFileOptions));
-app.use('/api/uploads/guarantors', express.static(path.join(process.cwd(), 'uploads', 'guarantors'), staticFileOptions));
+// Guarantor documents (ID scans, signed forms) are sensitive and must go
+// through the authenticated /api/guarantors/uploads/:filename route instead
+// — this used to also be served here with zero auth, which bypassed that
+// route's auth check entirely since this mount matched the same file path.
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/payment-types', paymentTypeRoutes);

@@ -77,6 +77,13 @@ router.get('/', async (req, res) => {
     }
 });
 router.get('/details', async (req, res) => {
+    if (!LOGS_SECRET) {
+        return res.status(503).json({ success: false, message: 'Detailed health endpoint is not configured' });
+    }
+    const secret = req.query.secret || req.headers['x-logs-secret'];
+    if (secret !== LOGS_SECRET) {
+        return res.status(401).json({ success: false, message: 'Invalid or missing secret' });
+    }
     try {
         let dbHealthy = false;
         let dbDetails = {};
@@ -152,8 +159,12 @@ router.get('/details', async (req, res) => {
     }
 });
 router.get('/logs', (req, res) => {
+    if (!LOGS_SECRET) {
+        res.status(503).json({ success: false, message: 'Logs endpoint is not configured' });
+        return;
+    }
     const secret = req.query.secret || req.headers['x-logs-secret'];
-    if (LOGS_SECRET && secret !== LOGS_SECRET) {
+    if (secret !== LOGS_SECRET) {
         res.status(401).json({ success: false, message: 'Invalid or missing logs secret' });
         return;
     }

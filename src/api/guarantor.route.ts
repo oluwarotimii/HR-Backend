@@ -48,8 +48,11 @@ const upload = multer({
   }
 });
 
-// Serve guarantor documents (public access for viewing)
-router.get('/uploads/:filename', (req: Request, res: Response) => {
+// Serve guarantor documents — requires login. These are ID scans/proof of
+// address for guarantors; the URL previously had no auth at all (and set
+// Access-Control-Allow-Origin: * on top of that), meaning anyone with or
+// guessing a filename could view them from anywhere without being logged in.
+router.get('/uploads/:filename', authenticateJWT, (req: Request, res: Response) => {
   const filename = req.params.filename;
   const filePath = path.join(process.cwd(), 'uploads', 'guarantors', req.params.filename as string);
 
@@ -60,7 +63,6 @@ router.get('/uploads/:filename', (req: Request, res: Response) => {
     });
   }
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.sendFile(filePath);
 });
 

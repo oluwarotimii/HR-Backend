@@ -45,7 +45,7 @@ const upload = (0, multer_1.default)({
         }
     }
 });
-router.get('/uploads/staff-documents/:filename', staff_document_controller_1.serveStaffDocument);
+router.get('/uploads/staff-documents/:filename', auth_middleware_1.authenticateJWT, staff_document_controller_1.serveStaffDocument);
 router.get('/staff/:id/documents', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:read'), staff_document_controller_1.getStaffDocuments);
 router.get('/staff/documents/:documentId', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:read'), staff_document_controller_1.getStaffDocument);
 router.post('/staff/:id/documents', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('documents:upload'), upload.array('documents', 5), staff_document_controller_1.uploadStaffDocument);

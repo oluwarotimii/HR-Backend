@@ -45,6 +45,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const path_1 = __importDefault(require("path"));
 const database_1 = require("./config/database");
 const system_init_service_1 = require("./services/system-init.service");
+const auth_middleware_1 = require("./middleware/auth.middleware");
 const auth_route_1 = __importDefault(require("./api/auth.route"));
 const role_route_1 = __importDefault(require("./api/role.route"));
 const user_route_1 = __importDefault(require("./api/user.route"));
@@ -280,10 +281,9 @@ const bootstrap = async () => {
             res.setHeader('Cache-Control', 'public, max-age=86400');
         }
     };
-    app.use('/api/uploads/leave-requests', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
-    app.use('/api/uploads/attachments', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
+    app.use('/api/uploads/leave-requests', auth_middleware_1.authenticateJWT, express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'leave-requests'), staticFileOptions));
+    app.use('/api/uploads/attachments', auth_middleware_1.authenticateJWT, express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'attachments'), staticFileOptions));
     app.use('/api/uploads/profile-photos', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'profile-photos'), staticFileOptions));
-    app.use('/api/uploads/guarantors', express_1.default.static(path_1.default.join(process.cwd(), 'uploads', 'guarantors'), staticFileOptions));
     app.use('/api/attendance', attendance_route_1.default);
     app.use('/api/holidays', holiday_route_1.default);
     app.use('/api/payment-types', payment_type_route_1.default);
