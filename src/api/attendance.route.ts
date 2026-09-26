@@ -1149,6 +1149,19 @@ router.get('/:id', authenticateJWT, checkPermission('attendance:read'), async (r
   }
 });
 
+// Attaches each change's staff name so the admin UI doesn't have to show bare
+// user IDs. Best-effort — a missing name just falls back to "User #<id>".
+async function attachStaffNames<T extends { userId: number }>(changes: T[]): Promise<(T & { userName: string })[]> {
+  if (changes.length === 0) return [];
+  const userIds = [...new Set(changes.map(c => c.userId))];
+  const [rows]: any = await pool.execute(
+    `SELECT id, full_name FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`,
+    userIds
+  );
+  const nameById = new Map<number, string>(rows.map((r: any) => [r.id, r.full_name]));
+  return changes.map(c => ({ ...c, userName: nameById.get(c.userId) || `User #${c.userId}` }));
+}
+
 // POST /api/attendance/correct-historical - One-time cleanup for staff wrongly
 // marked 'absent' in the past by the shift-scheduling bugs fixed this session.
 // Always run with dryRun:true first to review what would change before applying.
@@ -1164,16 +1177,51 @@ router.post('/correct-historical', authenticateJWT, checkPermission('attendance:
     }
 
     const result = await ShiftSchedulingService.bulkCorrectPastAbsences(startDate, endDate, dryRun !== false);
+    const changes = await attachStaffNames(result.changes);
 
     return res.json({
       success: true,
       message: dryRun === false
         ? `Corrected ${result.corrected} of ${result.totalChecked} 'absent' records.`
         : `Dry run: ${result.corrected} of ${result.totalChecked} 'absent' records would be corrected. Re-run with dryRun:false to apply.`,
-      data: result
+      data: { ...result, changes }
     });
   } catch (error) {
     console.error('Correct historical attendance error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/attendance/correct-historical-late - Companion cleanup: staff who
+// actually checked in on a day that (under the old, buggy schedule logic)
+// falsely looked like a working day, and got penalized 'late'/'early_departure'
+// for a shift that shouldn't have existed. Always run with dryRun:true first.
+router.post('/correct-historical-late', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, dryRun } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and endDate are required (YYYY-MM-DD) — this only ever corrects records in that range.'
+      });
+    }
+
+    const result = await ShiftSchedulingService.bulkCorrectLateOnNonWorkingDays(startDate, endDate, dryRun !== false);
+    const changes = await attachStaffNames(result.changes);
+
+    return res.json({
+      success: true,
+      message: dryRun === false
+        ? `Corrected ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records.`
+        : `Dry run: ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records would be corrected. Re-run with dryRun:false to apply.`,
+      data: { ...result, changes }
+    });
+  } catch (error) {
+    console.error('Correct historical late-attendance error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'

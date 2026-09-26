@@ -31,6 +31,16 @@ export declare class ShiftSchedulingService {
             to: string;
         }[];
     }>;
+    static bulkCorrectLateOnNonWorkingDays(startDate: string, endDate: string, dryRun: boolean): Promise<{
+        totalChecked: number;
+        corrected: number;
+        changes: {
+            userId: number;
+            date: string;
+            from: string;
+            to: string;
+        }[];
+    }>;
     static reprocessLastSaturdayAttendance(specificDate?: string): Promise<{
         reprocessed: number;
         dates: string[];

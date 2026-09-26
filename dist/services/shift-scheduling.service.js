@@ -318,6 +318,36 @@ class ShiftSchedulingService {
         }
         return { totalChecked: rows.length, corrected, changes };
     }
+    static async bulkCorrectLateOnNonWorkingDays(startDate, endDate, dryRun) {
+        const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status FROM attendance
+       WHERE status IN ('late', 'early_departure') AND check_in_time IS NOT NULL AND date BETWEEN ? AND ?
+       ORDER BY date ASC`, [startDate, endDate]);
+        let corrected = 0;
+        const changes = [];
+        for (const record of rows) {
+            const date = new Date(record.date);
+            const effectiveSchedule = await this.getEffectiveScheduleForDate(record.user_id, date);
+            const stillAGenuineWorkday = effectiveSchedule?.start_time &&
+                effectiveSchedule?.end_time &&
+                effectiveSchedule.schedule_type !== 'holiday' &&
+                effectiveSchedule.schedule_type !== 'leave';
+            if (stillAGenuineWorkday)
+                continue;
+            corrected++;
+            if (changes.length < 500) {
+                changes.push({
+                    userId: record.user_id,
+                    date: date.toISOString().split('T')[0],
+                    from: record.status,
+                    to: 'present',
+                });
+            }
+            if (!dryRun) {
+                await database_1.pool.execute(`UPDATE attendance SET status = 'present', is_late = NULL, is_early_departure = NULL, notes = ? WHERE id = ?`, ['Corrected: late/early-departure penalty removed — this was not actually a scheduled working day', record.id]);
+            }
+        }
+        return { totalChecked: rows.length, corrected, changes };
+    }
     static async reprocessLastSaturdayAttendance(specificDate) {
         const dates = [];
         const now = new Date();
