@@ -799,6 +799,74 @@ export class ShiftSchedulingService {
   }
 
   /**
+   * One-time historical cleanup for the companion bug to bulkCorrectPastAbsences:
+   * staff who actually checked in on a day that (under the old, buggy
+   * schedule logic) falsely looked like a working day, and got penalized
+   * 'late' or 'early_departure' for a shift that shouldn't have existed at
+   * all. Scans 'late'/'early_departure' records that DO have a real
+   * check-in, and if the current (fixed) effective schedule says that day
+   * isn't actually a working day (no schedule, or it's a holiday/leave day),
+   * clears the penalty and credits it as 'present' — the check-in itself is
+   * never touched or removed, only the unfair judgment around it.
+   *
+   * Deliberately narrow, same guarantees as bulkCorrectPastAbsences: only
+   * ever touches rows with a real check-in and a penalty status, never
+   * reassigns to absent/weekend/off, and requires an explicit date range.
+   */
+  static async bulkCorrectLateOnNonWorkingDays(
+    startDate: string,
+    endDate: string,
+    dryRun: boolean
+  ): Promise<{
+    totalChecked: number;
+    corrected: number;
+    changes: { userId: number; date: string; from: string; to: string }[];
+  }> {
+    const [rows]: any = await pool.execute(
+      `SELECT id, user_id, date, status FROM attendance
+       WHERE status IN ('late', 'early_departure') AND check_in_time IS NOT NULL AND date BETWEEN ? AND ?
+       ORDER BY date ASC`,
+      [startDate, endDate]
+    );
+
+    let corrected = 0;
+    const changes: { userId: number; date: string; from: string; to: string }[] = [];
+
+    for (const record of rows) {
+      const date = new Date(record.date);
+      const effectiveSchedule = await this.getEffectiveScheduleForDate(record.user_id, date);
+
+      // A real working schedule still applies — the late/early flag is
+      // legitimate under today's logic too, leave it alone.
+      const stillAGenuineWorkday =
+        effectiveSchedule?.start_time &&
+        effectiveSchedule?.end_time &&
+        effectiveSchedule.schedule_type !== 'holiday' &&
+        effectiveSchedule.schedule_type !== 'leave';
+      if (stillAGenuineWorkday) continue;
+
+      corrected++;
+      if (changes.length < 500) {
+        changes.push({
+          userId: record.user_id,
+          date: date.toISOString().split('T')[0],
+          from: record.status,
+          to: 'present',
+        });
+      }
+
+      if (!dryRun) {
+        await pool.execute(
+          `UPDATE attendance SET status = 'present', is_late = NULL, is_early_departure = NULL, notes = ? WHERE id = ?`,
+          ['Corrected: late/early-departure penalty removed — this was not actually a scheduled working day', record.id]
+        );
+      }
+    }
+
+    return { totalChecked: rows.length, corrected, changes };
+  }
+
+  /**
    * Reprocess attendance for all last Saturday dates
    * Called when the last_saturday_resumption_time global setting is changed
    * to retroactively correct attendance records (late/present status).

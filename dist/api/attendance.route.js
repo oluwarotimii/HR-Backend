@@ -946,6 +946,14 @@ router.get('/:id', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.chec
         });
     }
 });
+async function attachStaffNames(changes) {
+    if (changes.length === 0)
+        return [];
+    const userIds = [...new Set(changes.map(c => c.userId))];
+    const [rows] = await database_1.pool.execute(`SELECT id, full_name FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`, userIds);
+    const nameById = new Map(rows.map((r) => [r.id, r.full_name]));
+    return changes.map(c => ({ ...c, userName: nameById.get(c.userId) || `User #${c.userId}` }));
+}
 router.post('/correct-historical', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:manage'), async (req, res) => {
     try {
         const { startDate, endDate, dryRun } = req.body;
@@ -956,16 +964,44 @@ router.post('/correct-historical', auth_middleware_1.authenticateJWT, (0, auth_m
             });
         }
         const result = await shift_scheduling_service_1.ShiftSchedulingService.bulkCorrectPastAbsences(startDate, endDate, dryRun !== false);
+        const changes = await attachStaffNames(result.changes);
         return res.json({
             success: true,
             message: dryRun === false
                 ? `Corrected ${result.corrected} of ${result.totalChecked} 'absent' records.`
                 : `Dry run: ${result.corrected} of ${result.totalChecked} 'absent' records would be corrected. Re-run with dryRun:false to apply.`,
-            data: result
+            data: { ...result, changes }
         });
     }
     catch (error) {
         console.error('Correct historical attendance error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+router.post('/correct-historical-late', auth_middleware_1.authenticateJWT, (0, auth_middleware_1.checkPermission)('attendance:manage'), async (req, res) => {
+    try {
+        const { startDate, endDate, dryRun } = req.body;
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'startDate and endDate are required (YYYY-MM-DD) — this only ever corrects records in that range.'
+            });
+        }
+        const result = await shift_scheduling_service_1.ShiftSchedulingService.bulkCorrectLateOnNonWorkingDays(startDate, endDate, dryRun !== false);
+        const changes = await attachStaffNames(result.changes);
+        return res.json({
+            success: true,
+            message: dryRun === false
+                ? `Corrected ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records.`
+                : `Dry run: ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records would be corrected. Re-run with dryRun:false to apply.`,
+            data: { ...result, changes }
+        });
+    }
+    catch (error) {
+        console.error('Correct historical late-attendance error:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal server error'
