@@ -1187,8 +1187,8 @@ router.post('/correct-historical', authenticateJWT, checkPermission('attendance:
     return res.json({
       success: true,
       message: dryRun === false
-        ? `Corrected ${result.corrected} of ${result.totalChecked} 'absent' records.`
-        : `Dry run: ${result.corrected} of ${result.totalChecked} 'absent' records would be corrected. Re-run with dryRun:false to apply.`,
+        ? `Corrected ${result.corrected} of ${result.totalChecked} records with no check-in.`
+        : `Dry run: ${result.corrected} of ${result.totalChecked} records with no check-in would be corrected. Re-run with dryRun:false to apply.`,
       data: { ...result, changes }
     });
   } catch (error) {
