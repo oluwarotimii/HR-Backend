@@ -997,8 +997,8 @@ router.post('/correct-historical-late', auth_middleware_1.authenticateJWT, (0, a
         return res.json({
             success: true,
             message: dryRun === false
-                ? `Corrected ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records.`
-                : `Dry run: ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records would be corrected. Re-run with dryRun:false to apply.`,
+                ? `Corrected ${result.corrected} of ${result.totalChecked} Present/Late/Early-Departure records.`
+                : `Dry run: ${result.corrected} of ${result.totalChecked} Present/Late/Early-Departure records would be corrected. Re-run with dryRun:false to apply.`,
             data: { ...result, changes }
         });
     }
