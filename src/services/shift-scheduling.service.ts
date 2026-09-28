@@ -800,18 +800,16 @@ export class ShiftSchedulingService {
 
   /**
    * One-time historical cleanup for the companion bug to bulkCorrectPastAbsences:
-   * staff who actually checked in on a day that (under the old, buggy
-   * schedule logic) falsely looked like a working day, and got penalized
-   * 'late' or 'early_departure' for a shift that shouldn't have existed at
-   * all. Scans 'late'/'early_departure' records that DO have a real
-   * check-in, and if the current (fixed) effective schedule says that day
-   * isn't actually a working day (no schedule, or it's a holiday/leave day),
-   * clears the penalty and credits it as 'present' — the check-in itself is
-   * never touched or removed, only the unfair judgment around it.
+   * staff who actually checked in (or got auto-marked present) on a day that
+   * (under the old, buggy schedule logic) falsely looked like a working day.
+   * If the branch wasn't actually open that day, nobody should be marked
+   * Present/Late/Early-Departure at all — reclassifies to whatever the day
+   * actually was (Weekend, Off, Holiday, Leave). The check-in itself is
+   * never touched or removed, only the incorrect status around it.
    *
    * Deliberately narrow, same guarantees as bulkCorrectPastAbsences: only
-   * ever touches rows with a real check-in and a penalty status, never
-   * reassigns to absent/weekend/off, and requires an explicit date range.
+   * ever touches rows with a real check-in, never invents or deletes a
+   * check-in, and requires an explicit date range.
    */
   static async bulkCorrectLateOnNonWorkingDays(
     startDate: string,
@@ -824,7 +822,7 @@ export class ShiftSchedulingService {
   }> {
     const [rows]: any = await pool.execute(
       `SELECT id, user_id, date, status FROM attendance
-       WHERE status IN ('late', 'early_departure') AND check_in_time IS NOT NULL AND date BETWEEN ? AND ?
+       WHERE status IN ('present', 'late', 'early_departure') AND check_in_time IS NOT NULL AND date BETWEEN ? AND ?
        ORDER BY date ASC`,
       [startDate, endDate]
     );
@@ -836,8 +834,8 @@ export class ShiftSchedulingService {
       const date = new Date(record.date);
       const effectiveSchedule = await this.getEffectiveScheduleForDate(record.user_id, date);
 
-      // A real working schedule still applies — the late/early flag is
-      // legitimate under today's logic too, leave it alone.
+      // A real working schedule still applies — the status is legitimate
+      // under today's logic too, leave it alone.
       const stillAGenuineWorkday =
         effectiveSchedule?.start_time &&
         effectiveSchedule?.end_time &&
@@ -845,20 +843,36 @@ export class ShiftSchedulingService {
         effectiveSchedule.schedule_type !== 'leave';
       if (stillAGenuineWorkday) continue;
 
+      let correctStatus: string;
+      let note: string;
+      if (effectiveSchedule?.schedule_type === 'holiday') {
+        correctStatus = 'holiday';
+        note = effectiveSchedule.schedule_note;
+      } else if (effectiveSchedule?.schedule_type === 'leave') {
+        correctStatus = 'leave';
+        note = effectiveSchedule.schedule_note;
+      } else {
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        correctStatus = isWeekend ? 'weekend' : 'off';
+        note = effectiveSchedule?.schedule_note || (isWeekend ? 'Weekend' : 'Off day');
+      }
+
+      if (correctStatus === record.status) continue;
+
       corrected++;
       if (changes.length < 500) {
         changes.push({
           userId: record.user_id,
           date: date.toISOString().split('T')[0],
           from: record.status,
-          to: 'present',
+          to: correctStatus,
         });
       }
 
       if (!dryRun) {
         await pool.execute(
-          `UPDATE attendance SET status = 'present', is_late = NULL, is_early_departure = NULL, notes = ? WHERE id = ?`,
-          ['Corrected: late/early-departure penalty removed — this was not actually a scheduled working day', record.id]
+          `UPDATE attendance SET status = ?, is_late = NULL, is_early_departure = NULL, notes = ? WHERE id = ?`,
+          [correctStatus, `Corrected: ${note} — this was not actually a scheduled working day`, record.id]
         );
       }
     }

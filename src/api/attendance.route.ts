@@ -1201,9 +1201,10 @@ router.post('/correct-historical', authenticateJWT, checkPermission('attendance:
 });
 
 // POST /api/attendance/correct-historical-late - Companion cleanup: staff who
-// actually checked in on a day that (under the old, buggy schedule logic)
-// falsely looked like a working day, and got penalized 'late'/'early_departure'
-// for a shift that shouldn't have existed. Always run with dryRun:true first.
+// actually checked in (or got auto-marked present) on a day that (under the
+// old, buggy schedule logic) falsely looked like a working day. Reclassifies
+// Present/Late/Early-Departure records to Weekend/Off/Holiday/Leave when the
+// branch wasn't actually open that day. Always run with dryRun:true first.
 router.post('/correct-historical-late', authenticateJWT, checkPermission('attendance:manage'), async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, dryRun } = req.body;
@@ -1221,8 +1222,8 @@ router.post('/correct-historical-late', authenticateJWT, checkPermission('attend
     return res.json({
       success: true,
       message: dryRun === false
-        ? `Corrected ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records.`
-        : `Dry run: ${result.corrected} of ${result.totalChecked} 'late'/'early_departure' records would be corrected. Re-run with dryRun:false to apply.`,
+        ? `Corrected ${result.corrected} of ${result.totalChecked} Present/Late/Early-Departure records.`
+        : `Dry run: ${result.corrected} of ${result.totalChecked} Present/Late/Early-Departure records would be corrected. Re-run with dryRun:false to apply.`,
       data: { ...result, changes }
     });
   } catch (error) {
