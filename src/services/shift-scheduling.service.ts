@@ -713,7 +713,12 @@ export class ShiftSchedulingService {
     currentStatus: string,
     checkInTime: string | null
   ): Promise<{ status: string; note: string } | null> {
-    const autoMarkedStatuses = ['absent', 'weekend', 'off'];
+    // A status of present/late/early_departure with NO check-in at all has no
+    // evidence behind it either way — same blind spot as 'absent' with no
+    // check-in, just mislabeled the other direction. Only ever reached when
+    // checkInTime is falsy (guarded below), so this never touches a record
+    // that has real clock-in data.
+    const autoMarkedStatuses = ['absent', 'weekend', 'off', 'present', 'late', 'early_departure'];
     if (checkInTime || !autoMarkedStatuses.includes(currentStatus)) {
       return null;
     }
@@ -747,14 +752,15 @@ export class ShiftSchedulingService {
    * getEffectiveScheduleForDate (empty-recurrence-days matching every day,
    * branch-mapping falling through to a stale personal schedule, etc.) and for
    * approvals that came in after auto-mark had already run. Scans every
-   * 'absent' record with no real check-in in the given date range, re-derives
-   * what it should be under the current (fixed) logic, and — unless dryRun —
-   * corrects it.
+   * record with no real check-in at all in the given date range — whether it
+   * currently says 'absent' or was manually/incorrectly set to
+   * 'present'/'late'/'early_departure' with no clock-in evidence behind it —
+   * re-derives what it should be under the current (fixed) logic, and unless
+   * dryRun, corrects it.
    *
-   * Deliberately narrow: only ever touches rows with status='absent' and no
-   * check_in_time. Never touches a record with real clock-in data, and the
-   * date range is required so this can't accidentally sweep the entire
-   * history of the company in one call.
+   * Deliberately narrow: only ever touches rows with no check_in_time at all.
+   * Never touches a record with real clock-in data, and the date range is
+   * required so this can't accidentally sweep the entire company history.
    */
   static async bulkCorrectPastAbsences(
     startDate: string,
@@ -767,7 +773,7 @@ export class ShiftSchedulingService {
   }> {
     const [rows]: any = await pool.execute(
       `SELECT id, user_id, date, status FROM attendance
-       WHERE status = 'absent' AND check_in_time IS NULL AND date BETWEEN ? AND ?
+       WHERE status IN ('absent', 'present', 'late', 'early_departure') AND check_in_time IS NULL AND date BETWEEN ? AND ?
        ORDER BY date ASC`,
       [startDate, endDate]
     );

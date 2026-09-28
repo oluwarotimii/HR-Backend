@@ -265,7 +265,7 @@ class ShiftSchedulingService {
         return true;
     }
     static async deriveAttendanceCorrection(userId, date, currentStatus, checkInTime) {
-        const autoMarkedStatuses = ['absent', 'weekend', 'off'];
+        const autoMarkedStatuses = ['absent', 'weekend', 'off', 'present', 'late', 'early_departure'];
         if (checkInTime || !autoMarkedStatuses.includes(currentStatus)) {
             return null;
         }
@@ -294,7 +294,7 @@ class ShiftSchedulingService {
     }
     static async bulkCorrectPastAbsences(startDate, endDate, dryRun) {
         const [rows] = await database_1.pool.execute(`SELECT id, user_id, date, status FROM attendance
-       WHERE status = 'absent' AND check_in_time IS NULL AND date BETWEEN ? AND ?
+       WHERE status IN ('absent', 'present', 'late', 'early_departure') AND check_in_time IS NULL AND date BETWEEN ? AND ?
        ORDER BY date ASC`, [startDate, endDate]);
         let corrected = 0;
         const changes = [];
