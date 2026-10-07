@@ -42,6 +42,30 @@ desktop.ini
 *.swo
 *~
 
+# AI coding assistants / agent tooling (never commit)
+.qwen/
+.claude/
+.opencode/
+.cursor/
+.cursorrules
+.cody/
+.continue/
+.windsurf/
+.trae/
+.amazonq/
+.roo/
+.factory/
+.codeium/
+.aider*
+.github/copilot-instructions.md
+.github/chatmodes/
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+QWEN.md
+COPILOT.md
+
 # Testing
 coverage/
 .nyc_output/
