@@ -10,14 +10,69 @@ import { pool } from '../config/database';
 
 const router = Router();
 
-const getLeavePolicy = async (): Promise<{ exclude_sundays_from_leave: boolean }> => {
+const getLeavePolicy = async (): Promise<{ exclude_sundays_from_leave: boolean; daily_leave_cap: number | null }> => {
   const [rows] = await pool.execute(
-    `SELECT exclude_sundays_from_leave
+    `SELECT exclude_sundays_from_leave, daily_leave_cap
      FROM global_attendance_settings
      LIMIT 1`
   ) as [any[], any];
 
-  return rows[0] || { exclude_sundays_from_leave: false };
+  return rows[0] || { exclude_sundays_from_leave: false, daily_leave_cap: null };
+};
+
+// Normalizes a DB date value (mysql2 may return a Date object or a string
+// depending on column type/driver config) to a plain 'YYYY-MM-DD' string so
+// day-by-day range checks below don't have to care which one it got.
+const toDateOnlyString = (value: any): string => {
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  return String(value).split('T')[0];
+};
+
+// Company-wide cap on how many staff can be off on any single day. Checked
+// against every date in the requested range (unless the leave type is
+// marked as cap-exempt, e.g. sick leave) before the request is allowed to
+// go in at all — rejected immediately rather than quietly sitting in
+// pending and getting rejected by an admin later.
+const checkDailyLeaveCap = async (
+  startDate: string,
+  endDate: string,
+  dailyLeaveCap: number | null
+): Promise<{ breached: boolean; breachedDates?: string[] }> => {
+  if (!dailyLeaveCap || dailyLeaveCap < 1) {
+    return { breached: false };
+  }
+
+  const [overlapping]: any = await pool.execute(
+    `SELECT lr.start_date, lr.end_date
+     FROM leave_requests lr
+     JOIN leave_types lt ON lr.leave_type_id = lt.id
+     WHERE lr.status IN ('submitted', 'approved')
+     AND lt.bypasses_leave_cap = FALSE
+     AND lr.start_date <= ? AND lr.end_date >= ?`,
+    [endDate, startDate]
+  );
+
+  const existingRanges = overlapping.map((r: any) => ({
+    start: toDateOnlyString(r.start_date),
+    end: toDateOnlyString(r.end_date)
+  }));
+
+  const breachedDates: string[] = [];
+  const current = new Date(startDate);
+  const last = new Date(endDate);
+  current.setHours(0, 0, 0, 0);
+  last.setHours(0, 0, 0, 0);
+
+  while (current <= last) {
+    const dayStr = current.toISOString().split('T')[0];
+    const count = existingRanges.filter((r: { start: string; end: string }) => r.start <= dayStr && r.end >= dayStr).length;
+    if (count >= dailyLeaveCap) {
+      breachedDates.push(dayStr);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return breachedDates.length > 0 ? { breached: true, breachedDates } : { breached: false };
 };
 
 const calculateLeaveDays = (startDate: Date, endDate: Date, excludeSundays: boolean): number => {
@@ -528,6 +583,20 @@ router.post(
         success: false,
         message: `Insufficient leave balance. Requested: ${requestedDays} days, Available: ${remainingDays} days (excluding ${pendingDays} days in pending requests)`
       });
+    }
+
+    // CHECK DAILY LEAVE CAP (company-wide max staff off per day)
+    if (!leaveType.bypasses_leave_cap) {
+      const capCheck = await checkDailyLeaveCap(start_date, end_date, leavePolicy.daily_leave_cap);
+      if (capCheck.breached) {
+        const formattedDates = capCheck.breachedDates!
+          .map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+          .join(', ');
+        return res.status(400).json({
+          success: false,
+          message: `The maximum number of staff allowed on leave (${leavePolicy.daily_leave_cap}) has already been reached for: ${formattedDates}. Please choose different dates or contact HR.`
+        });
+      }
     }
 
     // CHECK FOR OVERLAPPING LEAVE REQUESTS

@@ -72,7 +72,7 @@ router.get('/:id', authenticateJWT, async (req: Request, res: Response) => {
 // POST /api/leave-types - Create new leave type
 router.post('/', authenticateJWT, checkPermission('leave:request'), async (req: Request, res: Response) => {
   try {
-    const { name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id } = req.body;
+    const { name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, bypasses_leave_cap } = req.body;
 
     // Validate required fields
     if (!name) {
@@ -99,7 +99,8 @@ router.post('/', authenticateJWT, checkPermission('leave:request'), async (req: 
       allow_carryover: allow_carryover !== undefined ? Boolean(allow_carryover) : false,
       carryover_limit: carryover_limit || 0,
       expiry_rule_id: expiry_rule_id || null,
-      created_by: req.currentUser?.id || null
+      created_by: req.currentUser?.id || null,
+      bypasses_leave_cap: bypasses_leave_cap !== undefined ? Boolean(bypasses_leave_cap) : false
     };
 
     const newLeaveType = await LeaveTypeModel.create(leaveTypeData);
@@ -124,7 +125,7 @@ router.put('/:id', authenticateJWT, checkPermission('leave:approve'), async (req
     const idParam = req.params.id;
     const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
     const leaveTypeId = parseInt(idStr as string);
-    const { name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, is_active } = req.body;
+    const { name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, is_active, bypasses_leave_cap } = req.body;
 
     if (isNaN(leaveTypeId)) {
       return res.status(400).json({
@@ -151,6 +152,7 @@ router.put('/:id', authenticateJWT, checkPermission('leave:approve'), async (req
     if (carryover_limit !== undefined) updateData.carryover_limit = carryover_limit;
     if (expiry_rule_id !== undefined) updateData.expiry_rule_id = expiry_rule_id;
     if (is_active !== undefined) updateData.is_active = Boolean(is_active);
+    if (bypasses_leave_cap !== undefined) updateData.bypasses_leave_cap = Boolean(bypasses_leave_cap);
 
     const updatedLeaveType = await LeaveTypeModel.update(leaveTypeId, updateData);
 

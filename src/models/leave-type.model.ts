@@ -10,6 +10,7 @@ export interface LeaveType {
   expiry_rule_id: number | null;
   created_by: number | null;
   is_active: boolean;
+  bypasses_leave_cap: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -23,6 +24,7 @@ export interface LeaveTypeInput {
   expiry_rule_id?: number | null;
   created_by?: number | null;
   is_active?: boolean;
+  bypasses_leave_cap?: boolean;
 }
 
 export interface LeaveTypeUpdate {
@@ -33,6 +35,7 @@ export interface LeaveTypeUpdate {
   carryover_limit?: number;
   expiry_rule_id?: number | null;
   is_active?: boolean;
+  bypasses_leave_cap?: boolean;
 }
 
 class LeaveTypeModel {
@@ -69,8 +72,8 @@ class LeaveTypeModel {
 
   static async create(leaveTypeData: LeaveTypeInput): Promise<LeaveType> {
     const [result]: any = await pool.execute(
-      `INSERT INTO ${this.tableName} (name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, created_by, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ${this.tableName} (name, days_per_year, is_paid, allow_carryover, carryover_limit, expiry_rule_id, created_by, is_active, bypasses_leave_cap)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         leaveTypeData.name,
         leaveTypeData.days_per_year,
@@ -79,7 +82,8 @@ class LeaveTypeModel {
         leaveTypeData.carryover_limit,
         leaveTypeData.expiry_rule_id || null,
         leaveTypeData.created_by || null,
-        leaveTypeData.is_active ?? true
+        leaveTypeData.is_active ?? true,
+        leaveTypeData.bypasses_leave_cap ?? false
       ]
     );
 
@@ -130,6 +134,11 @@ class LeaveTypeModel {
     if (leaveTypeData.is_active !== undefined) {
       updates.push('is_active = ?');
       values.push(leaveTypeData.is_active);
+    }
+
+    if (leaveTypeData.bypasses_leave_cap !== undefined) {
+      updates.push('bypasses_leave_cap = ?');
+      values.push(leaveTypeData.bypasses_leave_cap);
     }
 
     if (updates.length === 0) {
